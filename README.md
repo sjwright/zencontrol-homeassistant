@@ -18,9 +18,20 @@ Home Assistant custom integration for [zencontrol](https://zencontrol.com) appli
 
 ## Install
 
-Copy `custom_components/zencontrol_tpi` into your Home Assistant `custom_components` directory (or install via HACS once published), then add **Zencontrol TPI** from Settings → Devices & services.
+### HACS (custom repository)
 
-Home Assistant installs the Python dependency automatically from PyPI (`zencontrol-python>=0.1.0`). For local development against an editable checkout:
+1. HACS → Integrations → ⋮ → Custom repositories
+2. Repository: `sjwright/zencontrol-tpi`, Category: Integration
+3. Download **Zencontrol TPI**, then restart Home Assistant
+4. Settings → Devices & services → Add integration → **Zencontrol TPI**
+
+Home Assistant installs `zencontrol-python` from PyPI automatically.
+
+### Manual
+
+Copy `custom_components/zencontrol_tpi` into your Home Assistant `custom_components` directory, restart, then add the integration as above.
+
+For local development against an editable library checkout:
 
 ```bash
 pip install -e /path/to/zencontrol-python
