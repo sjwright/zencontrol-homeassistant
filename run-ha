@@ -9,4 +9,5 @@ source .venv/bin/activate
 
 exec hass \
   --config "$PROJECT_DIR/dev-config" \
+  --skip-pip-packages zencontrol-python \
   --debug

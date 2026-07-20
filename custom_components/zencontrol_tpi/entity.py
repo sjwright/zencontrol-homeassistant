@@ -25,6 +25,8 @@ class ZenControllerEntity(Entity):
     """Base entity linked to a ZenHub."""
 
     _attr_has_entity_name = True
+    # State is pushed via ZenHub event callbacks; do not poll.
+    _attr_should_poll = False
 
     def __init__(self, hub: Any) -> None:
         self._hub = hub

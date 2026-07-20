@@ -1,0 +1,17 @@
+- id: '1784032387403'
+  alias: New automation
+  description: ''
+  triggers:
+  - entity_id: event.zen1_ecd4_4
+    trigger: state
+  conditions:
+  - condition: template
+    value_template: '{{ trigger.to_state.attributes.get(''event_type'') == ''short_press''
+      }}
+
+      '
+  actions:
+  - target:
+      entity_id: light.zen1_ecg19
+    action: light.toggle
+  mode: single

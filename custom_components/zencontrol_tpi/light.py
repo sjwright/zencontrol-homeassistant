@@ -132,7 +132,7 @@ class ZenLightEntity(ZenControllerEntity, LightEntity):
         self._attr_unique_id = f"{ctrl.name}_ecg_{zen_light.address.number}"
         self._suggested_object_id = zen_light.address.entity_id_string()
         self._attr_device_info = controller_device_info(ctrl)
-        self._attr_name = zen_light.label or f"Light {zen_light.address.number}"
+        self._attr_name = zen_light.sub_label or zen_light.label or f"Light {zen_light.address.number}"
 
         self._supported_modes = _build_supported_modes(zen_light.features)
         self._attr_supported_color_modes = self._supported_modes
