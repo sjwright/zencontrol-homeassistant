@@ -1,0 +1,48 @@
+{
+  "title": "zencontrol",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connexion au contrôleur zencontrol",
+        "description": "Saisissez les informations de votre contrôleur d'application zencontrol. Notez que le contrôleur doit disposer d'une licence TPI Advanced.",
+        "data": {
+          "host": "Hôte (adresse IP)",
+          "port": "Port",
+          "mac": "Adresse MAC",
+          "label": "Nom du contrôleur",
+          "unicast": "Utiliser les événements en unicast (non recommandé — uniquement si les paquets de diffusion ne sont pas pris en charge par votre topologie réseau)"
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigurer le contrôleur zencontrol",
+        "description": "Mettez à jour les paramètres de connexion de votre contrôleur d'application zencontrol.",
+        "data": {
+          "host": "Hôte (adresse IP)",
+          "port": "Port",
+          "mac": "Adresse MAC",
+          "label": "Nom du contrôleur",
+          "unicast": "Utiliser les événements en unicast (non recommandé — uniquement si les paquets de diffusion ne sont pas pris en charge par votre topologie réseau)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Impossible d'atteindre le contrôleur. Vérifiez l'hôte/le port et réessayez.",
+      "invalid_mac": "Format d'adresse MAC invalide. Utilisez XX:XX:XX:XX:XX:XX.",
+      "invalid_label": "Le nom du contrôleur ne peut pas être vide."
+    },
+    "abort": {
+      "already_configured": "Ce contrôleur d'application zencontrol est déjà configuré.",
+      "reconfigure_successful": "Reconfiguration réussie."
+    }
+  },
+  "entity": {
+    "select": {
+      "profile": {
+        "name": "Profil"
+      },
+      "group_scene": {
+        "name": "Scène {group}"
+      }
+    }
+  }
+}

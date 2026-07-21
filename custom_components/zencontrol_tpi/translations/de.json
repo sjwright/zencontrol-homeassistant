@@ -1,0 +1,48 @@
+{
+  "title": "zencontrol",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Mit zencontrol-Controller verbinden",
+        "description": "Geben Sie die Daten Ihres zencontrol-Anwendungscontrollers ein. Hinweis: Der Controller benötigt eine TPI Advanced-Lizenz.",
+        "data": {
+          "host": "Host (IP-Adresse)",
+          "port": "Port",
+          "mac": "MAC-Adresse",
+          "label": "Controllername",
+          "unicast": "Unicast-Ereignisse verwenden (nicht empfohlen — nur wenn Broadcast-Pakete von Ihrer Netzwerktopologie nicht unterstützt werden)"
+        }
+      },
+      "reconfigure": {
+        "title": "zencontrol-Controller neu konfigurieren",
+        "description": "Aktualisieren Sie die Verbindungseinstellungen Ihres zencontrol-Anwendungscontrollers.",
+        "data": {
+          "host": "Host (IP-Adresse)",
+          "port": "Port",
+          "mac": "MAC-Adresse",
+          "label": "Controllername",
+          "unicast": "Unicast-Ereignisse verwenden (nicht empfohlen — nur wenn Broadcast-Pakete von Ihrer Netzwerktopologie nicht unterstützt werden)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Controller nicht erreichbar. Prüfen Sie Host/Port und versuchen Sie es erneut.",
+      "invalid_mac": "Ungültiges MAC-Adressformat. Verwenden Sie XX:XX:XX:XX:XX:XX.",
+      "invalid_label": "Der Controllername darf nicht leer sein."
+    },
+    "abort": {
+      "already_configured": "Dieser zencontrol-Anwendungscontroller ist bereits konfiguriert.",
+      "reconfigure_successful": "Neukonfiguration erfolgreich."
+    }
+  },
+  "entity": {
+    "select": {
+      "profile": {
+        "name": "Profil"
+      },
+      "group_scene": {
+        "name": "{group}-Szene"
+      }
+    }
+  }
+}

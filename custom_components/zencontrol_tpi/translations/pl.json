@@ -1,0 +1,48 @@
+{
+  "title": "zencontrol",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Połącz z kontrolerem zencontrol",
+        "description": "Wprowadź dane swojego kontrolera aplikacji zencontrol. Uwaga: kontroler musi mieć przypisaną licencję TPI Advanced.",
+        "data": {
+          "host": "Host (adres IP)",
+          "port": "Port",
+          "mac": "Adres MAC",
+          "label": "Nazwa kontrolera",
+          "unicast": "Używaj zdarzeń unicast (niezalecane — tylko gdy pakiety rozgłoszeniowe nie są obsługiwane przez topologię sieci)"
+        }
+      },
+      "reconfigure": {
+        "title": "Ponownie skonfiguruj kontroler zencontrol",
+        "description": "Zaktualizuj ustawienia połączenia kontrolera aplikacji zencontrol.",
+        "data": {
+          "host": "Host (adres IP)",
+          "port": "Port",
+          "mac": "Adres MAC",
+          "label": "Nazwa kontrolera",
+          "unicast": "Używaj zdarzeń unicast (niezalecane — tylko gdy pakiety rozgłoszeniowe nie są obsługiwane przez topologię sieci)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Nie można połączyć się z kontrolerem. Sprawdź host/port i spróbuj ponownie.",
+      "invalid_mac": "Nieprawidłowy format adresu MAC. Użyj XX:XX:XX:XX:XX:XX.",
+      "invalid_label": "Nazwa kontrolera nie może być pusta."
+    },
+    "abort": {
+      "already_configured": "Ten kontroler aplikacji zencontrol jest już skonfigurowany.",
+      "reconfigure_successful": "Ponowna konfiguracja zakończona pomyślnie."
+    }
+  },
+  "entity": {
+    "select": {
+      "profile": {
+        "name": "Profil"
+      },
+      "group_scene": {
+        "name": "Scena {group}"
+      }
+    }
+  }
+}

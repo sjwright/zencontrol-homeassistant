@@ -1,0 +1,48 @@
+{
+  "title": "zencontrol",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Anslut till zencontrol-styrenhet",
+        "description": "Ange uppgifterna för din zencontrol-applikationsstyrenhet. Observera att styrenheten måste ha en TPI Advanced-licens kopplad.",
+        "data": {
+          "host": "Värd (IP-adress)",
+          "port": "Port",
+          "mac": "MAC-adress",
+          "label": "Styrenhetens namn",
+          "unicast": "Använd unicast-händelser (rekommenderas inte — endast om broadcast-paket inte stöds av din nätverkstopologi)"
+        }
+      },
+      "reconfigure": {
+        "title": "Konfigurera om zencontrol-styrenhet",
+        "description": "Uppdatera anslutningsinställningarna för din zencontrol-applikationsstyrenhet.",
+        "data": {
+          "host": "Värd (IP-adress)",
+          "port": "Port",
+          "mac": "MAC-adress",
+          "label": "Styrenhetens namn",
+          "unicast": "Använd unicast-händelser (rekommenderas inte — endast om broadcast-paket inte stöds av din nätverkstopologi)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Kan inte nå styrenheten. Kontrollera värd/port och försök igen.",
+      "invalid_mac": "Ogiltigt MAC-adressformat. Använd XX:XX:XX:XX:XX:XX.",
+      "invalid_label": "Styrenhetens namn får inte vara tomt."
+    },
+    "abort": {
+      "already_configured": "Denna zencontrol-applikationsstyrenhet är redan konfigurerad.",
+      "reconfigure_successful": "Omkonfiguration lyckades."
+    }
+  },
+  "entity": {
+    "select": {
+      "profile": {
+        "name": "Profil"
+      },
+      "group_scene": {
+        "name": "{group}-scen"
+      }
+    }
+  }
+}

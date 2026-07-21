@@ -1,0 +1,48 @@
+{
+  "title": "zencontrol",
+  "config": {
+    "step": {
+      "user": {
+        "title": "连接到 zencontrol 控制器",
+        "description": "请输入您的 zencontrol 应用控制器信息。请注意，控制器必须已附加 TPI Advanced 许可证。",
+        "data": {
+          "host": "主机（IP 地址）",
+          "port": "端口",
+          "mac": "MAC 地址",
+          "label": "控制器名称",
+          "unicast": "使用单播事件（不推荐 — 仅当您的网络拓扑不支持广播数据包时使用）"
+        }
+      },
+      "reconfigure": {
+        "title": "重新配置 zencontrol 控制器",
+        "description": "更新您的 zencontrol 应用控制器的连接设置。",
+        "data": {
+          "host": "主机（IP 地址）",
+          "port": "端口",
+          "mac": "MAC 地址",
+          "label": "控制器名称",
+          "unicast": "使用单播事件（不推荐 — 仅当您的网络拓扑不支持广播数据包时使用）"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "无法连接到控制器。请检查主机/端口后重试。",
+      "invalid_mac": "MAC 地址格式无效。请使用 XX:XX:XX:XX:XX:XX。",
+      "invalid_label": "控制器名称不能为空。"
+    },
+    "abort": {
+      "already_configured": "此 zencontrol 应用控制器已配置。",
+      "reconfigure_successful": "重新配置成功。"
+    }
+  },
+  "entity": {
+    "select": {
+      "profile": {
+        "name": "配置文件"
+      },
+      "group_scene": {
+        "name": "{group} 场景"
+      }
+    }
+  }
+}

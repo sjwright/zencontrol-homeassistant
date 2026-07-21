@@ -1,0 +1,48 @@
+{
+  "title": "zencontrol",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Opret forbindelse til zencontrol-controller",
+        "description": "Indtast oplysningerne for din zencontrol-applikationscontroller. Bemærk, at controlleren skal have en TPI Advanced-licens tilknyttet.",
+        "data": {
+          "host": "Vært (IP-adresse)",
+          "port": "Port",
+          "mac": "MAC-adresse",
+          "label": "Controllernavn",
+          "unicast": "Brug unicast-hændelser (anbefales ikke — kun hvis broadcast-pakker ikke understøttes af din netværkstopologi)"
+        }
+      },
+      "reconfigure": {
+        "title": "Omkonfigurer zencontrol-controller",
+        "description": "Opdater forbindelsesindstillingerne for din zencontrol-applikationscontroller.",
+        "data": {
+          "host": "Vært (IP-adresse)",
+          "port": "Port",
+          "mac": "MAC-adresse",
+          "label": "Controllernavn",
+          "unicast": "Brug unicast-hændelser (anbefales ikke — kun hvis broadcast-pakker ikke understøttes af din netværkstopologi)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Kan ikke nå controlleren. Tjek vært/port, og prøv igen.",
+      "invalid_mac": "Ugyldigt MAC-adresseformat. Brug XX:XX:XX:XX:XX:XX.",
+      "invalid_label": "Controllernavnet må ikke være tomt."
+    },
+    "abort": {
+      "already_configured": "Denne zencontrol-applikationscontroller er allerede konfigureret.",
+      "reconfigure_successful": "Omkonfiguration lykkedes."
+    }
+  },
+  "entity": {
+    "select": {
+      "profile": {
+        "name": "Profil"
+      },
+      "group_scene": {
+        "name": "{group}-scene"
+      }
+    }
+  }
+}
