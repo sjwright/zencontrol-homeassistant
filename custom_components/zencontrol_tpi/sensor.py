@@ -43,9 +43,9 @@ class ZenSystemVariableSensorEntity(ZenControllerEntity, SensorEntity):
     _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(self, hub: ZenHub, zen_sv: Any) -> None:
-        super().__init__(hub)
-        self._sv = zen_sv
         ctrl = zen_sv.controller
+        super().__init__(hub, ctrl)
+        self._sv = zen_sv
 
         self._attr_unique_id = f"{ctrl.name}_sv{zen_sv.id}_sensor"
         self._suggested_object_id = f"sv{zen_sv.id}"

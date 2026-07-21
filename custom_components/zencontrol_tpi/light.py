@@ -123,9 +123,9 @@ class ZenLightEntity(ZenControllerEntity, LightEntity):
     """HA entity wrapping a single DALI control gear (ZenLight)."""
 
     def __init__(self, hub: ZenHub, zen_light: Any) -> None:
-        super().__init__(hub)
-        self._light = zen_light
         ctrl = zen_light.address.controller
+        super().__init__(hub, ctrl)
+        self._light = zen_light
 
         self._attr_unique_id = f"{ctrl.name}_ecg_{zen_light.address.number}"
         self._suggested_object_id = zen_light.address.entity_id_string()
@@ -222,9 +222,9 @@ class ZenGroupEntity(ZenControllerEntity, LightEntity):
     """HA entity wrapping a DALI group (ZenGroup)."""
 
     def __init__(self, hub: ZenHub, zen_group: Any) -> None:
-        super().__init__(hub)
-        self._group = zen_group
         ctrl = zen_group.address.controller
+        super().__init__(hub, ctrl)
+        self._group = zen_group
 
         self._attr_unique_id = f"{ctrl.name}_group_{zen_group.address.number}"
         self._suggested_object_id = zen_group.address.entity_id_string()

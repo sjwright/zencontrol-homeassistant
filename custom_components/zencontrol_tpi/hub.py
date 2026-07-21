@@ -62,6 +62,9 @@ class ZenHub:
         self._rate_limiter = RateLimiter(max_concurrent=5, delay_between_batches=0.1)
         self._available = False
         self._stopping = False
+        # Per-controller online flags (name → bool). Event-listener up/down still
+        # gates all entities via _available; this tracks controller.connected too.
+        self._controller_online: dict[str, bool] = {}
 
         self.zen: zencontrol.ZenControl | None = None
         self.controllers: list[zencontrol.ZenController] = []
@@ -88,8 +91,19 @@ class ZenHub:
 
     @property
     def available(self) -> bool:
-        """Return True when the hub is connected and discovery succeeded."""
+        """Return True when the event listener is up and discovery succeeded."""
         return self._available
+
+    def is_controller_available(self, zen_ctrl: Any | None = None) -> bool:
+        """Return availability for a specific controller (or hub-wide if None)."""
+        if not self._available:
+            return False
+        if zen_ctrl is None:
+            return True
+        name = getattr(zen_ctrl, "name", None)
+        if name is None:
+            return True
+        return self._controller_online.get(name, bool(getattr(zen_ctrl, "connected", True)))
 
     # ------------------------------------------------------------------
     # Entity registration
@@ -163,6 +177,7 @@ class ZenHub:
                 mac=ctrl_cfg.get(CONF_MAC),
             )
             self.controllers.append(ctrl)
+            self._controller_online[ctrl.name] = False
 
     async def async_start(self) -> None:
         """Wait for controllers, discover entities, refresh state, start events."""
@@ -225,6 +240,8 @@ class ZenHub:
                 await asyncio.sleep(_STARTUP_RETRY_INTERVAL)
 
             await ctrl.interview()
+            ctrl.connected = True
+            self._controller_online[ctrl.name] = True
             _LOGGER.info(
                 "Controller %s ready (version %s)", ctrl.label, ctrl.version
             )
@@ -366,10 +383,17 @@ class ZenHub:
     # zencontrol-python callbacks → HA entity dispatch
     # ------------------------------------------------------------------
 
+    def _set_all_controllers_online(self, online: bool) -> None:
+        """Update per-controller online flags (e.g. on event-listener connect)."""
+        for ctrl in self.controllers:
+            ctrl.connected = online
+            self._controller_online[ctrl.name] = online
+
     async def _on_connect(self) -> None:
         """Library reconnect supervisor calls this on each successful session."""
         _LOGGER.info("zencontrol event listener connected")
         self._available = True
+        self._set_all_controllers_online(True)
         # Initial setup already refreshed before zen.start(); re-query only on reconnect.
         if self._discovery_complete and not self._stopping:
             await self._refresh_light_states()
@@ -379,6 +403,7 @@ class ZenHub:
         """Library notifies disconnect; reconnect is handled inside ZenControl."""
         _LOGGER.info("zencontrol event listener disconnected")
         self._available = False
+        self._set_all_controllers_online(False)
         self._write_entity_states()
 
     def _write_entity_states(self) -> None:

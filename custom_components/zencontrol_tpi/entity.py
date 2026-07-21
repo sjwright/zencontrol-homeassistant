@@ -22,19 +22,20 @@ def controller_device_info(zen_ctrl: Any) -> DeviceInfo:
 
 
 class ZenControllerEntity(Entity):
-    """Base entity linked to a ZenHub."""
+    """Base entity linked to a ZenHub and optionally a specific controller."""
 
     _attr_has_entity_name = True
     # State is pushed via ZenHub event callbacks; do not poll.
     _attr_should_poll = False
 
-    def __init__(self, hub: Any) -> None:
+    def __init__(self, hub: Any, zen_ctrl: Any | None = None) -> None:
         self._hub = hub
+        self._zen_ctrl = zen_ctrl
 
     @property
     def available(self) -> bool:
-        """Return True when the hub is connected."""
-        return self._hub.available
+        """Return True when the hub listener and this controller are online."""
+        return self._hub.is_controller_available(self._zen_ctrl)
 
     @property
     def suggested_object_id(self) -> str | None:

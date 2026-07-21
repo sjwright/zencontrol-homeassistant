@@ -55,7 +55,7 @@ class ZenProfileSelectEntity(ZenControllerEntity, SelectEntity):
     _attr_entity_category = EntityCategory.CONFIG
 
     def __init__(self, hub: ZenHub, zen_ctrl: Any, profiles: list[Any]) -> None:
-        super().__init__(hub)
+        super().__init__(hub, zen_ctrl)
         self._ctrl = zen_ctrl
         self._profiles = {p.label: p for p in profiles if p.label}
 
@@ -98,9 +98,9 @@ class ZenGroupSceneSelectEntity(ZenControllerEntity, SelectEntity):
     # Entity category is no category (controls).
     
     def __init__(self, hub: ZenHub, zen_group: Any) -> None:
-        super().__init__(hub)
-        self._group = zen_group
         ctrl = zen_group.address.controller
+        super().__init__(hub, ctrl)
+        self._group = zen_group
 
         self._attr_unique_id = f"{ctrl.name}_group_{zen_group.address.number}_scene"
         self._suggested_object_id = f"{zen_group.address.entity_id_string()}_scene"

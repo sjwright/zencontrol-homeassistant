@@ -16,18 +16,52 @@
           "mac": "Leave blank and submit to look up from the host IP (same subnet only). Confirm the value, then submit again."
         }
       },
-      "reconfigure": {
-        "title": "Reconfigure zencontrol controller",
-        "description": "Update connection settings for your zencontrol application controller.",
+      "add_another": {
+        "title": "Add another controller",
+        "description": "Configure an additional zencontrol application controller for this integration.",
         "data": {
           "host": "Host (IP address)",
           "port": "Port",
           "mac": "MAC address",
-          "label": "Controller name",
-          "unicast": "Use unicast events (not recommended - only use if broadcast packets are unsupported by your network topology)"
+          "label": "Controller name"
         },
         "data_description": {
           "mac": "Leave blank and submit to look up from the host IP (same subnet only). Confirm the value, then submit again."
+        }
+      },
+      "add_more": {
+        "title": "Add more controllers?",
+        "description": "You can add another controller now, or finish setup.",
+        "menu_options": {
+          "add_another": "Add another controller",
+          "finish": "Finish"
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigure zencontrol",
+        "description": "Choose a controller to edit, or change unicast settings.",
+        "data": {
+          "target": "What to reconfigure"
+        }
+      },
+      "reconfigure_controller": {
+        "title": "Reconfigure controller",
+        "description": "Update connection settings for this zencontrol application controller.",
+        "data": {
+          "host": "Host (IP address)",
+          "port": "Port",
+          "mac": "MAC address",
+          "label": "Controller name"
+        },
+        "data_description": {
+          "mac": "Leave blank and submit to look up from the host IP (same subnet only). Confirm the value, then submit again."
+        }
+      },
+      "unicast_settings": {
+        "title": "Unicast settings",
+        "description": "Unicast is shared by all controllers in this integration.",
+        "data": {
+          "unicast": "Use unicast events (not recommended - only use if broadcast packets are unsupported by your network topology)"
         }
       }
     },
@@ -35,11 +69,56 @@
       "cannot_connect": "Unable to reach the controller. Check the host/port and try again.",
       "invalid_mac": "Invalid MAC address format. Use XX:XX:XX:XX:XX:XX.",
       "invalid_label": "Controller name cannot be empty.",
-      "mac_not_found": "Could not discover a MAC address for that host. Enter it manually (same subnet required for lookup)."
+      "mac_not_found": "Could not discover a MAC address for that host. Enter it manually (same subnet required for lookup).",
+      "duplicate_mac": "A controller with this MAC address is already configured."
     },
     "abort": {
       "already_configured": "This zencontrol application controller is already configured.",
-      "reconfigure_successful": "Reconfiguration successful."
+      "reconfigure_successful": "Reconfiguration successful.",
+      "no_controllers": "No controllers are configured.",
+      "last_controller": "Cannot remove the last controller."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Manage controllers",
+        "description": "Add or remove zencontrol application controllers.",
+        "menu_options": {
+          "add_controller": "Add controller",
+          "remove_controller": "Remove controller"
+        }
+      },
+      "add_controller": {
+        "title": "Add controller",
+        "description": "Enter the details for an additional zencontrol application controller.",
+        "data": {
+          "host": "Host (IP address)",
+          "port": "Port",
+          "mac": "MAC address",
+          "label": "Controller name"
+        },
+        "data_description": {
+          "mac": "Leave blank and submit to look up from the host IP (same subnet only). Confirm the value, then submit again."
+        }
+      },
+      "remove_controller": {
+        "title": "Remove controller",
+        "description": "Select a controller to remove. At least one controller must remain.",
+        "data": {
+          "controller": "Controller"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Unable to reach the controller. Check the host/port and try again.",
+      "invalid_mac": "Invalid MAC address format. Use XX:XX:XX:XX:XX:XX.",
+      "invalid_label": "Controller name cannot be empty.",
+      "mac_not_found": "Could not discover a MAC address for that host. Enter it manually (same subnet required for lookup).",
+      "duplicate_mac": "A controller with this MAC address is already configured."
+    },
+    "abort": {
+      "last_controller": "Cannot remove the last controller."
     }
   },
   "entity": {

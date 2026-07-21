@@ -6,7 +6,15 @@ from types import SimpleNamespace
 
 import pytest
 
+from custom_components.zencontrol_tpi.config_flow import (
+    build_controller_dict,
+    entry_title,
+    unique_controller_name,
+)
 from custom_components.zencontrol_tpi.const import (
+    CONF_LABEL,
+    CONF_MAC,
+    CONF_NAME,
     SCENE_NONE,
     arc_to_brightness,
     brightness_to_arc,
@@ -36,7 +44,12 @@ def test_classify_sysvar() -> None:
 def test_build_manifest_dedupes_sysvars() -> None:
     """Manifest stores one sysvar record with both exposure flags."""
     ctrl = SimpleNamespace(name="zen1")
-    sv = SimpleNamespace(controller=ctrl, id=2, label="Lux Sensor Switch")
+    sv = SimpleNamespace(
+        controller=ctrl,
+        id=2,
+        label="Lux Sensor Switch",
+        interview_serialize=lambda: '{"id": 2}',
+    )
     hub = SimpleNamespace(
         lights=[],
         groups=[],
@@ -70,3 +83,25 @@ async def test_rate_limiter_execute_batch() -> None:
 def test_scene_none_constant() -> None:
     """Scene none label matches mqtt_bridge."""
     assert SCENE_NONE == "None"
+
+
+def test_unique_controller_name_avoids_collisions() -> None:
+    """Controller names stay unique when hosts collide."""
+    existing = [
+        build_controller_dict(
+            "10.0.0.1", 5108, "AA:BB:CC:DD:EE:01", "One", "10001"
+        )
+    ]
+    name = unique_controller_name("10.0.0.1", "AA:BB:CC:DD:EE:FF", existing)
+    assert name != "10001"
+    assert name not in {c[CONF_NAME] for c in existing}
+
+
+def test_entry_title_single_and_multi() -> None:
+    """Entry title shows +N when multiple controllers are present."""
+    one = [{CONF_LABEL: "House", CONF_NAME: "house", CONF_MAC: "AA:BB:CC:DD:EE:01"}]
+    two = one + [
+        {CONF_LABEL: "Garage", CONF_NAME: "garage", CONF_MAC: "AA:BB:CC:DD:EE:02"}
+    ]
+    assert entry_title(one) == "House"
+    assert entry_title(two) == "House (+1)"
