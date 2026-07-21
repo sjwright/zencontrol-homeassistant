@@ -9,7 +9,8 @@ from typing import Any
 
 import zencontrol  # type: ignore[import-untyped]
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.const import EVENT_HOMEASSISTANT_STOP
+from homeassistant.core import Event, HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
@@ -30,6 +31,8 @@ from .const import (
     CONF_MAC,
     CONF_NAME,
     CONF_UNICAST,
+    DATA_PENDING_MANIFEST,
+    DOMAIN,
 )
 from .entity import controller_device_info, sub_device_device_info
 from .manifest_store import (
@@ -336,6 +339,7 @@ class ZenHub:
         self.zen.motion_event = self._on_motion_event
         self.zen.system_variable_change = self._on_sv_change
         self.zen.profile_change = self._on_profile_change
+        self.zen.controller_discovered = self._on_controller_discovered
 
         for idx, ctrl_cfg in enumerate(data.get(CONF_CONTROLLERS, []), start=1):
             ctrl = self.zen.add_controller(
@@ -348,6 +352,51 @@ class ZenHub:
             )
             self.controllers.append(ctrl)
             self._controller_online[ctrl.name] = False
+
+        # Stop before HA cancels lingering tasks on shutdown (avoids reconnect).
+        self.entry.async_on_unload(
+            self.hass.bus.async_listen_once(
+                EVENT_HOMEASSISTANT_STOP, self._async_hass_stop
+            )
+        )
+
+    async def _async_hass_stop(self, _event: Event) -> None:
+        """Close connections as soon as Home Assistant begins shutting down."""
+        await self.async_stop()
+
+    async def _on_controller_discovered(self, discovered: Any) -> None:
+        """Start a discovery flow when multicast reveals an unknown controller."""
+        mac = getattr(discovered, "mac", None)
+        host = getattr(discovered, "host", None)
+        if not mac or not host:
+            return
+        mac_n = str(mac).upper().replace("-", ":")
+        mac_id = mac_n.replace(":", "")
+        for ctrl in self.entry.data.get(CONF_CONTROLLERS, []):
+            configured = str(ctrl.get(CONF_MAC, "")).upper().replace("-", ":").replace(":", "")
+            if configured == mac_id:
+                return
+
+        label = getattr(discovered, "label", None) or mac_n
+        port = int(getattr(discovered, "port", 5108) or 5108)
+        _LOGGER.info(
+            "Discovered zencontrol controller %s (%s) label=%r",
+            host,
+            mac_n,
+            label,
+        )
+        self.hass.async_create_task(
+            self.hass.config_entries.flow.async_init(
+                DOMAIN,
+                context={"source": "discovery"},
+                data={
+                    "host": host,
+                    "port": port,
+                    "mac": mac_n,
+                    "label": label,
+                },
+            )
+        )
 
     async def async_start(self) -> None:
         """Wait for controllers, discover entities, refresh state, start events."""
@@ -418,18 +467,35 @@ class ZenHub:
 
     async def _discover_entities(self) -> None:
         """Full bus discovery or cached manifest load."""
+        from_pending = False
         if self._force_full_discovery:
             manifest = None
         else:
-            manifest = await self._manifest_store.async_load()
+            pending = self.hass.data.get(DOMAIN, {}).pop(DATA_PENDING_MANIFEST, None)
+            if (
+                isinstance(pending, dict)
+                and pending.get("unique_id") == self.entry.unique_id
+                and isinstance(pending.get("manifest"), dict)
+            ):
+                _LOGGER.info("Loading entities from config-flow discovery manifest")
+                manifest = pending["manifest"]
+                from_pending = True
+            else:
+                manifest = await self._manifest_store.async_load()
 
         if manifest:
-            _LOGGER.info("Loading entities from cached discovery manifest")
+            if not from_pending:
+                _LOGGER.info("Loading entities from cached discovery manifest")
             try:
                 needs_save = await load_entities_from_manifest(self, manifest)
-                if needs_save:
-                    _LOGGER.info("Cached manifest outdated; re-saving after hydrate failures")
-                    await self._manifest_store.async_save(build_manifest(self))
+                if needs_save or from_pending:
+                    if needs_save:
+                        _LOGGER.info(
+                            "Cached manifest outdated; re-saving after hydrate failures"
+                        )
+                    await self._manifest_store.async_save(
+                        build_manifest(self) if needs_save else manifest
+                    )
             except (KeyError, TypeError, ValueError) as err:
                 _LOGGER.warning(
                     "Cached manifest invalid (%s), running full discovery", err
@@ -537,19 +603,24 @@ class ZenHub:
 
     async def async_stop(self) -> None:
         """Stop monitoring, close UDP clients, and clear callbacks."""
+        if self._stopping:
+            return
         self._stopping = True
         self._available = False
-        if self.zen is not None:
-            await self.zen.aclose()
-            self.zen.on_connect = None
-            self.zen.on_disconnect = None
-            self.zen.light_change = None
-            self.zen.group_change = None
-            self.zen.button_press = None
-            self.zen.button_long_press = None
-            self.zen.motion_event = None
-            self.zen.system_variable_change = None
-            self.zen.profile_change = None
+        zen = self.zen
+        if zen is None:
+            return
+        await zen.aclose()
+        zen.on_connect = None
+        zen.on_disconnect = None
+        zen.light_change = None
+        zen.group_change = None
+        zen.button_press = None
+        zen.button_long_press = None
+        zen.motion_event = None
+        zen.system_variable_change = None
+        zen.profile_change = None
+        zen.controller_discovered = None
 
     # ------------------------------------------------------------------
     # zencontrol-python callbacks → HA entity dispatch

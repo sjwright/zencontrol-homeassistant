@@ -9,6 +9,9 @@ from homeassistant.const import Platform
 
 DOMAIN: Final = "zencontrol_tpi"
 
+# hass.data[DOMAIN] key for a manifest built during config-flow progress
+DATA_PENDING_MANIFEST: Final = "pending_manifest"
+
 DEFAULT_PORT: Final = 5108
 
 PLATFORMS: Final = [

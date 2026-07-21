@@ -21,7 +21,7 @@ def controller_device_info(zen_ctrl: Any) -> DeviceInfo:
         identifiers={controller_identifier(zen_ctrl)},
         name=zen_ctrl.label,
         manufacturer="ZenControl",
-        model="TPI Controller",
+        model="Controller",
         sw_version=str(zen_ctrl.version) if zen_ctrl.version is not None else None,
     )
 
@@ -34,11 +34,12 @@ def sub_device_device_info(
 ) -> DeviceInfo:
     """Build DeviceInfo for a label-prefix child device under a controller."""
     parent = controller_identifier(zen_ctrl)
+    controller_name = zen_ctrl.label or zen_ctrl.name
     return DeviceInfo(
         identifiers={(DOMAIN, f"{parent[1]}:sub:{sub_device_id}")},
-        name=sub_device_name,
+        name=f"{controller_name} → {sub_device_name}",
         manufacturer="ZenControl",
-        model="Sub-device",
+        model=f"Virtual sub-device of {controller_name}",
         via_device=parent,
     )
 

@@ -97,11 +97,12 @@ def test_unique_controller_name_avoids_collisions() -> None:
     assert name not in {c[CONF_NAME] for c in existing}
 
 
-def test_entry_title_single_and_multi() -> None:
-    """Entry title shows +N when multiple controllers are present."""
+def test_entry_title_is_fixed() -> None:
+    """Entry title is always the hub name, not the first controller."""
     one = [{CONF_LABEL: "House", CONF_NAME: "house", CONF_MAC: "AA:BB:CC:DD:EE:01"}]
     two = one + [
         {CONF_LABEL: "Garage", CONF_NAME: "garage", CONF_MAC: "AA:BB:CC:DD:EE:02"}
     ]
-    assert entry_title(one) == "House"
-    assert entry_title(two) == "House (+1)"
+    assert entry_title(one) == "zencontrol controllers"
+    assert entry_title(two) == "zencontrol controllers"
+    assert entry_title([]) == "zencontrol controllers"
