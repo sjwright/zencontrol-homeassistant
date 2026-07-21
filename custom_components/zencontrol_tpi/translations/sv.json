@@ -11,6 +11,9 @@
           "mac": "MAC-adress",
           "label": "Styrenhetens namn",
           "unicast": "Använd unicast-händelser (rekommenderas inte — endast om broadcast-paket inte stöds av din nätverkstopologi)"
+        },
+        "data_description": {
+          "mac": "Lämna tomt och skicka för att söka upp från värdens IP (endast samma subnät). Bekräfta värdet och skicka igen."
         }
       },
       "reconfigure": {
@@ -22,13 +25,17 @@
           "mac": "MAC-adress",
           "label": "Styrenhetens namn",
           "unicast": "Använd unicast-händelser (rekommenderas inte — endast om broadcast-paket inte stöds av din nätverkstopologi)"
+        },
+        "data_description": {
+          "mac": "Lämna tomt och skicka för att söka upp från värdens IP (endast samma subnät). Bekräfta värdet och skicka igen."
         }
       }
     },
     "error": {
       "cannot_connect": "Kan inte nå styrenheten. Kontrollera värd/port och försök igen.",
       "invalid_mac": "Ogiltigt MAC-adressformat. Använd XX:XX:XX:XX:XX:XX.",
-      "invalid_label": "Styrenhetens namn får inte vara tomt."
+      "invalid_label": "Styrenhetens namn får inte vara tomt.",
+      "mac_not_found": "Kunde inte hitta en MAC-adress för den värden. Ange den manuellt (samma subnät krävs för uppslag)."
     },
     "abort": {
       "already_configured": "Denna zencontrol-applikationsstyrenhet är redan konfigurerad.",

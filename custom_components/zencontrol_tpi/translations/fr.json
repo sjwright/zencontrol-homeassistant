@@ -11,6 +11,9 @@
           "mac": "Adresse MAC",
           "label": "Nom du contrôleur",
           "unicast": "Utiliser les événements en unicast (non recommandé — uniquement si les paquets de diffusion ne sont pas pris en charge par votre topologie réseau)"
+        },
+        "data_description": {
+          "mac": "Laissez vide et validez pour rechercher à partir de l'IP de l'hôte (même sous-réseau uniquement). Confirmez la valeur, puis validez à nouveau."
         }
       },
       "reconfigure": {
@@ -22,13 +25,17 @@
           "mac": "Adresse MAC",
           "label": "Nom du contrôleur",
           "unicast": "Utiliser les événements en unicast (non recommandé — uniquement si les paquets de diffusion ne sont pas pris en charge par votre topologie réseau)"
+        },
+        "data_description": {
+          "mac": "Laissez vide et validez pour rechercher à partir de l'IP de l'hôte (même sous-réseau uniquement). Confirmez la valeur, puis validez à nouveau."
         }
       }
     },
     "error": {
       "cannot_connect": "Impossible d'atteindre le contrôleur. Vérifiez l'hôte/le port et réessayez.",
       "invalid_mac": "Format d'adresse MAC invalide. Utilisez XX:XX:XX:XX:XX:XX.",
-      "invalid_label": "Le nom du contrôleur ne peut pas être vide."
+      "invalid_label": "Le nom du contrôleur ne peut pas être vide.",
+      "mac_not_found": "Impossible de découvrir une adresse MAC pour cet hôte. Saisissez-la manuellement (même sous-réseau requis pour la recherche)."
     },
     "abort": {
       "already_configured": "Ce contrôleur d'application zencontrol est déjà configuré.",

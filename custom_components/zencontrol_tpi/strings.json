@@ -11,6 +11,9 @@
           "mac": "MAC address",
           "label": "Controller name",
           "unicast": "Use unicast events (not recommended - only use if broadcast packets are unsupported by your network topology)"
+        },
+        "data_description": {
+          "mac": "Leave blank and submit to look up from the host IP (same subnet only). Confirm the value, then submit again."
         }
       },
       "reconfigure": {
@@ -22,13 +25,17 @@
           "mac": "MAC address",
           "label": "Controller name",
           "unicast": "Use unicast events (not recommended - only use if broadcast packets are unsupported by your network topology)"
+        },
+        "data_description": {
+          "mac": "Leave blank and submit to look up from the host IP (same subnet only). Confirm the value, then submit again."
         }
       }
     },
     "error": {
       "cannot_connect": "Unable to reach the controller. Check the host/port and try again.",
       "invalid_mac": "Invalid MAC address format. Use XX:XX:XX:XX:XX:XX.",
-      "invalid_label": "Controller name cannot be empty."
+      "invalid_label": "Controller name cannot be empty.",
+      "mac_not_found": "Could not discover a MAC address for that host. Enter it manually (same subnet required for lookup)."
     },
     "abort": {
       "already_configured": "This zencontrol application controller is already configured.",

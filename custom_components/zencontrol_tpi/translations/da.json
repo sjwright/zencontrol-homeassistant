@@ -11,6 +11,9 @@
           "mac": "MAC-adresse",
           "label": "Controllernavn",
           "unicast": "Brug unicast-hændelser (anbefales ikke — kun hvis broadcast-pakker ikke understøttes af din netværkstopologi)"
+        },
+        "data_description": {
+          "mac": "Lad feltet være tomt og indsend for at slå op fra værtens IP (kun samme subnet). Bekræft værdien, og indsend igen."
         }
       },
       "reconfigure": {
@@ -22,13 +25,17 @@
           "mac": "MAC-adresse",
           "label": "Controllernavn",
           "unicast": "Brug unicast-hændelser (anbefales ikke — kun hvis broadcast-pakker ikke understøttes af din netværkstopologi)"
+        },
+        "data_description": {
+          "mac": "Lad feltet være tomt og indsend for at slå op fra værtens IP (kun samme subnet). Bekræft værdien, og indsend igen."
         }
       }
     },
     "error": {
       "cannot_connect": "Kan ikke nå controlleren. Tjek vært/port, og prøv igen.",
       "invalid_mac": "Ugyldigt MAC-adresseformat. Brug XX:XX:XX:XX:XX:XX.",
-      "invalid_label": "Controllernavnet må ikke være tomt."
+      "invalid_label": "Controllernavnet må ikke være tomt.",
+      "mac_not_found": "Kunne ikke finde en MAC-adresse for den vært. Indtast den manuelt (samme subnet kræves for opslag)."
     },
     "abort": {
       "already_configured": "Denne zencontrol-applikationscontroller er allerede konfigureret.",

@@ -11,6 +11,9 @@
           "mac": "MAC-Adresse",
           "label": "Controllername",
           "unicast": "Unicast-Ereignisse verwenden (nicht empfohlen — nur wenn Broadcast-Pakete von Ihrer Netzwerktopologie nicht unterstützt werden)"
+        },
+        "data_description": {
+          "mac": "Leer lassen und absenden, um die Adresse über die Host-IP zu ermitteln (nur gleiches Subnetz). Wert prüfen und erneut absenden."
         }
       },
       "reconfigure": {
@@ -22,13 +25,17 @@
           "mac": "MAC-Adresse",
           "label": "Controllername",
           "unicast": "Unicast-Ereignisse verwenden (nicht empfohlen — nur wenn Broadcast-Pakete von Ihrer Netzwerktopologie nicht unterstützt werden)"
+        },
+        "data_description": {
+          "mac": "Leer lassen und absenden, um die Adresse über die Host-IP zu ermitteln (nur gleiches Subnetz). Wert prüfen und erneut absenden."
         }
       }
     },
     "error": {
       "cannot_connect": "Controller nicht erreichbar. Prüfen Sie Host/Port und versuchen Sie es erneut.",
       "invalid_mac": "Ungültiges MAC-Adressformat. Verwenden Sie XX:XX:XX:XX:XX:XX.",
-      "invalid_label": "Der Controllername darf nicht leer sein."
+      "invalid_label": "Der Controllername darf nicht leer sein.",
+      "mac_not_found": "MAC-Adresse für diesen Host konnte nicht ermittelt werden. Bitte manuell eingeben (Lookup erfordert gleiches Subnetz)."
     },
     "abort": {
       "already_configured": "Dieser zencontrol-Anwendungscontroller ist bereits konfiguriert.",

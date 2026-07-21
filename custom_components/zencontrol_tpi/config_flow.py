@@ -3,15 +3,20 @@
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import logging
 import re
+import socket
 import time
+from functools import partial
 from typing import Any
 
+import getmac
 import voluptuous as vol
 import zencontrol  # type: ignore[import-untyped]
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.const import CONF_HOST, CONF_PORT
+from homeassistant.core import HomeAssistant
 
 from .const import (
     CONF_CONTROLLERS,
@@ -66,8 +71,9 @@ def _connection_schema(
                 CONF_PORT,
                 default=defaults.get(CONF_PORT, DEFAULT_PORT),
             ): vol.All(vol.Coerce(int), vol.Range(min=1, max=65535)),
-            vol.Required(
-                CONF_MAC, default=defaults.get(CONF_MAC, vol.UNDEFINED)
+            vol.Optional(
+                CONF_MAC,
+                default=defaults.get(CONF_MAC, ""),
             ): str,
             vol.Required(
                 CONF_LABEL, default=defaults.get(CONF_LABEL, vol.UNDEFINED)
@@ -78,6 +84,53 @@ def _connection_schema(
             ): bool,
         }
     )
+
+
+async def _async_discover_mac(hass: HomeAssistant, host: str) -> str | None:
+    """Resolve host and look up its MAC via ARP/neighbor discovery.
+
+    Relies on getmac (same approach as some HA core integrations). Only works
+    when Home Assistant shares a layer-2 network with the controller; Docker
+    bridge networking and routed VLANs often fail — callers must keep MAC
+    manually enterable.
+    """
+    host = host.strip()
+    if not host:
+        return None
+
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        try:
+            infos = await hass.async_add_executor_job(
+                socket.getaddrinfo,
+                host,
+                None,
+                socket.AF_UNSPEC,
+                socket.SOCK_DGRAM,
+            )
+        except OSError:
+            _LOGGER.debug("Could not resolve host %s for MAC lookup", host)
+            return None
+        if not infos:
+            return None
+        try:
+            ip = ipaddress.ip_address(infos[0][4][0])
+        except ValueError:
+            return None
+
+    params = {"ip": str(ip)} if ip.version == 4 else {"ip6": str(ip)}
+    try:
+        mac = await hass.async_add_executor_job(
+            partial(getmac.get_mac_address, **params)
+        )
+    except Exception:
+        _LOGGER.debug("MAC lookup failed for %s", host, exc_info=True)
+        return None
+
+    if not mac or mac.replace(":", "").replace("-", "").strip("0") == "":
+        return None
+    return _normalize_mac(mac)
 
 
 async def _test_connection(host: str, port: int, mac: str, label: str) -> bool:
@@ -118,35 +171,51 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
     ) -> ConfigFlowResult:
         """Handle the initial setup step."""
         errors: dict[str, str] = {}
+        defaults: dict[str, Any] = dict(user_input) if user_input else {}
 
         if user_input is not None:
-            result = await self._async_validate_and_build(user_input, errors)
-            if result is not None:
-                host, port, mac, label, unicast = result
-                name = _derive_name(host)
-                mac_id = mac.replace(":", "")
-                await self.async_set_unique_id(mac_id)
-                self._abort_if_unique_id_configured()
-
-                return self.async_create_entry(
-                    title=label,
-                    data={
-                        CONF_CONTROLLERS: [
-                            {
-                                CONF_HOST: host,
-                                CONF_PORT: port,
-                                CONF_MAC: mac,
-                                CONF_NAME: name,
-                                CONF_LABEL: label,
-                            }
-                        ],
-                        CONF_UNICAST: unicast,
-                    },
+            mac = (user_input.get(CONF_MAC) or "").strip()
+            if not mac:
+                discovered = await _async_discover_mac(
+                    self.hass, user_input[CONF_HOST]
                 )
+                if discovered:
+                    # Re-show so the user can confirm the looked-up MAC.
+                    defaults = {**user_input, CONF_MAC: discovered}
+                    return self.async_show_form(
+                        step_id="user",
+                        data_schema=_connection_schema(defaults),
+                        errors={},
+                    )
+                errors[CONF_MAC] = "mac_not_found"
+            else:
+                result = await self._async_validate_and_build(user_input, errors)
+                if result is not None:
+                    host, port, mac, label, unicast = result
+                    name = _derive_name(host)
+                    mac_id = mac.replace(":", "")
+                    await self.async_set_unique_id(mac_id)
+                    self._abort_if_unique_id_configured()
+
+                    return self.async_create_entry(
+                        title=label,
+                        data={
+                            CONF_CONTROLLERS: [
+                                {
+                                    CONF_HOST: host,
+                                    CONF_PORT: port,
+                                    CONF_MAC: mac,
+                                    CONF_NAME: name,
+                                    CONF_LABEL: label,
+                                }
+                            ],
+                            CONF_UNICAST: unicast,
+                        },
+                    )
 
         return self.async_show_form(
             step_id="user",
-            data_schema=_connection_schema(),
+            data_schema=_connection_schema(defaults or None),
             errors=errors,
         )
 
@@ -160,37 +229,52 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            result = await self._async_validate_and_build(user_input, errors)
-            if result is not None:
-                host, port, mac, label, unicast = result
-                mac_id = mac.replace(":", "")
-                await self.async_set_unique_id(mac_id)
-                # Same-MAC reconfigure must not call _abort_if_unique_id_configured —
-                # that helper aborts against this entry. New MAC: reject conflicts.
-                if reconfigure_entry.unique_id != mac_id:
-                    self._abort_if_unique_id_configured()
-
-                # Keep CONF_NAME stable across IP changes so entity unique_ids
-                # (still derived from name) are not orphaned by a host update.
-                name = defaults.get(CONF_NAME) or _derive_name(host)
-
-                return self.async_update_reload_and_abort(
-                    reconfigure_entry,
-                    unique_id=mac_id,
-                    title=label,
-                    data={
-                        CONF_CONTROLLERS: [
-                            {
-                                CONF_HOST: host,
-                                CONF_PORT: port,
-                                CONF_MAC: mac,
-                                CONF_NAME: name,
-                                CONF_LABEL: label,
-                            }
-                        ],
-                        CONF_UNICAST: unicast,
-                    },
+            defaults = {**defaults, **user_input}
+            mac = (user_input.get(CONF_MAC) or "").strip()
+            if not mac:
+                discovered = await _async_discover_mac(
+                    self.hass, user_input[CONF_HOST]
                 )
+                if discovered:
+                    defaults = {**defaults, CONF_MAC: discovered}
+                    return self.async_show_form(
+                        step_id="reconfigure",
+                        data_schema=_connection_schema(defaults),
+                        errors={},
+                    )
+                errors[CONF_MAC] = "mac_not_found"
+            else:
+                result = await self._async_validate_and_build(user_input, errors)
+                if result is not None:
+                    host, port, mac, label, unicast = result
+                    mac_id = mac.replace(":", "")
+                    await self.async_set_unique_id(mac_id)
+                    # Same-MAC reconfigure must not call _abort_if_unique_id_configured —
+                    # that helper aborts against this entry. New MAC: reject conflicts.
+                    if reconfigure_entry.unique_id != mac_id:
+                        self._abort_if_unique_id_configured()
+
+                    # Keep CONF_NAME stable across IP changes so entity unique_ids
+                    # (still derived from name) are not orphaned by a host update.
+                    name = defaults.get(CONF_NAME) or _derive_name(host)
+
+                    return self.async_update_reload_and_abort(
+                        reconfigure_entry,
+                        unique_id=mac_id,
+                        title=label,
+                        data={
+                            CONF_CONTROLLERS: [
+                                {
+                                    CONF_HOST: host,
+                                    CONF_PORT: port,
+                                    CONF_MAC: mac,
+                                    CONF_NAME: name,
+                                    CONF_LABEL: label,
+                                }
+                            ],
+                            CONF_UNICAST: unicast,
+                        },
+                    )
 
         return self.async_show_form(
             step_id="reconfigure",

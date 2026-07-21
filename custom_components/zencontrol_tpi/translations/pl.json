@@ -11,6 +11,9 @@
           "mac": "Adres MAC",
           "label": "Nazwa kontrolera",
           "unicast": "Używaj zdarzeń unicast (niezalecane — tylko gdy pakiety rozgłoszeniowe nie są obsługiwane przez topologię sieci)"
+        },
+        "data_description": {
+          "mac": "Pozostaw puste i wyślij, aby wyszukać na podstawie IP hosta (tylko ta sama podsieć). Potwierdź wartość i wyślij ponownie."
         }
       },
       "reconfigure": {
@@ -22,13 +25,17 @@
           "mac": "Adres MAC",
           "label": "Nazwa kontrolera",
           "unicast": "Używaj zdarzeń unicast (niezalecane — tylko gdy pakiety rozgłoszeniowe nie są obsługiwane przez topologię sieci)"
+        },
+        "data_description": {
+          "mac": "Pozostaw puste i wyślij, aby wyszukać na podstawie IP hosta (tylko ta sama podsieć). Potwierdź wartość i wyślij ponownie."
         }
       }
     },
     "error": {
       "cannot_connect": "Nie można połączyć się z kontrolerem. Sprawdź host/port i spróbuj ponownie.",
       "invalid_mac": "Nieprawidłowy format adresu MAC. Użyj XX:XX:XX:XX:XX:XX.",
-      "invalid_label": "Nazwa kontrolera nie może być pusta."
+      "invalid_label": "Nazwa kontrolera nie może być pusta.",
+      "mac_not_found": "Nie udało się wykryć adresu MAC dla tego hosta. Wprowadź go ręcznie (wyszukiwanie wymaga tej samej podsieci)."
     },
     "abort": {
       "already_configured": "Ten kontroler aplikacji zencontrol jest już skonfigurowany.",

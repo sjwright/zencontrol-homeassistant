@@ -11,6 +11,9 @@
           "mac": "MAC 地址",
           "label": "控制器名称",
           "unicast": "使用单播事件（不推荐 — 仅当您的网络拓扑不支持广播数据包时使用）"
+        },
+        "data_description": {
+          "mac": "留空并提交可根据主机 IP 查找（仅限同一子网）。确认后再次提交。"
         }
       },
       "reconfigure": {
@@ -22,13 +25,17 @@
           "mac": "MAC 地址",
           "label": "控制器名称",
           "unicast": "使用单播事件（不推荐 — 仅当您的网络拓扑不支持广播数据包时使用）"
+        },
+        "data_description": {
+          "mac": "留空并提交可根据主机 IP 查找（仅限同一子网）。确认后再次提交。"
         }
       }
     },
     "error": {
       "cannot_connect": "无法连接到控制器。请检查主机/端口后重试。",
       "invalid_mac": "MAC 地址格式无效。请使用 XX:XX:XX:XX:XX:XX。",
-      "invalid_label": "控制器名称不能为空。"
+      "invalid_label": "控制器名称不能为空。",
+      "mac_not_found": "无法发现该主机的 MAC 地址。请手动输入（查找需要同一子网）。"
     },
     "abort": {
       "already_configured": "此 zencontrol 应用控制器已配置。",
