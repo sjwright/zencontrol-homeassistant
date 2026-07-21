@@ -16,60 +16,52 @@
           "mac": "Pozostaw puste i wyślij, aby wyszukać na podstawie IP hosta (tylko ta sama podsieć). Potwierdź wartość i wyślij ponownie."
         }
       },
-      "reconfigure": {
-        "title": "Ponownie skonfiguruj kontroler zencontrol",
-        "description": "Zaktualizuj ustawienia połączenia kontrolera aplikacji zencontrol.",
+      "add_another": {
+        "title": "Dodaj kolejny kontroler",
+        "description": "Skonfiguruj dodatkowy kontroler aplikacji zencontrol dla tej integracji.",
         "data": {
           "host": "Host (adres IP)",
           "port": "Port",
           "mac": "Adres MAC",
-          "label": "Nazwa kontrolera",
-          "unicast": "Używaj zdarzeń unicast (niezalecane — tylko gdy pakiety rozgłoszeniowe nie są obsługiwane przez topologię sieci)",
-          "target": "What to reconfigure"
+          "label": "Nazwa kontrolera"
         },
         "data_description": {
           "mac": "Pozostaw puste i wyślij, aby wyszukać na podstawie IP hosta (tylko ta sama podsieć). Potwierdź wartość i wyślij ponownie."
         }
       },
-      "add_another": {
-        "title": "Add another controller",
-        "description": "Configure an additional zencontrol application controller for this integration.",
-        "data": {
-          "host": "Host (IP address)",
-          "port": "Port",
-          "mac": "MAC address",
-          "label": "Controller name"
-        },
-        "data_description": {
-          "mac": "Leave blank and submit to look up from the host IP (same subnet only). Confirm the value, then submit again."
+      "add_more": {
+        "title": "Dodać więcej kontrolerów?",
+        "description": "Możesz teraz dodać kolejny kontroler lub zakończyć konfigurację. Potem możesz utworzyć podurządzenia, aby przypisać pomieszczenia.",
+        "menu_options": {
+          "add_another": "➕ Dodaj kolejny kontroler",
+          "finish": "✅ Kontynuuj"
         }
       },
-      "add_more": {
-        "title": "Add more controllers?",
-        "description": "You can add another controller now, or finish setup.",
-        "menu_options": {
-          "add_another": "Add another controller",
-          "finish": "Finish"
+      "reconfigure": {
+        "title": "Ponownie skonfiguruj zencontrol",
+        "description": "Wybierz kontroler do edycji lub zmień ustawienia unicast.",
+        "data": {
+          "target": "Co ponownie skonfigurować"
         }
       },
       "reconfigure_controller": {
-        "title": "Reconfigure controller",
-        "description": "Update connection settings for this zencontrol application controller.",
+        "title": "Ponownie skonfiguruj kontroler",
+        "description": "Zaktualizuj ustawienia połączenia tego kontrolera aplikacji zencontrol.",
         "data": {
-          "host": "Host (IP address)",
+          "host": "Host (adres IP)",
           "port": "Port",
-          "mac": "MAC address",
-          "label": "Controller name"
+          "mac": "Adres MAC",
+          "label": "Nazwa kontrolera"
         },
         "data_description": {
-          "mac": "Leave blank and submit to look up from the host IP (same subnet only). Confirm the value, then submit again."
+          "mac": "Pozostaw puste i wyślij, aby wyszukać na podstawie IP hosta (tylko ta sama podsieć). Potwierdź wartość i wyślij ponownie."
         }
       },
       "unicast_settings": {
-        "title": "Unicast settings",
-        "description": "Unicast is shared by all controllers in this integration.",
+        "title": "Ustawienia unicast",
+        "description": "Unicast jest wspólny dla wszystkich kontrolerów w tej integracji.",
         "data": {
-          "unicast": "Use unicast events (not recommended - only use if broadcast packets are unsupported by your network topology)"
+          "unicast": "Używaj zdarzeń unicast (niezalecane — tylko gdy pakiety rozgłoszeniowe nie są obsługiwane przez topologię sieci)"
         }
       }
     },
@@ -78,13 +70,107 @@
       "invalid_mac": "Nieprawidłowy format adresu MAC. Użyj XX:XX:XX:XX:XX:XX.",
       "invalid_label": "Nazwa kontrolera nie może być pusta.",
       "mac_not_found": "Nie udało się wykryć adresu MAC dla tego hosta. Wprowadź go ręcznie (wyszukiwanie wymaga tej samej podsieci).",
-      "duplicate_mac": "A controller with this MAC address is already configured."
+      "duplicate_mac": "Kontroler z tym adresem MAC jest już skonfigurowany."
     },
     "abort": {
       "already_configured": "Ten kontroler aplikacji zencontrol jest już skonfigurowany.",
       "reconfigure_successful": "Ponowna konfiguracja zakończona pomyślnie.",
-      "no_controllers": "No controllers are configured.",
-      "last_controller": "Cannot remove the last controller."
+      "no_controllers": "Nie skonfigurowano żadnych kontrolerów.",
+      "last_controller": "Nie można usunąć ostatniego kontrolera."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Zarządzaj zencontrol",
+        "description": "Wybierz kontroler do zarządzania albo dodaj kolejny.",
+        "menu_options": {
+          "add_controller": "➕ Dodaj kontroler"
+        }
+      },
+      "controller": {
+        "title": "Zarządzaj kontrolerem",
+        "description": "### {controller}\n\nPodurządzenia pozwalają wydzielić część encji tego kontrolera do wirtualnego urządzenia podrzędnego, aby przypisać im pomieszczenie w Home Assistant.",
+        "menu_options": {
+          "add_sub_device": "➕ Dodaj podurządzenie",
+          "remove_controller": "❌ Usuń kontroler"
+        }
+      },
+      "sub_device": {
+        "title": "Zarządzaj podurządzeniem",
+        "description": "### {sub_device}\n\nNa {controller}. Prefiksy: {prefixes}",
+        "menu_options": {
+          "reconfigure_sub_device": "⚙️ Rekonfiguruj",
+          "delete_sub_device": "❌ Usuń"
+        }
+      },
+      "add_controller": {
+        "title": "Dodaj kontroler",
+        "description": "Wprowadź dane dodatkowego kontrolera aplikacji zencontrol.",
+        "data": {
+          "host": "Host (adres IP)",
+          "port": "Port",
+          "mac": "Adres MAC",
+          "label": "Nazwa kontrolera"
+        },
+        "data_description": {
+          "mac": "Pozostaw puste i wyślij, aby wyszukać na podstawie IP hosta (tylko ta sama podsieć). Potwierdź wartość i wyślij ponownie."
+        }
+      },
+      "remove_controller": {
+        "title": "Usuń kontroler",
+        "description": "Usunąć {controller}? Co najmniej jeden kontroler musi pozostać."
+      },
+      "add_sub_device": {
+        "title": "Dodaj podurządzenie",
+        "description": "Zdefiniuj podurządzenie dla {controller}. Wprowadź prefiksy etykiet rozdzielone przecinkami. Pierwsza nazwa staje się nazwą urządzenia. Przykład: Kitchen,Living,Lounge,Entrance",
+        "data": {
+          "prefixes": "Prefiksy etykiet",
+          "area_id": "Pomieszczenie"
+        },
+        "data_description": {
+          "prefixes": "Bez rozróżniania wielkości liter. Oddzielone przecinkami. Pasuje do etykiet zaczynających się od którejkolwiek z tych wartości.",
+          "area_id": "Opcjonalnie. Przypisz to podurządzenie do obszaru (pomieszczenia) Home Assistant."
+        }
+      },
+      "reconfigure_sub_device": {
+        "title": "Rekonfiguruj {sub_device}",
+        "description": "Zaktualizuj prefiksy etykiet tego podurządzenia na {controller}. Pierwsza nazwa staje się nazwą urządzenia.",
+        "data": {
+          "prefixes": "Prefiksy etykiet",
+          "area_id": "Pomieszczenie"
+        },
+        "data_description": {
+          "prefixes": "Bez rozróżniania wielkości liter. Oddzielone przecinkami. Pasuje do etykiet zaczynających się od którejkolwiek z tych wartości.",
+          "area_id": "Opcjonalnie. Przypisz to podurządzenie do obszaru (pomieszczenia) Home Assistant."
+        }
+      },
+      "delete_sub_device": {
+        "title": "Usuń podurządzenie",
+        "description": "Usunąć {sub_device} z {controller}? Dotknięte encje wracają do urządzenia kontrolera."
+      },
+      "suggest_sub_devices": {
+        "title": "Skonfigurować podurządzenia?",
+        "description": "### {controller}\n\nPodurządzenia grupują encje według prefiksu etykiety, aby przypisać je do pomieszczenia. Możesz pominąć ten krok i dodać je później w Konfiguruj.",
+        "menu_options": {
+          "add_sub_device": "➕ Dodaj podurządzenie",
+          "finish_setup": "Pomiń na razie"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Nie można połączyć się z kontrolerem. Sprawdź host/port i spróbuj ponownie.",
+      "invalid_mac": "Nieprawidłowy format adresu MAC. Użyj XX:XX:XX:XX:XX:XX.",
+      "invalid_label": "Nazwa kontrolera nie może być pusta.",
+      "mac_not_found": "Nie udało się wykryć adresu MAC dla tego hosta. Wprowadź go ręcznie (wyszukiwanie wymaga tej samej podsieci).",
+      "duplicate_mac": "Kontroler z tym adresem MAC jest już skonfigurowany.",
+      "empty_prefixes": "Wprowadź co najmniej jeden prefiks etykiety.",
+      "duplicate_prefix": "Ten prefiks jest już używany przez inne podurządzenie na tym kontrolerze."
+    },
+    "abort": {
+      "last_controller": "Nie można usunąć ostatniego kontrolera.",
+      "no_controllers": "Nie skonfigurowano żadnych kontrolerów.",
+      "no_sub_devices": "Dla tego kontrolera nie zdefiniowano żadnych podurządzeń."
     }
   },
   "entity": {
@@ -95,48 +181,6 @@
       "group_scene": {
         "name": "Scena {group}"
       }
-    }
-  },
-  "options": {
-    "step": {
-      "init": {
-        "title": "Manage controllers",
-        "description": "Add or remove zencontrol application controllers.",
-        "menu_options": {
-          "add_controller": "Add controller",
-          "remove_controller": "Remove controller"
-        }
-      },
-      "add_controller": {
-        "title": "Add controller",
-        "description": "Enter the details for an additional zencontrol application controller.",
-        "data": {
-          "host": "Host (IP address)",
-          "port": "Port",
-          "mac": "MAC address",
-          "label": "Controller name"
-        },
-        "data_description": {
-          "mac": "Leave blank and submit to look up from the host IP (same subnet only). Confirm the value, then submit again."
-        }
-      },
-      "remove_controller": {
-        "title": "Remove controller",
-        "description": "Select a controller to remove. At least one controller must remain.",
-        "data": {
-          "controller": "Controller"
-        }
-      }
-    },
-    "error": {
-      "cannot_connect": "Unable to reach the controller. Check the host/port and try again.",
-      "invalid_mac": "Invalid MAC address format. Use XX:XX:XX:XX:XX:XX.",
-      "invalid_label": "Controller name cannot be empty.",
-      "mac_not_found": "Could not discover a MAC address for that host. Enter it manually (same subnet required for lookup).",
-      "duplicate_mac": "A controller with this MAC address is already configured."
-    },
-    "abort": {
-      "last_controller": "Cannot remove the last controller."
     }
   }
 }

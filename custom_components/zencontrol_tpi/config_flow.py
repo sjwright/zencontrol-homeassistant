@@ -15,27 +15,44 @@ import getmac
 import voluptuous as vol
 import zencontrol  # type: ignore[import-untyped]
 from homeassistant.config_entries import (
+    SOURCE_USER,
     ConfigEntry,
     ConfigFlow,
     ConfigFlowResult,
+    FlowType,
     OptionsFlow,
 )
 from homeassistant.const import CONF_HOST, CONF_PORT
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.selector import AreaSelector
+from homeassistant.helpers.translation import async_get_translations
 
 from .const import (
     CONF_CONTROLLERS,
     CONF_LABEL,
     CONF_MAC,
     CONF_NAME,
+    CONF_SUB_DEVICES,
     CONF_UNICAST,
     DEFAULT_PORT,
     DOMAIN,
+)
+from .sub_devices import (
+    SubDeviceDef,
+    parse_sub_device_prefixes,
+    sub_device_from_prefixes,
+    sub_devices_from_controller,
+    sub_devices_to_config,
+    validate_sub_device_prefixes,
 )
 
 _LOGGER = logging.getLogger(__name__)
 
 _MAC_RE = re.compile(r"^([0-9A-Fa-f]{2}[:\-]){5}([0-9A-Fa-f]{2})$")
+CONF_AREA_ID = "area_id"
+CONF_PREFIXES = "prefixes"
+# Options-flow context: open suggest step for this controller name
+CTX_SUGGEST_SUB_DEVICES = "suggest_sub_devices_ctrl"
 
 
 def _normalize_mac(mac: str) -> str:
@@ -89,15 +106,19 @@ def build_controller_dict(
     mac: str,
     label: str,
     name: str,
+    sub_devices: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Build a persisted controller config dict."""
-    return {
+    data: dict[str, Any] = {
         CONF_HOST: host,
         CONF_PORT: port,
         CONF_MAC: mac,
         CONF_NAME: name,
         CONF_LABEL: label,
     }
+    if sub_devices:
+        data[CONF_SUB_DEVICES] = sub_devices
+    return data
 
 
 def _controller_schema(
@@ -131,6 +152,30 @@ def _controller_schema(
             )
         ] = bool
     return vol.Schema(schema)
+
+
+def _sub_device_schema(
+    *,
+    prefixes_default: str | None = None,
+    area_id: str | None = None,
+) -> vol.Schema:
+    """Schema for add/reconfigure sub-device (prefixes + optional area)."""
+    if prefixes_default is None:
+        prefixes_field: Any = vol.Required(CONF_PREFIXES)
+    else:
+        prefixes_field = vol.Required(CONF_PREFIXES, default=prefixes_default)
+    schema: dict[Any, Any] = {prefixes_field: str}
+    if area_id:
+        schema[vol.Optional(CONF_AREA_ID, default=area_id)] = AreaSelector()
+    else:
+        schema[vol.Optional(CONF_AREA_ID)] = AreaSelector()
+    return vol.Schema(schema)
+
+
+def _area_id_from_input(user_input: dict[str, Any]) -> str | None:
+    """Normalize optional area selector value."""
+    raw = user_input.get(CONF_AREA_ID)
+    return str(raw) if raw else None
 
 
 async def _async_discover_mac(hass: HomeAssistant, host: str) -> str | None:
@@ -309,6 +354,18 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
             },
         )
 
+    async def async_on_create_entry(self, result: ConfigFlowResult) -> ConfigFlowResult:
+        """Continue into options to suggest sub-devices (skips Name and assign)."""
+        entry = result["result"]
+        ctrl_name = self._controllers[0][CONF_NAME] if self._controllers else None
+        options_result = await self.hass.config_entries.options.async_init(
+            entry.entry_id,
+            context={"source": SOURCE_USER},
+            data={CTX_SUGGEST_SUB_DEVICES: ctrl_name},
+        )
+        result["next_flow"] = (FlowType.OPTIONS_FLOW, options_result["flow_id"])
+        return result
+
     async def async_step_reconfigure(
         self,
         user_input: dict[str, Any] | None = None,
@@ -418,7 +475,12 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
                             host, mac, others
                         )
                         controllers[index] = build_controller_dict(
-                            host, port, mac, label, name
+                            host,
+                            port,
+                            mac,
+                            label,
+                            name,
+                            sub_devices=current.get(CONF_SUB_DEVICES),
                         )
                         new_unique = entry.unique_id
                         if index == 0:
@@ -517,15 +579,161 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class ZencontrolTpiOptionsFlow(OptionsFlow):
-    """Options flow to add/remove controllers on an existing entry."""
+    """Options flow: controllers → sub-devices → reconfigure/delete."""
+
+    _ctrl_name: str | None = None
+    _sub_device_id: str | None = None
+    # After saving a sub-device, return to this step instead of closing.
+    _return_after_save: str | None = None
+    _suggest_from_setup_handled: bool = False
+
+    def __getattr__(self, name: str) -> Any:
+        """Route dynamic menu steps for controllers and sub-devices."""
+        if name.startswith("async_step_ctrl_"):
+            ctrl_name = name.removeprefix("async_step_ctrl_")
+
+            async def async_step_ctrl(
+                user_input: dict[str, Any] | None = None,
+            ) -> ConfigFlowResult:
+                self._ctrl_name = ctrl_name
+                return await self.async_step_controller()
+
+            return async_step_ctrl
+
+        if name.startswith("async_step_subdev_"):
+            sub_id = name.removeprefix("async_step_subdev_")
+
+            async def async_step_subdev(
+                user_input: dict[str, Any] | None = None,
+            ) -> ConfigFlowResult:
+                self._sub_device_id = sub_id
+                return await self.async_step_sub_device()
+
+            return async_step_subdev
+
+        raise AttributeError(
+            f"{type(self).__name__!r} object has no attribute {name!r}"
+        )
+
+    async def _options_label(self, key: str, default: str) -> str:
+        """Load an options-flow string for the current language."""
+        translations = await async_get_translations(
+            self.hass, self.hass.config.language, "options", {DOMAIN}
+        )
+        return translations.get(f"component.{DOMAIN}.{key}", default)
+
+    def _controllers(self) -> list[dict[str, Any]]:
+        return list(self.config_entry.data.get(CONF_CONTROLLERS, []))
+
+    def _controller(self, name: str | None) -> dict[str, Any] | None:
+        if not name:
+            return None
+        return next((c for c in self._controllers() if c[CONF_NAME] == name), None)
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Show the options menu."""
+        """List controllers plus Add controller, or open suggest after setup."""
+        init_data = self.init_data if isinstance(self.init_data, dict) else {}
+        suggest_ctrl = init_data.get(CTX_SUGGEST_SUB_DEVICES)
+        if suggest_ctrl and not self._suggest_from_setup_handled:
+            self._suggest_from_setup_handled = True
+            self._ctrl_name = str(suggest_ctrl)
+            return await self.async_step_suggest_sub_devices()
+
+        menu_options: dict[str, str] = {
+            f"ctrl_{c[CONF_NAME]}": str(c.get(CONF_LABEL) or c[CONF_NAME])
+            for c in self._controllers()
+        }
+        menu_options["add_controller"] = await self._options_label(
+            "step.init.menu_options.add_controller",
+            "➕ Add controller",
+        )
+        return self.async_show_menu(step_id="init", menu_options=menu_options)
+
+    async def async_step_suggest_sub_devices(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """After adding a controller, offer to create sub-devices."""
+        ctrl = self._controller(self._ctrl_name)
+        if ctrl is None:
+            return await self.async_step_init()
+
+        self._return_after_save = "suggest_sub_devices"
         return self.async_show_menu(
-            step_id="init",
-            menu_options=["add_controller", "remove_controller"],
+            step_id="suggest_sub_devices",
+            menu_options=["add_sub_device", "finish_setup"],
+            description_placeholders={
+                "controller": ctrl.get(CONF_LABEL) or ctrl[CONF_NAME],
+            },
+        )
+
+    async def async_step_finish_setup(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Close options after declining or finishing sub-device setup."""
+        self._return_after_save = None
+        return self.async_create_entry(title="", data={})
+
+    async def async_step_controller(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """List this controller's sub-devices plus Add / Remove controller."""
+        ctrl = self._controller(self._ctrl_name)
+        if ctrl is None:
+            return await self.async_step_init()
+
+        self._return_after_save = "controller"
+        devices = sub_devices_from_controller(ctrl)
+        menu_options: dict[str, str] = {
+            "add_sub_device": await self._options_label(
+                "step.controller.menu_options.add_sub_device",
+                "➕ Add sub-device",
+            ),
+        }
+        for d in devices:
+            prefixes = ", ".join(d.prefixes)
+            label = d.name if prefixes == d.name else f"{d.name} ({prefixes})"
+            menu_options[f"subdev_{d.id}"] = label
+        menu_options["remove_controller"] = await self._options_label(
+            "step.controller.menu_options.remove_controller",
+            "❌ Remove controller",
+        )
+        return self.async_show_menu(
+            step_id="controller",
+            menu_options=menu_options,
+            description_placeholders={
+                "controller": ctrl.get(CONF_LABEL) or ctrl[CONF_NAME],
+            },
+        )
+
+    async def async_step_sub_device(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Reconfigure or delete the selected sub-device."""
+        ctrl = self._controller(self._ctrl_name)
+        if ctrl is None:
+            return await self.async_step_init()
+
+        device = next(
+            (
+                d
+                for d in sub_devices_from_controller(ctrl)
+                if d.id == self._sub_device_id
+            ),
+            None,
+        )
+        if device is None:
+            return await self.async_step_controller()
+
+        return self.async_show_menu(
+            step_id="sub_device",
+            menu_options=["reconfigure_sub_device", "delete_sub_device"],
+            description_placeholders={
+                "sub_device": device.name,
+                "prefixes": ", ".join(device.prefixes),
+                "controller": ctrl.get(CONF_LABEL) or ctrl[CONF_NAME],
+            },
         )
 
     async def async_step_add_controller(
@@ -534,7 +742,7 @@ class ZencontrolTpiOptionsFlow(OptionsFlow):
         """Add a controller to this config entry."""
         errors: dict[str, str] = {}
         defaults: dict[str, Any] = dict(user_input) if user_input else {}
-        controllers = list(self.config_entry.data.get(CONF_CONTROLLERS, []))
+        controllers = self._controllers()
 
         if user_input is not None:
             mac = (user_input.get(CONF_MAC) or "").strip()
@@ -572,9 +780,11 @@ class ZencontrolTpiOptionsFlow(OptionsFlow):
                     controllers.append(
                         build_controller_dict(host, port, mac_n, label, name)
                     )
-                    return await self._async_save_and_reload(
-                        controllers, title=entry_title(controllers)
+                    await self._async_persist_controllers(
+                        controllers, title=entry_title(controllers), reload=True
                     )
+                    self._ctrl_name = name
+                    return await self.async_step_suggest_sub_devices()
 
         return self.async_show_form(
             step_id="add_controller",
@@ -585,27 +795,21 @@ class ZencontrolTpiOptionsFlow(OptionsFlow):
     async def async_step_remove_controller(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Remove a controller from this config entry."""
-        controllers = list(self.config_entry.data.get(CONF_CONTROLLERS, []))
+        """Confirm and remove the selected controller."""
+        ctrl = self._controller(self._ctrl_name)
+        if ctrl is None:
+            return await self.async_step_init()
+
+        controllers = self._controllers()
         if len(controllers) <= 1:
             return self.async_abort(reason="last_controller")
 
-        choices = {
-            c[CONF_NAME]: c.get(CONF_LABEL) or c[CONF_NAME] for c in controllers
-        }
-
         if user_input is not None:
-            name = user_input["controller"]
+            name = ctrl[CONF_NAME]
             remaining = [c for c in controllers if c[CONF_NAME] != name]
-            if len(remaining) < 1:
-                return self.async_abort(reason="last_controller")
-
             new_unique = self.config_entry.unique_id
-            removed_mac = next(
-                (_mac_id(c[CONF_MAC]) for c in controllers if c[CONF_NAME] == name),
-                None,
-            )
-            if removed_mac and self.config_entry.unique_id == removed_mac:
+            removed_mac = _mac_id(ctrl[CONF_MAC])
+            if self.config_entry.unique_id == removed_mac:
                 new_unique = _mac_id(remaining[0][CONF_MAC])
 
             self.hass.config_entries.async_update_entry(
@@ -622,18 +826,164 @@ class ZencontrolTpiOptionsFlow(OptionsFlow):
 
         return self.async_show_form(
             step_id="remove_controller",
-            data_schema=vol.Schema(
-                {vol.Required("controller"): vol.In(choices)}
-            ),
+            data_schema=vol.Schema({}),
+            description_placeholders={
+                "controller": ctrl.get(CONF_LABEL) or ctrl[CONF_NAME],
+            },
         )
 
-    async def _async_save_and_reload(
+    async def async_step_add_sub_device(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Add a sub-device from a comma-separated prefix list."""
+        errors: dict[str, str] = {}
+        ctrl = self._controller(self._ctrl_name)
+        if ctrl is None:
+            return await self.async_step_init()
+
+        controllers = self._controllers()
+        existing = sub_devices_from_controller(ctrl)
+
+        if user_input is not None:
+            prefixes = parse_sub_device_prefixes(user_input.get(CONF_PREFIXES, ""))
+            err = validate_sub_device_prefixes(existing, prefixes)
+            if err:
+                errors[CONF_PREFIXES] = err
+            else:
+                device = sub_device_from_prefixes(prefixes)
+                assert device is not None
+                area_id = _area_id_from_input(user_input)
+                ids = {d.id for d in existing}
+                device_id = device.id
+                base_id = device.id
+                n = 2
+                while device_id in ids:
+                    device_id = f"{base_id}_{n}"
+                    n += 1
+                existing.append(
+                    SubDeviceDef(
+                        id=device_id,
+                        name=device.name,
+                        prefixes=device.prefixes,
+                        area_id=area_id,
+                    )
+                )
+                ctrl[CONF_SUB_DEVICES] = sub_devices_to_config(existing)
+                return await self._async_save_sub_devices(controllers)
+
+        return self.async_show_form(
+            step_id="add_sub_device",
+            data_schema=_sub_device_schema(),
+            errors=errors,
+            description_placeholders={
+                "controller": ctrl.get(CONF_LABEL) or ctrl[CONF_NAME],
+            },
+        )
+
+    async def async_step_reconfigure_sub_device(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Edit prefixes for the selected sub-device (id stays stable)."""
+        errors: dict[str, str] = {}
+        ctrl = self._controller(self._ctrl_name)
+        if ctrl is None:
+            return await self.async_step_init()
+
+        controllers = self._controllers()
+        existing = sub_devices_from_controller(ctrl)
+        device = next((d for d in existing if d.id == self._sub_device_id), None)
+        if device is None:
+            return await self.async_step_controller()
+
+        if user_input is not None:
+            prefixes = parse_sub_device_prefixes(user_input.get(CONF_PREFIXES, ""))
+            err = validate_sub_device_prefixes(
+                existing, prefixes, replacing_id=device.id
+            )
+            if err:
+                errors[CONF_PREFIXES] = err
+            else:
+                updated = SubDeviceDef(
+                    id=device.id,
+                    name=prefixes[0],
+                    prefixes=tuple(prefixes),
+                    area_id=_area_id_from_input(user_input),
+                )
+                ctrl[CONF_SUB_DEVICES] = sub_devices_to_config(
+                    [updated if d.id == device.id else d for d in existing]
+                )
+                return await self._async_save_sub_devices(controllers)
+
+        return self.async_show_form(
+            step_id="reconfigure_sub_device",
+            data_schema=_sub_device_schema(
+                prefixes_default=",".join(device.prefixes),
+                area_id=device.area_id,
+            ),
+            errors=errors,
+            description_placeholders={
+                "sub_device": device.name,
+                "controller": ctrl.get(CONF_LABEL) or ctrl[CONF_NAME],
+            },
+        )
+
+    async def async_step_delete_sub_device(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Confirm and delete the selected sub-device."""
+        ctrl = self._controller(self._ctrl_name)
+        if ctrl is None:
+            return await self.async_step_init()
+
+        controllers = self._controllers()
+        existing = sub_devices_from_controller(ctrl)
+        device = next((d for d in existing if d.id == self._sub_device_id), None)
+        if device is None:
+            return await self.async_step_controller()
+
+        if user_input is not None:
+            remaining = [d for d in existing if d.id != device.id]
+            if remaining:
+                ctrl[CONF_SUB_DEVICES] = sub_devices_to_config(remaining)
+            else:
+                ctrl.pop(CONF_SUB_DEVICES, None)
+            return await self._async_save_sub_devices(controllers)
+
+        return self.async_show_form(
+            step_id="delete_sub_device",
+            data_schema=vol.Schema({}),
+            description_placeholders={
+                "sub_device": device.name,
+                "controller": ctrl.get(CONF_LABEL) or ctrl[CONF_NAME],
+            },
+        )
+
+    async def _async_save_sub_devices(
+        self,
+        controllers: list[dict[str, Any]],
+    ) -> ConfigFlowResult:
+        """Persist sub-device config and reassign entities without rediscovery."""
+        await self._async_persist_controllers(
+            controllers, title=entry_title(controllers), reload=False
+        )
+        hub = self.config_entry.runtime_data
+        if hub is not None:
+            hub.apply_sub_device_config()
+
+        if self._return_after_save == "suggest_sub_devices":
+            return await self.async_step_suggest_sub_devices()
+        if self._return_after_save == "controller":
+            return await self.async_step_controller()
+        return self.async_create_entry(title="", data={})
+
+    async def _async_persist_controllers(
         self,
         controllers: list[dict[str, Any]],
         *,
         title: str,
-    ) -> ConfigFlowResult:
-        """Persist controllers and reload the entry."""
+        reload: bool,
+    ) -> None:
+        """Write controllers into the config entry, optionally reloading."""
         self.hass.config_entries.async_update_entry(
             self.config_entry,
             title=title,
@@ -642,8 +992,19 @@ class ZencontrolTpiOptionsFlow(OptionsFlow):
                 CONF_UNICAST: self.config_entry.data.get(CONF_UNICAST, False),
             },
         )
-        await self.hass.config_entries.async_reload(self.config_entry.entry_id)
+        if reload:
+            await self.hass.config_entries.async_reload(self.config_entry.entry_id)
+
+    async def _async_save_and_reload(
+        self,
+        controllers: list[dict[str, Any]],
+        *,
+        title: str,
+    ) -> ConfigFlowResult:
+        """Persist controllers, reload the entry, and close the options flow."""
+        await self._async_persist_controllers(controllers, title=title, reload=True)
         return self.async_create_entry(title="", data={})
+
 
 
 async def _mac_configured_elsewhere(

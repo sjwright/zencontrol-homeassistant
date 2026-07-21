@@ -16,60 +16,52 @@
           "mac": "होस्ट IP से खोजने के लिए खाली छोड़कर सबमिट करें (केवल उसी सबनेट पर)। मान की पुष्टि करें, फिर फिर से सबमिट करें।"
         }
       },
-      "reconfigure": {
-        "title": "zencontrol नियंत्रक को पुनः कॉन्फ़िगर करें",
-        "description": "अपने zencontrol एप्लिकेशन नियंत्रक की कनेक्शन सेटिंग अपडेट करें।",
+      "add_another": {
+        "title": "एक और नियंत्रक जोड़ें",
+        "description": "इस इंटीग्रेशन के लिए एक अतिरिक्त zencontrol एप्लिकेशन नियंत्रक कॉन्फ़िगर करें।",
         "data": {
           "host": "होस्ट (IP पता)",
           "port": "पोर्ट",
           "mac": "MAC पता",
-          "label": "नियंत्रक का नाम",
-          "unicast": "यूनिकास्ट इवेंट का उपयोग करें (अनुशंसित नहीं — केवल तभी जब आपके नेटवर्क टोपोलॉजी द्वारा ब्रॉडकास्ट पैकेट समर्थित न हों)",
-          "target": "What to reconfigure"
+          "label": "नियंत्रक का नाम"
         },
         "data_description": {
           "mac": "होस्ट IP से खोजने के लिए खाली छोड़कर सबमिट करें (केवल उसी सबनेट पर)। मान की पुष्टि करें, फिर फिर से सबमिट करें।"
         }
       },
-      "add_another": {
-        "title": "Add another controller",
-        "description": "Configure an additional zencontrol application controller for this integration.",
-        "data": {
-          "host": "Host (IP address)",
-          "port": "Port",
-          "mac": "MAC address",
-          "label": "Controller name"
-        },
-        "data_description": {
-          "mac": "Leave blank and submit to look up from the host IP (same subnet only). Confirm the value, then submit again."
+      "add_more": {
+        "title": "और नियंत्रक जोड़ें?",
+        "description": "आप अभी एक और कंट्रोलर जोड़ सकते हैं, या सेटअप पूरा कर सकते हैं। उसके बाद आप कमरे असाइन करने के लिए उप-डिवाइस बना सकते हैं।",
+        "menu_options": {
+          "add_another": "➕ एक और नियंत्रक जोड़ें",
+          "finish": "✅ जारी रखें"
         }
       },
-      "add_more": {
-        "title": "Add more controllers?",
-        "description": "You can add another controller now, or finish setup.",
-        "menu_options": {
-          "add_another": "Add another controller",
-          "finish": "Finish"
+      "reconfigure": {
+        "title": "zencontrol को पुनः कॉन्फ़िगर करें",
+        "description": "संपादित करने के लिए कोई नियंत्रक चुनें, या यूनिकास्ट सेटिंग बदलें।",
+        "data": {
+          "target": "क्या पुनः कॉन्फ़िगर करें"
         }
       },
       "reconfigure_controller": {
-        "title": "Reconfigure controller",
-        "description": "Update connection settings for this zencontrol application controller.",
+        "title": "नियंत्रक पुनः कॉन्फ़िगर करें",
+        "description": "इस zencontrol एप्लिकेशन नियंत्रक की कनेक्शन सेटिंग अपडेट करें।",
         "data": {
-          "host": "Host (IP address)",
-          "port": "Port",
-          "mac": "MAC address",
-          "label": "Controller name"
+          "host": "होस्ट (IP पता)",
+          "port": "पोर्ट",
+          "mac": "MAC पता",
+          "label": "नियंत्रक का नाम"
         },
         "data_description": {
-          "mac": "Leave blank and submit to look up from the host IP (same subnet only). Confirm the value, then submit again."
+          "mac": "होस्ट IP से खोजने के लिए खाली छोड़कर सबमिट करें (केवल उसी सबनेट पर)। मान की पुष्टि करें, फिर फिर से सबमिट करें।"
         }
       },
       "unicast_settings": {
-        "title": "Unicast settings",
-        "description": "Unicast is shared by all controllers in this integration.",
+        "title": "यूनिकास्ट सेटिंग",
+        "description": "यूनिकास्ट इस इंटीग्रेशन के सभी नियंत्रकों द्वारा साझा किया जाता है।",
         "data": {
-          "unicast": "Use unicast events (not recommended - only use if broadcast packets are unsupported by your network topology)"
+          "unicast": "यूनिकास्ट इवेंट का उपयोग करें (अनुशंसित नहीं — केवल तभी जब आपके नेटवर्क टोपोलॉजी द्वारा ब्रॉडकास्ट पैकेट समर्थित न हों)"
         }
       }
     },
@@ -78,13 +70,107 @@
       "invalid_mac": "अमान्य MAC पता प्रारूप। XX:XX:XX:XX:XX:XX का उपयोग करें।",
       "invalid_label": "नियंत्रक का नाम खाली नहीं हो सकता।",
       "mac_not_found": "उस होस्ट के लिए MAC पता नहीं मिला। इसे मैन्युअल रूप से दर्ज करें (खोज के लिए वही सबनेट आवश्यक है)।",
-      "duplicate_mac": "A controller with this MAC address is already configured."
+      "duplicate_mac": "इस MAC पते वाला नियंत्रक पहले से कॉन्फ़िगर है।"
     },
     "abort": {
       "already_configured": "यह zencontrol एप्लिकेशन नियंत्रक पहले से कॉन्फ़िगर है।",
       "reconfigure_successful": "पुनः कॉन्फ़िगरेशन सफल।",
-      "no_controllers": "No controllers are configured.",
-      "last_controller": "Cannot remove the last controller."
+      "no_controllers": "कोई नियंत्रक कॉन्फ़िगर नहीं है।",
+      "last_controller": "अंतिम नियंत्रक हटाया नहीं जा सकता।"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "zencontrol प्रबंधित करें",
+        "description": "प्रबंधित करने के लिए कोई नियंत्रक चुनें, या एक और जोड़ें।",
+        "menu_options": {
+          "add_controller": "➕ नियंत्रक जोड़ें"
+        }
+      },
+      "controller": {
+        "title": "नियंत्रक प्रबंधित करें",
+        "description": "### {controller}\n\nउप-डिवाइस आपको इस नियंत्रक की कुछ एंटिटी को एक वर्चुअल चाइल्ड डिवाइस पर अलग करने देते हैं, ताकि आप उन्हें Home Assistant में एक कमरा असाइन कर सकें।",
+        "menu_options": {
+          "add_sub_device": "➕ उप-डिवाइस जोड़ें",
+          "remove_controller": "❌ नियंत्रक हटाएँ"
+        }
+      },
+      "sub_device": {
+        "title": "उप-डिवाइस प्रबंधित करें",
+        "description": "### {sub_device}\n\n{controller} पर। प्रिफ़िक्स: {prefixes}",
+        "menu_options": {
+          "reconfigure_sub_device": "⚙️ पुनः कॉन्फ़िगर करें",
+          "delete_sub_device": "❌ हटाएँ"
+        }
+      },
+      "add_controller": {
+        "title": "नियंत्रक जोड़ें",
+        "description": "एक अतिरिक्त zencontrol एप्लिकेशन नियंत्रक का विवरण दर्ज करें।",
+        "data": {
+          "host": "होस्ट (IP पता)",
+          "port": "पोर्ट",
+          "mac": "MAC पता",
+          "label": "नियंत्रक का नाम"
+        },
+        "data_description": {
+          "mac": "होस्ट IP से खोजने के लिए खाली छोड़कर सबमिट करें (केवल उसी सबनेट पर)। मान की पुष्टि करें, फिर फिर से सबमिट करें।"
+        }
+      },
+      "remove_controller": {
+        "title": "नियंत्रक हटाएँ",
+        "description": "{controller} हटाएँ? कम से कम एक नियंत्रक रहना चाहिए।"
+      },
+      "add_sub_device": {
+        "title": "उप-डिवाइस जोड़ें",
+        "description": "{controller} के लिए एक उप-डिवाइस परिभाषित करें। अल्पविराम से अलग लेबल प्रिफ़िक्स दर्ज करें। पहला नाम डिवाइस का नाम बनता है। उदाहरण: Kitchen,Living,Lounge,Entrance",
+        "data": {
+          "prefixes": "लेबल प्रिफ़िक्स",
+          "area_id": "क्षेत्र"
+        },
+        "data_description": {
+          "prefixes": "केस-इन्सेन्सिटिव। कॉमा से अलग। उन लेबल से मेल खाता है जो इनमें से किसी स्ट्रिंग से शुरू होते हैं।",
+          "area_id": "वैकल्पिक। इस उप-डिवाइस को Home Assistant क्षेत्र (कमरे) में असाइन करें।"
+        }
+      },
+      "reconfigure_sub_device": {
+        "title": "{sub_device} पुनः कॉन्फ़िगर करें",
+        "description": "{controller} पर इस उप-डिवाइस के लेबल प्रिफ़िक्स अपडेट करें। पहला नाम डिवाइस का नाम बनता है।",
+        "data": {
+          "prefixes": "लेबल प्रिफ़िक्स",
+          "area_id": "क्षेत्र"
+        },
+        "data_description": {
+          "prefixes": "केस-इन्सेन्सिटिव। कॉमा से अलग। उन लेबल से मेल खाता है जो इनमें से किसी स्ट्रिंग से शुरू होते हैं।",
+          "area_id": "वैकल्पिक। इस उप-डिवाइस को Home Assistant क्षेत्र (कमरे) में असाइन करें।"
+        }
+      },
+      "delete_sub_device": {
+        "title": "उप-डिवाइस हटाएँ",
+        "description": "{controller} से {sub_device} हटाएँ? प्रभावित एंटिटी नियंत्रक डिवाइस पर लौट आती हैं।"
+      },
+      "suggest_sub_devices": {
+        "title": "उप-डिवाइस सेट अप करें?",
+        "description": "### {controller}\n\nसब-डिवाइस लेबल प्रीफ़िक्स के अनुसार एंटिटी को समूहित करते हैं ताकि आप उन्हें एक कमरे में असाइन कर सकें। आप इसे छोड़ सकते हैं और बाद में कॉन्फ़िगर से जोड़ सकते हैं।",
+        "menu_options": {
+          "add_sub_device": "➕ उप-डिवाइस जोड़ें",
+          "finish_setup": "अभी छोड़ें"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "नियंत्रक तक पहुँच नहीं सकते। होस्ट/पोर्ट जाँचें और पुनः प्रयास करें।",
+      "invalid_mac": "अमान्य MAC पता प्रारूप। XX:XX:XX:XX:XX:XX का उपयोग करें।",
+      "invalid_label": "नियंत्रक का नाम खाली नहीं हो सकता।",
+      "mac_not_found": "उस होस्ट के लिए MAC पता नहीं मिला। इसे मैन्युअल रूप से दर्ज करें (खोज के लिए वही सबनेट आवश्यक है)।",
+      "duplicate_mac": "इस MAC पते वाला नियंत्रक पहले से कॉन्फ़िगर है।",
+      "empty_prefixes": "कम से कम एक लेबल प्रिफ़िक्स दर्ज करें।",
+      "duplicate_prefix": "वह प्रिफ़िक्स इस नियंत्रक पर किसी अन्य उप-डिवाइस द्वारा पहले से उपयोग में है।"
+    },
+    "abort": {
+      "last_controller": "अंतिम नियंत्रक हटाया नहीं जा सकता।",
+      "no_controllers": "कोई नियंत्रक कॉन्फ़िगर नहीं है।",
+      "no_sub_devices": "इस नियंत्रक के लिए कोई उप-डिवाइस परिभाषित नहीं है।"
     }
   },
   "entity": {
@@ -95,48 +181,6 @@
       "group_scene": {
         "name": "{group} सीन"
       }
-    }
-  },
-  "options": {
-    "step": {
-      "init": {
-        "title": "Manage controllers",
-        "description": "Add or remove zencontrol application controllers.",
-        "menu_options": {
-          "add_controller": "Add controller",
-          "remove_controller": "Remove controller"
-        }
-      },
-      "add_controller": {
-        "title": "Add controller",
-        "description": "Enter the details for an additional zencontrol application controller.",
-        "data": {
-          "host": "Host (IP address)",
-          "port": "Port",
-          "mac": "MAC address",
-          "label": "Controller name"
-        },
-        "data_description": {
-          "mac": "Leave blank and submit to look up from the host IP (same subnet only). Confirm the value, then submit again."
-        }
-      },
-      "remove_controller": {
-        "title": "Remove controller",
-        "description": "Select a controller to remove. At least one controller must remain.",
-        "data": {
-          "controller": "Controller"
-        }
-      }
-    },
-    "error": {
-      "cannot_connect": "Unable to reach the controller. Check the host/port and try again.",
-      "invalid_mac": "Invalid MAC address format. Use XX:XX:XX:XX:XX:XX.",
-      "invalid_label": "Controller name cannot be empty.",
-      "mac_not_found": "Could not discover a MAC address for that host. Enter it manually (same subnet required for lookup).",
-      "duplicate_mac": "A controller with this MAC address is already configured."
-    },
-    "abort": {
-      "last_controller": "Cannot remove the last controller."
     }
   }
 }

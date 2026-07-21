@@ -16,60 +16,52 @@
           "mac": "Lad feltet være tomt og indsend for at slå op fra værtens IP (kun samme subnet). Bekræft værdien, og indsend igen."
         }
       },
-      "reconfigure": {
-        "title": "Omkonfigurer zencontrol-controller",
-        "description": "Opdater forbindelsesindstillingerne for din zencontrol-applikationscontroller.",
+      "add_another": {
+        "title": "Tilføj endnu en controller",
+        "description": "Konfigurer en ekstra zencontrol-applikationscontroller til denne integration.",
         "data": {
           "host": "Vært (IP-adresse)",
           "port": "Port",
           "mac": "MAC-adresse",
-          "label": "Controllernavn",
-          "unicast": "Brug unicast-hændelser (anbefales ikke — kun hvis broadcast-pakker ikke understøttes af din netværkstopologi)",
-          "target": "What to reconfigure"
+          "label": "Controllernavn"
         },
         "data_description": {
           "mac": "Lad feltet være tomt og indsend for at slå op fra værtens IP (kun samme subnet). Bekræft værdien, og indsend igen."
         }
       },
-      "add_another": {
-        "title": "Add another controller",
-        "description": "Configure an additional zencontrol application controller for this integration.",
-        "data": {
-          "host": "Host (IP address)",
-          "port": "Port",
-          "mac": "MAC address",
-          "label": "Controller name"
-        },
-        "data_description": {
-          "mac": "Leave blank and submit to look up from the host IP (same subnet only). Confirm the value, then submit again."
+      "add_more": {
+        "title": "Tilføje flere controllere?",
+        "description": "Du kan tilføje en anden controller nu, eller afslutte opsætningen. Bagefter kan du oprette underenheder for at tildele rum.",
+        "menu_options": {
+          "add_another": "➕ Tilføj endnu en controller",
+          "finish": "✅ Fortsæt"
         }
       },
-      "add_more": {
-        "title": "Add more controllers?",
-        "description": "You can add another controller now, or finish setup.",
-        "menu_options": {
-          "add_another": "Add another controller",
-          "finish": "Finish"
+      "reconfigure": {
+        "title": "Omkonfigurer zencontrol",
+        "description": "Vælg en controller at redigere, eller ændr unicast-indstillingerne.",
+        "data": {
+          "target": "Hvad skal omkonfigureres"
         }
       },
       "reconfigure_controller": {
-        "title": "Reconfigure controller",
-        "description": "Update connection settings for this zencontrol application controller.",
+        "title": "Omkonfigurer controller",
+        "description": "Opdater forbindelsesindstillingerne for denne zencontrol-applikationscontroller.",
         "data": {
-          "host": "Host (IP address)",
+          "host": "Vært (IP-adresse)",
           "port": "Port",
-          "mac": "MAC address",
-          "label": "Controller name"
+          "mac": "MAC-adresse",
+          "label": "Controllernavn"
         },
         "data_description": {
-          "mac": "Leave blank and submit to look up from the host IP (same subnet only). Confirm the value, then submit again."
+          "mac": "Lad feltet være tomt og indsend for at slå op fra værtens IP (kun samme subnet). Bekræft værdien, og indsend igen."
         }
       },
       "unicast_settings": {
-        "title": "Unicast settings",
-        "description": "Unicast is shared by all controllers in this integration.",
+        "title": "Unicast-indstillinger",
+        "description": "Unicast deles af alle controllere i denne integration.",
         "data": {
-          "unicast": "Use unicast events (not recommended - only use if broadcast packets are unsupported by your network topology)"
+          "unicast": "Brug unicast-hændelser (anbefales ikke — kun hvis broadcast-pakker ikke understøttes af din netværkstopologi)"
         }
       }
     },
@@ -78,13 +70,107 @@
       "invalid_mac": "Ugyldigt MAC-adresseformat. Brug XX:XX:XX:XX:XX:XX.",
       "invalid_label": "Controllernavnet må ikke være tomt.",
       "mac_not_found": "Kunne ikke finde en MAC-adresse for den vært. Indtast den manuelt (samme subnet kræves for opslag).",
-      "duplicate_mac": "A controller with this MAC address is already configured."
+      "duplicate_mac": "En controller med denne MAC-adresse er allerede konfigureret."
     },
     "abort": {
       "already_configured": "Denne zencontrol-applikationscontroller er allerede konfigureret.",
       "reconfigure_successful": "Omkonfiguration lykkedes.",
-      "no_controllers": "No controllers are configured.",
-      "last_controller": "Cannot remove the last controller."
+      "no_controllers": "Ingen controllere er konfigureret.",
+      "last_controller": "Den sidste controller kan ikke fjernes."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Administrer zencontrol",
+        "description": "Vælg en controller at administrere, eller tilføj en.",
+        "menu_options": {
+          "add_controller": "➕ Tilføj controller"
+        }
+      },
+      "controller": {
+        "title": "Administrer controller",
+        "description": "### {controller}\n\nUnderenheder lader dig flytte nogle af denne controllers entiteter over på en virtuel underordnet enhed, så du kan tildele dem et rum i Home Assistant.",
+        "menu_options": {
+          "add_sub_device": "➕ Tilføj underenhed",
+          "remove_controller": "❌ Fjern controller"
+        }
+      },
+      "sub_device": {
+        "title": "Administrer underenhed",
+        "description": "### {sub_device}\n\nPå {controller}. Præfikser: {prefixes}",
+        "menu_options": {
+          "reconfigure_sub_device": "⚙️ Omkonfigurer",
+          "delete_sub_device": "❌ Slet"
+        }
+      },
+      "add_controller": {
+        "title": "Tilføj controller",
+        "description": "Indtast oplysningerne for en ekstra zencontrol-applikationscontroller.",
+        "data": {
+          "host": "Vært (IP-adresse)",
+          "port": "Port",
+          "mac": "MAC-adresse",
+          "label": "Controllernavn"
+        },
+        "data_description": {
+          "mac": "Lad feltet være tomt og indsend for at slå op fra værtens IP (kun samme subnet). Bekræft værdien, og indsend igen."
+        }
+      },
+      "remove_controller": {
+        "title": "Fjern controller",
+        "description": "Fjern {controller}? Mindst én controller skal forblive."
+      },
+      "add_sub_device": {
+        "title": "Tilføj underenhed",
+        "description": "Definer en underenhed for {controller}. Indtast kommaseparerede etiketpræfikser. Det første navn bliver enhedsnavnet. Eksempel: Kitchen,Living,Lounge,Entrance",
+        "data": {
+          "prefixes": "Etiketpræfikser",
+          "area_id": "Område"
+        },
+        "data_description": {
+          "prefixes": "Uafhængig af store/små bogstaver. Kommasepareret. Matcher etiketter, der starter med en af disse strenge.",
+          "area_id": "Valgfrit. Tildel denne underenhed til et Home Assistant-område (rum)."
+        }
+      },
+      "reconfigure_sub_device": {
+        "title": "Omkonfigurer {sub_device}",
+        "description": "Opdater etiketpræfikser for denne underenhed på {controller}. Det første navn bliver enhedsnavnet.",
+        "data": {
+          "prefixes": "Etiketpræfikser",
+          "area_id": "Område"
+        },
+        "data_description": {
+          "prefixes": "Uafhængig af store/små bogstaver. Kommasepareret. Matcher etiketter, der starter med en af disse strenge.",
+          "area_id": "Valgfrit. Tildel denne underenhed til et Home Assistant-område (rum)."
+        }
+      },
+      "delete_sub_device": {
+        "title": "Slet underenhed",
+        "description": "Slet {sub_device} fra {controller}? Berørte entiteter vender tilbage til controllerenheden."
+      },
+      "suggest_sub_devices": {
+        "title": "Konfigurer underenheder?",
+        "description": "### {controller}\n\nUnderenheder grupperer entiteter efter etiketpræfiks, så du kan tildele dem et rum. Du kan springe dette over og tilføje dem senere under Konfigurer.",
+        "menu_options": {
+          "add_sub_device": "➕ Tilføj underenhed",
+          "finish_setup": "Spring over for nu"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Kan ikke nå controlleren. Tjek vært/port, og prøv igen.",
+      "invalid_mac": "Ugyldigt MAC-adresseformat. Brug XX:XX:XX:XX:XX:XX.",
+      "invalid_label": "Controllernavnet må ikke være tomt.",
+      "mac_not_found": "Kunne ikke finde en MAC-adresse for den vært. Indtast den manuelt (samme subnet kræves for opslag).",
+      "duplicate_mac": "En controller med denne MAC-adresse er allerede konfigureret.",
+      "empty_prefixes": "Indtast mindst ét etiketpræfiks.",
+      "duplicate_prefix": "Det præfiks bruges allerede af en anden underenhed på denne controller."
+    },
+    "abort": {
+      "last_controller": "Den sidste controller kan ikke fjernes.",
+      "no_controllers": "Ingen controllere er konfigureret.",
+      "no_sub_devices": "Der er ingen underenheder defineret for denne controller."
     }
   },
   "entity": {
@@ -95,48 +181,6 @@
       "group_scene": {
         "name": "{group}-scene"
       }
-    }
-  },
-  "options": {
-    "step": {
-      "init": {
-        "title": "Manage controllers",
-        "description": "Add or remove zencontrol application controllers.",
-        "menu_options": {
-          "add_controller": "Add controller",
-          "remove_controller": "Remove controller"
-        }
-      },
-      "add_controller": {
-        "title": "Add controller",
-        "description": "Enter the details for an additional zencontrol application controller.",
-        "data": {
-          "host": "Host (IP address)",
-          "port": "Port",
-          "mac": "MAC address",
-          "label": "Controller name"
-        },
-        "data_description": {
-          "mac": "Leave blank and submit to look up from the host IP (same subnet only). Confirm the value, then submit again."
-        }
-      },
-      "remove_controller": {
-        "title": "Remove controller",
-        "description": "Select a controller to remove. At least one controller must remain.",
-        "data": {
-          "controller": "Controller"
-        }
-      }
-    },
-    "error": {
-      "cannot_connect": "Unable to reach the controller. Check the host/port and try again.",
-      "invalid_mac": "Invalid MAC address format. Use XX:XX:XX:XX:XX:XX.",
-      "invalid_label": "Controller name cannot be empty.",
-      "mac_not_found": "Could not discover a MAC address for that host. Enter it manually (same subnet required for lookup).",
-      "duplicate_mac": "A controller with this MAC address is already configured."
-    },
-    "abort": {
-      "last_controller": "Cannot remove the last controller."
     }
   }
 }

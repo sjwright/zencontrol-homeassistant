@@ -5,6 +5,7 @@ Home Assistant custom integration for [zencontrol](https://zencontrol.com) appli
 ## Currently supports
 
 - **Multiple controllers** in one integration (add during setup or later via Configure)
+- **Sub-devices** by label prefix (Configure → controller → sub-device) for assigning rooms/areas
 - **Profiles**
 - **Lights**
 - **Groups**, including scene recall for groups

@@ -9,7 +9,8 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .entity import ZenControllerEntity, controller_device_info
+from .sub_devices import sysvar_assignment_key
+from .entity import ZenControllerEntity
 from .hub import ZenHub, ZencontrolTpiConfigEntry
 
 PARALLEL_UPDATES = 0
@@ -43,7 +44,9 @@ class ZenSystemVariableSwitchEntity(ZenControllerEntity, SwitchEntity):
 
         self._attr_unique_id = f"{ctrl.name}_sv{zen_sv.id}_switch"
         self._suggested_object_id = f"sv{zen_sv.id}"
-        self._attr_device_info = controller_device_info(ctrl)
+        self._attr_device_info = hub.device_info_for(
+            ctrl, assignment_key=sysvar_assignment_key(zen_sv)
+        )
         self._attr_name = zen_sv.label or f"System Variable {zen_sv.id}"
         self._attr_is_on = (zen_sv.value or 0) != 0
 

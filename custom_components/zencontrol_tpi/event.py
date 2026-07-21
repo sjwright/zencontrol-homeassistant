@@ -8,7 +8,8 @@ from homeassistant.components.event import EventDeviceClass, EventEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .entity import ZenControllerEntity, controller_device_info
+from .sub_devices import button_assignment_key
+from .entity import ZenControllerEntity
 from .hub import ZenHub, ZencontrolTpiConfigEntry
 
 PARALLEL_UPDATES = 0
@@ -45,7 +46,9 @@ class ZenButtonEntity(ZenControllerEntity, EventEntity):
 
         self._attr_unique_id = f"{ctrl.name}_ecd{addr}_btn{inst}"
         self._suggested_object_id = zen_button.instance.entity_id_string()
-        self._attr_device_info = controller_device_info(ctrl)
+        self._attr_device_info = hub.device_info_for(
+            ctrl, assignment_key=button_assignment_key(zen_button)
+        )
         self._attr_name = (
             zen_button.instance_label
             if zen_button.instance_label

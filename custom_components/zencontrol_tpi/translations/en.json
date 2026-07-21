@@ -31,10 +31,10 @@
       },
       "add_more": {
         "title": "Add more controllers?",
-        "description": "You can add another controller now, or finish setup.",
+        "description": "You can add another controller now, or finish setup. After finishing you can create sub-devices to assign rooms.",
         "menu_options": {
-          "add_another": "Add another controller",
-          "finish": "Finish"
+          "add_another": "➕ Add another controller",
+          "finish": "✅ Continue"
         }
       },
       "reconfigure": {
@@ -82,11 +82,26 @@
   "options": {
     "step": {
       "init": {
-        "title": "Manage controllers",
-        "description": "Add or remove zencontrol application controllers.",
+        "title": "Manage zencontrol",
+        "description": "Select a controller to manage, or add another.",
         "menu_options": {
-          "add_controller": "Add controller",
-          "remove_controller": "Remove controller"
+          "add_controller": "➕ Add controller"
+        }
+      },
+      "controller": {
+        "title": "Manage controller",
+        "description": "### {controller}\n\nSub-devices let you split some of this controller's entities onto a virtual child device, so you can assign them a room in Home Assistant.",
+        "menu_options": {
+          "add_sub_device": "➕ Add sub-device",
+          "remove_controller": "❌ Remove controller"
+        }
+      },
+      "sub_device": {
+        "title": "Manage sub-device",
+        "description": "### {sub_device}\n\nOn {controller}. Prefixes: {prefixes}",
+        "menu_options": {
+          "reconfigure_sub_device": "⚙️ Reconfigure",
+          "delete_sub_device": "❌ Delete"
         }
       },
       "add_controller": {
@@ -104,10 +119,43 @@
       },
       "remove_controller": {
         "title": "Remove controller",
-        "description": "Select a controller to remove. At least one controller must remain.",
-        "data": {
-          "controller": "Controller"
+        "description": "Remove {controller}? At least one controller must remain."
+      },
+      "suggest_sub_devices": {
+        "title": "Set up sub-devices?",
+        "description": "### {controller}\n\nSub-devices group entities by label prefix so you can assign them to a room. You can skip this and add them later from Configure.",
+        "menu_options": {
+          "add_sub_device": "➕ Add sub-device",
+          "finish_setup": "Skip for now"
         }
+      },
+      "add_sub_device": {
+        "title": "Add sub-device",
+        "description": "Define a sub-device for {controller}. Enter comma-separated label prefixes. The first name becomes the device name. Example: Kitchen,Living,Lounge,Entrance",
+        "data": {
+          "prefixes": "Label prefixes",
+          "area_id": "Area"
+        },
+        "data_description": {
+          "prefixes": "Case-insensitive. Comma delimited. Matches labels that start with any of these strings.",
+          "area_id": "Optional. Assign this sub-device to a Home Assistant area (room)."
+        }
+      },
+      "reconfigure_sub_device": {
+        "title": "Reconfigure {sub_device}",
+        "description": "Update label prefixes for this sub-device on {controller}. The first name becomes the device name.",
+        "data": {
+          "prefixes": "Label prefixes",
+          "area_id": "Area"
+        },
+        "data_description": {
+          "prefixes": "Case-insensitive. Comma delimited. Matches labels that start with any of these strings.",
+          "area_id": "Optional. Assign this sub-device to a Home Assistant area (room)."
+        }
+      },
+      "delete_sub_device": {
+        "title": "Delete sub-device",
+        "description": "Delete {sub_device} from {controller}? Affected entities return to the controller device."
       }
     },
     "error": {
@@ -115,10 +163,14 @@
       "invalid_mac": "Invalid MAC address format. Use XX:XX:XX:XX:XX:XX.",
       "invalid_label": "Controller name cannot be empty.",
       "mac_not_found": "Could not discover a MAC address for that host. Enter it manually (same subnet required for lookup).",
-      "duplicate_mac": "A controller with this MAC address is already configured."
+      "duplicate_mac": "A controller with this MAC address is already configured.",
+      "empty_prefixes": "Enter at least one label prefix.",
+      "duplicate_prefix": "That prefix is already used by another sub-device on this controller."
     },
     "abort": {
-      "last_controller": "Cannot remove the last controller."
+      "last_controller": "Cannot remove the last controller.",
+      "no_controllers": "No controllers are configured.",
+      "no_sub_devices": "No sub-devices are defined for this controller."
     }
   },
   "entity": {

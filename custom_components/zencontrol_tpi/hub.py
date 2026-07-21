@@ -11,8 +11,27 @@ import zencontrol  # type: ignore[import-untyped]
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 
-from .const import CONF_CONTROLLERS, CONF_LABEL, CONF_MAC, CONF_NAME, CONF_UNICAST
+from .sub_devices import (
+    SubDeviceDef,
+    build_assignments,
+    button_assignment_key,
+    group_assignment_key,
+    light_assignment_key,
+    motion_assignment_key,
+    sub_devices_from_controller,
+    sysvar_assignment_key,
+)
+from .const import (
+    CONF_CONTROLLERS,
+    CONF_LABEL,
+    CONF_MAC,
+    CONF_NAME,
+    CONF_UNICAST,
+)
+from .entity import controller_device_info, sub_device_device_info
 from .manifest_store import (
     DiscoveryManifestStore,
     build_manifest,
@@ -89,6 +108,10 @@ class ZenHub:
         self._profile_entities: dict[Any, Any] = {}
         self._scene_entities: dict[Any, Any] = {}
 
+        # ctrl_name → sub-device defs; assignment key → sub-device id
+        self._sub_devices_by_controller: dict[str, list[SubDeviceDef]] = {}
+        self._sub_device_assignments: dict[str, str] = {}
+
     @property
     def available(self) -> bool:
         """Return True when the event listener is up and discovery succeeded."""
@@ -104,6 +127,153 @@ class ZenHub:
         if name is None:
             return True
         return self._controller_online.get(name, bool(getattr(zen_ctrl, "connected", True)))
+
+    def device_info_for(
+        self,
+        zen_ctrl: Any,
+        *,
+        assignment_key: str | None = None,
+    ) -> Any:
+        """Return parent or sub-device DeviceInfo for an assignment key."""
+        sub_id = (
+            self._sub_device_assignments.get(assignment_key) if assignment_key else None
+        )
+        if not sub_id:
+            return controller_device_info(zen_ctrl)
+        devices = self._sub_devices_by_controller.get(zen_ctrl.name) or []
+        device = next((d for d in devices if d.id == sub_id), None)
+        if device is None:
+            return controller_device_info(zen_ctrl)
+        return sub_device_device_info(
+            zen_ctrl, sub_device_id=device.id, sub_device_name=device.name
+        )
+
+    def rebuild_sub_device_assignments(self) -> None:
+        """Recompute label-prefix sub-device assignments from config + discovery."""
+        self._sub_devices_by_controller = {}
+        for ctrl_cfg in self.entry.data.get(CONF_CONTROLLERS, []):
+            name = ctrl_cfg.get(CONF_NAME)
+            if not name:
+                continue
+            self._sub_devices_by_controller[name] = sub_devices_from_controller(
+                ctrl_cfg
+            )
+
+        sysvars = list({*self.sv_switches, *self.sv_sensors})
+        self._sub_device_assignments = build_assignments(
+            controllers=self.controllers,
+            controller_sub_devices=self._sub_devices_by_controller,
+            lights=self.lights,
+            groups=self.groups,
+            buttons=self.buttons,
+            motion_sensors=self.motion_sensors,
+            sysvars=sysvars,
+        )
+        _LOGGER.debug(
+            "Sub-device assignments: %d entities across %d controllers",
+            len(self._sub_device_assignments),
+            len(self._sub_devices_by_controller),
+        )
+
+    def apply_sub_device_config(self) -> None:
+        """Rebuild assignments and move entities to the matching devices.
+
+        Used after options changes so we do not reload the entry or rescan the bus.
+        """
+        self.rebuild_sub_device_assignments()
+
+        device_registry = dr.async_get(self.hass)
+        entity_registry = er.async_get(self.hass)
+
+        targets: list[tuple[Any, Any, str | None]] = []
+        for zen_light, entity in self._light_entities.items():
+            targets.append(
+                (entity, zen_light.address.controller, light_assignment_key(zen_light))
+            )
+        for zen_group, entity in self._group_entities.items():
+            targets.append(
+                (entity, zen_group.address.controller, group_assignment_key(zen_group))
+            )
+        for zen_group, entity in self._scene_entities.items():
+            targets.append(
+                (entity, zen_group.address.controller, group_assignment_key(zen_group))
+            )
+        for zen_button, entity in self._button_entities.items():
+            targets.append(
+                (
+                    entity,
+                    zen_button.instance.address.controller,
+                    button_assignment_key(zen_button),
+                )
+            )
+        for zen_sensor, entity in self._motion_sensor_entities.items():
+            targets.append(
+                (
+                    entity,
+                    zen_sensor.instance.address.controller,
+                    motion_assignment_key(zen_sensor),
+                )
+            )
+        for zen_sv, entity in self._sv_sensor_entities.items():
+            targets.append(
+                (entity, zen_sv.controller, sysvar_assignment_key(zen_sv))
+            )
+        for zen_sv, entity in self._sv_switch_entities.items():
+            targets.append(
+                (entity, zen_sv.controller, sysvar_assignment_key(zen_sv))
+            )
+        for ctrl_name, entity in self._profile_entities.items():
+            ctrl = next((c for c in self.controllers if c.name == ctrl_name), None)
+            if ctrl is not None:
+                targets.append((entity, ctrl, None))
+
+        for entity, zen_ctrl, key in targets:
+            info = self.device_info_for(zen_ctrl, assignment_key=key)
+            entity._attr_device_info = info
+            entity_id = getattr(entity, "entity_id", None)
+            if not entity_id:
+                continue
+            device = device_registry.async_get_or_create(
+                config_entry_id=self.entry.entry_id,
+                identifiers=info["identifiers"],
+                manufacturer=info.get("manufacturer"),
+                model=info.get("model"),
+                name=info.get("name"),
+                sw_version=info.get("sw_version"),
+                via_device=info.get("via_device"),
+            )
+            entity_registry.async_update_entity(entity_id, device_id=device.id)
+
+        self.sync_sub_device_areas()
+
+        _LOGGER.info(
+            "Applied sub-device assignments to %d entities (no rediscovery)",
+            len(targets),
+        )
+
+    def sync_sub_device_areas(self) -> None:
+        """Create/update registry entries for sub-devices and apply area_id."""
+        device_registry = dr.async_get(self.hass)
+        for zen_ctrl in self.controllers:
+            for device_def in self._sub_devices_by_controller.get(zen_ctrl.name) or []:
+                info = sub_device_device_info(
+                    zen_ctrl,
+                    sub_device_id=device_def.id,
+                    sub_device_name=device_def.name,
+                )
+                device = device_registry.async_get_or_create(
+                    config_entry_id=self.entry.entry_id,
+                    identifiers=info["identifiers"],
+                    manufacturer=info.get("manufacturer"),
+                    model=info.get("model"),
+                    name=info.get("name"),
+                    via_device=info.get("via_device"),
+                )
+                if device.area_id != device_def.area_id:
+                    device_registry.async_update_device(
+                        device.id, area_id=device_def.area_id
+                    )
+
 
     # ------------------------------------------------------------------
     # Entity registration
@@ -285,6 +455,8 @@ class ZenHub:
             len(self.sv_sensors),
             len(self.profiles),
         )
+        self.rebuild_sub_device_assignments()
+        self.sync_sub_device_areas()
 
     async def _run_full_discovery(self) -> None:
         """Scan the bus for all entity types."""

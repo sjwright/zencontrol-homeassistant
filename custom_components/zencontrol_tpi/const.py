@@ -26,6 +26,8 @@ CONF_MAC: Final = "mac"
 CONF_LABEL: Final = "label"
 CONF_NAME: Final = "name"
 CONF_UNICAST: Final = "unicast"
+# Per-controller label-prefix sub-devices (see sub_devices.py)
+CONF_SUB_DEVICES: Final = "sub_devices"
 
 # Group scene select when members are discoordinated (mqtt_bridge convention)
 SCENE_NONE: Final = "None"

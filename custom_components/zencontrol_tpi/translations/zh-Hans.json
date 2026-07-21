@@ -16,60 +16,52 @@
           "mac": "留空并提交可根据主机 IP 查找（仅限同一子网）。确认后再次提交。"
         }
       },
-      "reconfigure": {
-        "title": "重新配置 zencontrol 控制器",
-        "description": "更新您的 zencontrol 应用控制器的连接设置。",
+      "add_another": {
+        "title": "添加另一台控制器",
+        "description": "为此集成配置另一台 zencontrol 应用控制器。",
         "data": {
           "host": "主机（IP 地址）",
           "port": "端口",
           "mac": "MAC 地址",
-          "label": "控制器名称",
-          "unicast": "使用单播事件（不推荐 — 仅当您的网络拓扑不支持广播数据包时使用）",
-          "target": "What to reconfigure"
+          "label": "控制器名称"
         },
         "data_description": {
           "mac": "留空并提交可根据主机 IP 查找（仅限同一子网）。确认后再次提交。"
         }
       },
-      "add_another": {
-        "title": "Add another controller",
-        "description": "Configure an additional zencontrol application controller for this integration.",
-        "data": {
-          "host": "Host (IP address)",
-          "port": "Port",
-          "mac": "MAC address",
-          "label": "Controller name"
-        },
-        "data_description": {
-          "mac": "Leave blank and submit to look up from the host IP (same subnet only). Confirm the value, then submit again."
+      "add_more": {
+        "title": "添加更多控制器？",
+        "description": "可以继续添加控制器，或完成设置。完成后可创建子设备以分配房间。",
+        "menu_options": {
+          "add_another": "➕ 添加另一台控制器",
+          "finish": "✅ 继续"
         }
       },
-      "add_more": {
-        "title": "Add more controllers?",
-        "description": "You can add another controller now, or finish setup.",
-        "menu_options": {
-          "add_another": "Add another controller",
-          "finish": "Finish"
+      "reconfigure": {
+        "title": "重新配置 zencontrol",
+        "description": "选择要编辑的控制器，或更改单播设置。",
+        "data": {
+          "target": "要重新配置的内容"
         }
       },
       "reconfigure_controller": {
-        "title": "Reconfigure controller",
-        "description": "Update connection settings for this zencontrol application controller.",
+        "title": "重新配置控制器",
+        "description": "更新此 zencontrol 应用控制器的连接设置。",
         "data": {
-          "host": "Host (IP address)",
-          "port": "Port",
-          "mac": "MAC address",
-          "label": "Controller name"
+          "host": "主机（IP 地址）",
+          "port": "端口",
+          "mac": "MAC 地址",
+          "label": "控制器名称"
         },
         "data_description": {
-          "mac": "Leave blank and submit to look up from the host IP (same subnet only). Confirm the value, then submit again."
+          "mac": "留空并提交可根据主机 IP 查找（仅限同一子网）。确认后再次提交。"
         }
       },
       "unicast_settings": {
-        "title": "Unicast settings",
-        "description": "Unicast is shared by all controllers in this integration.",
+        "title": "单播设置",
+        "description": "单播由此集成中的所有控制器共享。",
         "data": {
-          "unicast": "Use unicast events (not recommended - only use if broadcast packets are unsupported by your network topology)"
+          "unicast": "使用单播事件（不推荐 — 仅当您的网络拓扑不支持广播数据包时使用）"
         }
       }
     },
@@ -78,13 +70,107 @@
       "invalid_mac": "MAC 地址格式无效。请使用 XX:XX:XX:XX:XX:XX。",
       "invalid_label": "控制器名称不能为空。",
       "mac_not_found": "无法发现该主机的 MAC 地址。请手动输入（查找需要同一子网）。",
-      "duplicate_mac": "A controller with this MAC address is already configured."
+      "duplicate_mac": "已配置具有此 MAC 地址的控制器。"
     },
     "abort": {
       "already_configured": "此 zencontrol 应用控制器已配置。",
       "reconfigure_successful": "重新配置成功。",
-      "no_controllers": "No controllers are configured.",
-      "last_controller": "Cannot remove the last controller."
+      "no_controllers": "未配置任何控制器。",
+      "last_controller": "无法移除最后一台控制器。"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "管理 zencontrol",
+        "description": "选择要管理的控制器，或添加另一台。",
+        "menu_options": {
+          "add_controller": "➕ 添加控制器"
+        }
+      },
+      "controller": {
+        "title": "管理控制器",
+        "description": "### {controller}\n\n子设备可将此控制器的部分实体拆分到虚拟子级设备上，以便在 Home Assistant 中为其分配房间。",
+        "menu_options": {
+          "add_sub_device": "➕ 添加子设备",
+          "remove_controller": "❌ 移除控制器"
+        }
+      },
+      "sub_device": {
+        "title": "管理子设备",
+        "description": "### {sub_device}\n\n位于 {controller}。前缀：{prefixes}",
+        "menu_options": {
+          "reconfigure_sub_device": "⚙️ 重新配置",
+          "delete_sub_device": "❌ 删除"
+        }
+      },
+      "add_controller": {
+        "title": "添加控制器",
+        "description": "输入另一台 zencontrol 应用控制器的详细信息。",
+        "data": {
+          "host": "主机（IP 地址）",
+          "port": "端口",
+          "mac": "MAC 地址",
+          "label": "控制器名称"
+        },
+        "data_description": {
+          "mac": "留空并提交可根据主机 IP 查找（仅限同一子网）。确认后再次提交。"
+        }
+      },
+      "remove_controller": {
+        "title": "移除控制器",
+        "description": "移除 {controller}？至少需保留一台控制器。"
+      },
+      "add_sub_device": {
+        "title": "添加子设备",
+        "description": "为 {controller} 定义子设备。输入逗号分隔的标签前缀。第一个名称将成为设备名称。示例：Kitchen,Living,Lounge,Entrance",
+        "data": {
+          "prefixes": "标签前缀",
+          "area_id": "区域"
+        },
+        "data_description": {
+          "prefixes": "不区分大小写。逗号分隔。匹配以这些字符串之一开头的标签。",
+          "area_id": "可选。将此子设备分配到 Home Assistant 区域（房间）。"
+        }
+      },
+      "reconfigure_sub_device": {
+        "title": "重新配置 {sub_device}",
+        "description": "更新 {controller} 上此子设备的标签前缀。第一个名称将成为设备名称。",
+        "data": {
+          "prefixes": "标签前缀",
+          "area_id": "区域"
+        },
+        "data_description": {
+          "prefixes": "不区分大小写。逗号分隔。匹配以这些字符串之一开头的标签。",
+          "area_id": "可选。将此子设备分配到 Home Assistant 区域（房间）。"
+        }
+      },
+      "delete_sub_device": {
+        "title": "删除子设备",
+        "description": "从 {controller} 删除 {sub_device}？受影响的实体会回到控制器设备。"
+      },
+      "suggest_sub_devices": {
+        "title": "设置子设备？",
+        "description": "### {controller}\n\n子设备按标签前缀对实体分组，便于分配到房间。可跳过，稍后在“配置”中添加。",
+        "menu_options": {
+          "add_sub_device": "➕ 添加子设备",
+          "finish_setup": "暂时跳过"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "无法连接到控制器。请检查主机/端口后重试。",
+      "invalid_mac": "MAC 地址格式无效。请使用 XX:XX:XX:XX:XX:XX。",
+      "invalid_label": "控制器名称不能为空。",
+      "mac_not_found": "无法发现该主机的 MAC 地址。请手动输入（查找需要同一子网）。",
+      "duplicate_mac": "已配置具有此 MAC 地址的控制器。",
+      "empty_prefixes": "请至少输入一个标签前缀。",
+      "duplicate_prefix": "该前缀已被此控制器上的另一个子设备使用。"
+    },
+    "abort": {
+      "last_controller": "无法移除最后一台控制器。",
+      "no_controllers": "未配置任何控制器。",
+      "no_sub_devices": "此控制器未定义任何子设备。"
     }
   },
   "entity": {
@@ -95,48 +181,6 @@
       "group_scene": {
         "name": "{group} 场景"
       }
-    }
-  },
-  "options": {
-    "step": {
-      "init": {
-        "title": "Manage controllers",
-        "description": "Add or remove zencontrol application controllers.",
-        "menu_options": {
-          "add_controller": "Add controller",
-          "remove_controller": "Remove controller"
-        }
-      },
-      "add_controller": {
-        "title": "Add controller",
-        "description": "Enter the details for an additional zencontrol application controller.",
-        "data": {
-          "host": "Host (IP address)",
-          "port": "Port",
-          "mac": "MAC address",
-          "label": "Controller name"
-        },
-        "data_description": {
-          "mac": "Leave blank and submit to look up from the host IP (same subnet only). Confirm the value, then submit again."
-        }
-      },
-      "remove_controller": {
-        "title": "Remove controller",
-        "description": "Select a controller to remove. At least one controller must remain.",
-        "data": {
-          "controller": "Controller"
-        }
-      }
-    },
-    "error": {
-      "cannot_connect": "Unable to reach the controller. Check the host/port and try again.",
-      "invalid_mac": "Invalid MAC address format. Use XX:XX:XX:XX:XX:XX.",
-      "invalid_label": "Controller name cannot be empty.",
-      "mac_not_found": "Could not discover a MAC address for that host. Enter it manually (same subnet required for lookup).",
-      "duplicate_mac": "A controller with this MAC address is already configured."
-    },
-    "abort": {
-      "last_controller": "Cannot remove the last controller."
     }
   }
 }

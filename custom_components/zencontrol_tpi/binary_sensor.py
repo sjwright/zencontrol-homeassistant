@@ -11,7 +11,8 @@ from homeassistant.components.binary_sensor import (
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .entity import ZenControllerEntity, controller_device_info
+from .sub_devices import motion_assignment_key
+from .entity import ZenControllerEntity
 from .hub import ZenHub, ZencontrolTpiConfigEntry
 
 PARALLEL_UPDATES = 0
@@ -47,7 +48,9 @@ class ZenMotionSensorEntity(ZenControllerEntity, BinarySensorEntity):
 
         self._attr_unique_id = f"{ctrl.name}_ecd{addr}_occ{inst}"
         self._suggested_object_id = zen_sensor.instance.entity_id_string()
-        self._attr_device_info = controller_device_info(ctrl)
+        self._attr_device_info = hub.device_info_for(
+            ctrl, assignment_key=motion_assignment_key(zen_sensor)
+        )
         self._attr_name = (
             zen_sensor.instance_label
             if zen_sensor.instance_label

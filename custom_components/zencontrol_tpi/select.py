@@ -10,8 +10,9 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
+from .sub_devices import group_assignment_key
 from .const import SCENE_NONE
-from .entity import ZenControllerEntity, controller_device_info
+from .entity import ZenControllerEntity
 from .hub import ZenHub, ZencontrolTpiConfigEntry
 
 PARALLEL_UPDATES = 0
@@ -61,7 +62,7 @@ class ZenProfileSelectEntity(ZenControllerEntity, SelectEntity):
 
         self._attr_unique_id = f"{zen_ctrl.name}_profile"
         self._suggested_object_id = "profile"
-        self._attr_device_info = controller_device_info(zen_ctrl)
+        self._attr_device_info = hub.device_info_for(zen_ctrl)
         self._attr_options = list(self._profiles.keys())
         self._attr_current_option = self._current_option_from_ctrl()
 
@@ -104,7 +105,9 @@ class ZenGroupSceneSelectEntity(ZenControllerEntity, SelectEntity):
 
         self._attr_unique_id = f"{ctrl.name}_group_{zen_group.address.number}_scene"
         self._suggested_object_id = f"{zen_group.address.entity_id_string()}_scene"
-        self._attr_device_info = controller_device_info(ctrl)
+        self._attr_device_info = hub.device_info_for(
+            ctrl, assignment_key=group_assignment_key(zen_group)
+        )
         scene_labels = zen_group.get_scene_labels(exclude_none=True)
         self._attr_options = [SCENE_NONE, *scene_labels]
         group_label = zen_group.label or f"Group {zen_group.address.number}"

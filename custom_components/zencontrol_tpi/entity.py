@@ -10,14 +10,36 @@ from homeassistant.helpers.entity import Entity
 from .const import DOMAIN
 
 
+def controller_identifier(zen_ctrl: Any) -> tuple[str, str]:
+    """Stable parent-device identifier for a controller."""
+    return (DOMAIN, zen_ctrl.mac or zen_ctrl.name)
+
+
 def controller_device_info(zen_ctrl: Any) -> DeviceInfo:
-    """Build DeviceInfo for a Zen controller."""
+    """Build DeviceInfo for a Zen controller (hub / parent device)."""
     return DeviceInfo(
-        identifiers={(DOMAIN, zen_ctrl.mac or zen_ctrl.name)},
+        identifiers={controller_identifier(zen_ctrl)},
         name=zen_ctrl.label,
         manufacturer="ZenControl",
         model="TPI Controller",
         sw_version=str(zen_ctrl.version) if zen_ctrl.version is not None else None,
+    )
+
+
+def sub_device_device_info(
+    zen_ctrl: Any,
+    *,
+    sub_device_id: str,
+    sub_device_name: str,
+) -> DeviceInfo:
+    """Build DeviceInfo for a label-prefix child device under a controller."""
+    parent = controller_identifier(zen_ctrl)
+    return DeviceInfo(
+        identifiers={(DOMAIN, f"{parent[1]}:sub:{sub_device_id}")},
+        name=sub_device_name,
+        manufacturer="ZenControl",
+        model="Sub-device",
+        via_device=parent,
     )
 
 
