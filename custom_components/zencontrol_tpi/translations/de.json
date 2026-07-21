@@ -3,6 +3,14 @@
   "config": {
     "step": {
       "user": {
+        "title": "zencontrol einrichten",
+        "description": "Controller im Netzwerk per Multicast entdecken oder Verbindungsdaten manuell eingeben. Controller benötigen eine TPI Advanced-Lizenz.",
+        "menu_options": {
+          "discover": "Nach Controllern suchen",
+          "manual": "Manuell eingeben"
+        }
+      },
+      "manual": {
         "title": "Mit zencontrol-Controller verbinden",
         "description": "Geben Sie die Daten Ihres zencontrol-Anwendungscontrollers ein. Hinweis: Der Controller benötigt eine TPI Advanced-Lizenz.",
         "data": {
@@ -10,11 +18,33 @@
           "port": "Port",
           "mac": "MAC-Adresse",
           "label": "Controllername",
-          "unicast": "Unicast-Ereignisse verwenden (nicht empfohlen — nur wenn Broadcast-Pakete von Ihrer Netzwerktopologie nicht unterstützt werden)"
+          "unicast": "Unicast-Ereignisse verwenden (nicht empfohlen — nur wenn Broadcast-Pakete von Ihrer Netzwerktopologie nicht unterstützt werden)",
+          "abort_manual": "Aktivieren und Absenden, um die manuelle Dateneingabe abzubrechen"
         },
         "data_description": {
           "mac": "Leer lassen und absenden, um die Adresse über die Host-IP zu ermitteln (nur gleiches Subnetz). Wert prüfen und erneut absenden."
         }
+      },
+      "select_discovered": {
+        "title": "Controller auswählen",
+        "description": "Diese Controller wurden per Multicast gefunden. Wählen Sie einen oder mehrere zum Hinzufügen aus.",
+        "data": {
+          "discovered": "Controller"
+        }
+      },
+      "discovery_failed": {
+        "title": "Controller konnte nicht hinzugefügt werden",
+        "description": "Es wurde kein weiterer Controller hinzugefügt. Sie können die Erkennung erneut versuchen, Daten manuell eingeben oder mit den bereits konfigurierten Controllern fortfahren.",
+        "menu_options": {
+          "discover": "Erkennung erneut versuchen",
+          "manual": "Manuell hinzufügen",
+          "add_another": "Manuell hinzufügen",
+          "finish": "✅ Fertig mit dem Hinzufügen von Controllern"
+        }
+      },
+      "confirm_discovery": {
+        "title": "zencontrol-Controller bestätigen",
+        "description": "**{label}** unter `{host}` gefunden (MAC `{mac}`). Möchten Sie ihn hinzufügen?"
       },
       "add_another": {
         "title": "Weiteren Controller hinzufügen",
@@ -23,7 +53,8 @@
           "host": "Host (IP-Adresse)",
           "port": "Port",
           "mac": "MAC-Adresse",
-          "label": "Controllername"
+          "label": "Controllername",
+          "abort_manual": "Aktivieren und Absenden, um die manuelle Dateneingabe abzubrechen"
         },
         "data_description": {
           "mac": "Leer lassen und absenden, um die Adresse über die Host-IP zu ermitteln (nur gleiches Subnetz). Wert prüfen und erneut absenden."
@@ -31,10 +62,11 @@
       },
       "add_more": {
         "title": "Weitere Controller hinzufügen?",
-        "description": "Sie können jetzt einen weiteren Controller hinzufügen oder die Einrichtung abschließen. Danach können Sie Sub-Geräte erstellen, um Räume zuzuweisen.",
+        "description": "Sie können jetzt einen weiteren Controller entdecken oder manuell hinzufügen oder die Einrichtung abschließen. Danach können Sie Sub-Geräte erstellen, um Räume zuzuweisen.",
         "menu_options": {
-          "add_another": "➕ Weiteren Controller hinzufügen",
-          "finish": "✅ Weiter"
+          "discover": "Weiteren Controller entdecken",
+          "add_another": "Weiteren Controller manuell hinzufügen",
+          "finish": "✅ Fertig mit dem Hinzufügen von Controllern"
         }
       },
       "reconfigure": {
@@ -68,15 +100,25 @@
     "error": {
       "cannot_connect": "Controller nicht erreichbar. Prüfen Sie Host/Port und versuchen Sie es erneut.",
       "invalid_mac": "Ungültiges MAC-Adressformat. Verwenden Sie XX:XX:XX:XX:XX:XX.",
+      "invalid_host": "Host ist erforderlich, wenn ein Controller hinzugefügt wird.",
       "invalid_label": "Der Controllername darf nicht leer sein.",
       "mac_not_found": "MAC-Adresse für diesen Host konnte nicht ermittelt werden. Bitte manuell eingeben (Lookup erfordert gleiches Subnetz).",
-      "duplicate_mac": "Ein Controller mit dieser MAC-Adresse ist bereits konfiguriert."
+      "duplicate_mac": "Ein Controller mit dieser MAC-Adresse ist bereits konfiguriert.",
+      "no_devices_found": "Es wurden keine Controller gefunden."
     },
     "abort": {
       "already_configured": "Dieser zencontrol-Anwendungscontroller ist bereits konfiguriert.",
       "reconfigure_successful": "Neukonfiguration erfolgreich.",
       "no_controllers": "Es sind keine Controller konfiguriert.",
-      "last_controller": "Der letzte Controller kann nicht entfernt werden."
+      "last_controller": "Der letzte Controller kann nicht entfernt werden.",
+      "no_devices_found": "Im Netzwerk wurden keine zencontrol-Controller gefunden. Erneut versuchen oder Daten manuell eingeben.",
+      "cannot_connect": "Der entdeckte Controller ist nicht erreichbar.",
+      "controller_added": "Controller hinzugefügt."
+    },
+    "progress": {
+      "listen": "Suche nach zencontrol-Controllern im Netzwerk… Drücken Sie einen Wandtaster, um ein erkennbares Paket zu senden.",
+      "connect_controllers": "Verbindung zu ausgewählten Controllern wird hergestellt…",
+      "setup_devices": "Lichter und Geräte von Ihren Controllern werden geladen…"
     }
   },
   "options": {
@@ -85,7 +127,8 @@
         "title": "zencontrol verwalten",
         "description": "Wählen Sie einen Controller zur Verwaltung, oder fügen Sie einen hinzu.",
         "menu_options": {
-          "add_controller": "➕ Controller hinzufügen"
+          "discover": "Weiteren Controller entdecken",
+          "add_controller": "Weiteren Controller manuell hinzufügen"
         }
       },
       "controller": {
@@ -117,9 +160,32 @@
           "mac": "Leer lassen und absenden, um die Adresse über die Host-IP zu ermitteln (nur gleiches Subnetz). Wert prüfen und erneut absenden."
         }
       },
+      "discovery_failed": {
+        "title": "Keine Controller gefunden",
+        "description": "Im Netzwerk wurden per Multicast keine zencontrol-Controller gefunden. Sie können es erneut versuchen oder Daten manuell eingeben.",
+        "menu_options": {
+          "discover": "Erneut versuchen",
+          "add_controller": "Manuell hinzufügen"
+        }
+      },
+      "add_discovered": {
+        "title": "Entdeckte Controller hinzufügen",
+        "description": "Wählen Sie einen oder mehrere per Multicast im Netzwerk gefundene Controller aus.",
+        "data": {
+          "discovered": "Controller"
+        }
+      },
       "remove_controller": {
         "title": "Controller entfernen",
         "description": "{controller} entfernen? Mindestens ein Controller muss bleiben."
+      },
+      "suggest_sub_devices": {
+        "title": "Sub-Geräte einrichten?",
+        "description": "### {controller}\n\nSub-Geräte gruppieren Entitäten nach Label-Präfix, damit Sie sie einem Raum zuweisen können. Sie können dies überspringen und später unter Konfigurieren hinzufügen.",
+        "menu_options": {
+          "add_sub_device": "➕ Sub-Gerät hinzufügen",
+          "finish_setup": "Vorerst überspringen"
+        }
       },
       "add_sub_device": {
         "title": "Untergerät hinzufügen",
@@ -148,29 +214,28 @@
       "delete_sub_device": {
         "title": "Untergerät löschen",
         "description": "{sub_device} von {controller} löschen? Betroffene Entitäten kehren zum Controllergerät zurück."
-      },
-      "suggest_sub_devices": {
-        "title": "Sub-Geräte einrichten?",
-        "description": "### {controller}\n\nSub-Geräte gruppieren Entitäten nach Label-Präfix, damit Sie sie einem Raum zuweisen können. Sie können dies überspringen und später unter Konfigurieren hinzufügen.",
-        "menu_options": {
-          "add_sub_device": "➕ Sub-Gerät hinzufügen",
-          "finish_setup": "Vorerst überspringen"
-        }
       }
     },
     "error": {
       "cannot_connect": "Controller nicht erreichbar. Prüfen Sie Host/Port und versuchen Sie es erneut.",
+      "invalid_host": "Host ist erforderlich, wenn ein Controller hinzugefügt wird.",
       "invalid_mac": "Ungültiges MAC-Adressformat. Verwenden Sie XX:XX:XX:XX:XX:XX.",
       "invalid_label": "Der Controllername darf nicht leer sein.",
       "mac_not_found": "MAC-Adresse für diesen Host konnte nicht ermittelt werden. Bitte manuell eingeben (Lookup erfordert gleiches Subnetz).",
       "duplicate_mac": "Ein Controller mit dieser MAC-Adresse ist bereits konfiguriert.",
       "empty_prefixes": "Geben Sie mindestens ein Label-Präfix ein.",
-      "duplicate_prefix": "Dieses Präfix wird bereits von einem anderen Untergerät auf diesem Controller verwendet."
+      "duplicate_prefix": "Dieses Präfix wird bereits von einem anderen Untergerät auf diesem Controller verwendet.",
+      "no_devices_found": "Es wurden keine Controller gefunden."
     },
     "abort": {
       "last_controller": "Der letzte Controller kann nicht entfernt werden.",
       "no_controllers": "Es sind keine Controller konfiguriert.",
-      "no_sub_devices": "Für diesen Controller sind keine Untergeräte definiert."
+      "no_sub_devices": "Für diesen Controller sind keine Untergeräte definiert.",
+      "cannot_connect": "Controller nicht erreichbar. Prüfen Sie Host/Port und versuchen Sie es erneut."
+    },
+    "progress": {
+      "listen": "Suche nach zencontrol-Controllern im Netzwerk… Drücken Sie einen Wandtaster, um ein erkennbares Paket zu senden.",
+      "setup_devices": "Alle Entitäten auf Ihren Controllern werden zugeordnet…"
     }
   },
   "entity": {

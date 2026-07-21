@@ -3,6 +3,14 @@
   "config": {
     "step": {
       "user": {
+        "title": "Opsæt zencontrol",
+        "description": "Find controllere på dit netværk via multicast, eller indtast forbindelsesoplysninger manuelt. Controllere kræver en TPI Advanced-licens.",
+        "menu_options": {
+          "discover": "Søg efter controllere",
+          "manual": "Indtast manuelt"
+        }
+      },
+      "manual": {
         "title": "Opret forbindelse til zencontrol-controller",
         "description": "Indtast oplysningerne for din zencontrol-applikationscontroller. Bemærk, at controlleren skal have en TPI Advanced-licens tilknyttet.",
         "data": {
@@ -10,11 +18,33 @@
           "port": "Port",
           "mac": "MAC-adresse",
           "label": "Controllernavn",
-          "unicast": "Brug unicast-hændelser (anbefales ikke — kun hvis broadcast-pakker ikke understøttes af din netværkstopologi)"
+          "unicast": "Brug unicast-hændelser (anbefales ikke — kun hvis broadcast-pakker ikke understøttes af din netværkstopologi)",
+          "abort_manual": "Aktivér dette, og tryk på Send for at afbryde manuel dataindtastning"
         },
         "data_description": {
           "mac": "Lad feltet være tomt og indsend for at slå op fra værtens IP (kun samme subnet). Bekræft værdien, og indsend igen."
         }
+      },
+      "select_discovered": {
+        "title": "Vælg controllere",
+        "description": "Disse controllere blev fundet via multicast. Vælg én eller flere, der skal tilføjes.",
+        "data": {
+          "discovered": "Controllere"
+        }
+      },
+      "discovery_failed": {
+        "title": "Kunne ikke tilføje en controller",
+        "description": "Der blev ikke tilføjet nogen yderligere controller. Du kan prøve opdagelse igen, indtaste oplysninger manuelt eller fortsætte med de allerede konfigurerede controllere.",
+        "menu_options": {
+          "discover": "Prøv opdagelse igen",
+          "manual": "Tilføj manuelt",
+          "add_another": "Tilføj manuelt",
+          "finish": "✅ Færdig med at tilføje controllere"
+        }
+      },
+      "confirm_discovery": {
+        "title": "Bekræft zencontrol-controller",
+        "description": "Fandt **{label}** på `{host}` (MAC `{mac}`). Vil du tilføje den?"
       },
       "add_another": {
         "title": "Tilføj endnu en controller",
@@ -23,7 +53,8 @@
           "host": "Vært (IP-adresse)",
           "port": "Port",
           "mac": "MAC-adresse",
-          "label": "Controllernavn"
+          "label": "Controllernavn",
+          "abort_manual": "Aktivér dette, og tryk på Send for at afbryde manuel dataindtastning"
         },
         "data_description": {
           "mac": "Lad feltet være tomt og indsend for at slå op fra værtens IP (kun samme subnet). Bekræft værdien, og indsend igen."
@@ -31,10 +62,11 @@
       },
       "add_more": {
         "title": "Tilføje flere controllere?",
-        "description": "Du kan tilføje en anden controller nu, eller afslutte opsætningen. Bagefter kan du oprette underenheder for at tildele rum.",
+        "description": "Du kan opdage eller manuelt tilføje en anden controller nu, eller afslutte opsætningen. Bagefter kan du oprette underenheder for at tildele rum.",
         "menu_options": {
-          "add_another": "➕ Tilføj endnu en controller",
-          "finish": "✅ Fortsæt"
+          "discover": "Opdag endnu en controller",
+          "add_another": "Tilføj endnu en controller manuelt",
+          "finish": "✅ Færdig med at tilføje controllere"
         }
       },
       "reconfigure": {
@@ -68,15 +100,25 @@
     "error": {
       "cannot_connect": "Kan ikke nå controlleren. Tjek vært/port, og prøv igen.",
       "invalid_mac": "Ugyldigt MAC-adresseformat. Brug XX:XX:XX:XX:XX:XX.",
+      "invalid_host": "Vært er påkrævet, når du tilføjer en controller.",
       "invalid_label": "Controllernavnet må ikke være tomt.",
       "mac_not_found": "Kunne ikke finde en MAC-adresse for den vært. Indtast den manuelt (samme subnet kræves for opslag).",
-      "duplicate_mac": "En controller med denne MAC-adresse er allerede konfigureret."
+      "duplicate_mac": "En controller med denne MAC-adresse er allerede konfigureret.",
+      "no_devices_found": "Ingen controllere blev fundet."
     },
     "abort": {
       "already_configured": "Denne zencontrol-applikationscontroller er allerede konfigureret.",
       "reconfigure_successful": "Omkonfiguration lykkedes.",
       "no_controllers": "Ingen controllere er konfigureret.",
-      "last_controller": "Den sidste controller kan ikke fjernes."
+      "last_controller": "Den sidste controller kan ikke fjernes.",
+      "no_devices_found": "Ingen zencontrol-controllere blev fundet på netværket. Prøv igen, eller indtast oplysninger manuelt.",
+      "cannot_connect": "Kan ikke nå den fundne controller.",
+      "controller_added": "Controller tilføjet."
+    },
+    "progress": {
+      "listen": "Lytter efter zencontrol-controllere på netværket… Tryk på en vægknap for at sende en opdagelig pakke.",
+      "connect_controllers": "Opretter forbindelse til valgte controllere…",
+      "setup_devices": "Indlæser lys og enheder fra dine controllere…"
     }
   },
   "options": {
@@ -85,7 +127,8 @@
         "title": "Administrer zencontrol",
         "description": "Vælg en controller at administrere, eller tilføj en.",
         "menu_options": {
-          "add_controller": "➕ Tilføj controller"
+          "discover": "Opdag endnu en controller",
+          "add_controller": "Tilføj endnu en controller manuelt"
         }
       },
       "controller": {
@@ -117,9 +160,32 @@
           "mac": "Lad feltet være tomt og indsend for at slå op fra værtens IP (kun samme subnet). Bekræft værdien, og indsend igen."
         }
       },
+      "discovery_failed": {
+        "title": "Ingen controllere fundet",
+        "description": "Ingen zencontrol-controllere blev fundet på netværket via multicast. Du kan prøve igen eller indtaste oplysninger manuelt.",
+        "menu_options": {
+          "discover": "Prøv igen",
+          "add_controller": "Tilføj manuelt"
+        }
+      },
+      "add_discovered": {
+        "title": "Tilføj fundne controllere",
+        "description": "Vælg én eller flere controllere fundet via multicast på dit netværk.",
+        "data": {
+          "discovered": "Controllere"
+        }
+      },
       "remove_controller": {
         "title": "Fjern controller",
         "description": "Fjern {controller}? Mindst én controller skal forblive."
+      },
+      "suggest_sub_devices": {
+        "title": "Konfigurer underenheder?",
+        "description": "### {controller}\n\nUnderenheder grupperer entiteter efter etiketpræfiks, så du kan tildele dem et rum. Du kan springe dette over og tilføje dem senere under Konfigurer.",
+        "menu_options": {
+          "add_sub_device": "➕ Tilføj underenhed",
+          "finish_setup": "Spring over for nu"
+        }
       },
       "add_sub_device": {
         "title": "Tilføj underenhed",
@@ -148,29 +214,28 @@
       "delete_sub_device": {
         "title": "Slet underenhed",
         "description": "Slet {sub_device} fra {controller}? Berørte entiteter vender tilbage til controllerenheden."
-      },
-      "suggest_sub_devices": {
-        "title": "Konfigurer underenheder?",
-        "description": "### {controller}\n\nUnderenheder grupperer entiteter efter etiketpræfiks, så du kan tildele dem et rum. Du kan springe dette over og tilføje dem senere under Konfigurer.",
-        "menu_options": {
-          "add_sub_device": "➕ Tilføj underenhed",
-          "finish_setup": "Spring over for nu"
-        }
       }
     },
     "error": {
       "cannot_connect": "Kan ikke nå controlleren. Tjek vært/port, og prøv igen.",
+      "invalid_host": "Vært er påkrævet, når du tilføjer en controller.",
       "invalid_mac": "Ugyldigt MAC-adresseformat. Brug XX:XX:XX:XX:XX:XX.",
       "invalid_label": "Controllernavnet må ikke være tomt.",
       "mac_not_found": "Kunne ikke finde en MAC-adresse for den vært. Indtast den manuelt (samme subnet kræves for opslag).",
       "duplicate_mac": "En controller med denne MAC-adresse er allerede konfigureret.",
       "empty_prefixes": "Indtast mindst ét etiketpræfiks.",
-      "duplicate_prefix": "Det præfiks bruges allerede af en anden underenhed på denne controller."
+      "duplicate_prefix": "Det præfiks bruges allerede af en anden underenhed på denne controller.",
+      "no_devices_found": "Ingen controllere blev fundet."
     },
     "abort": {
       "last_controller": "Den sidste controller kan ikke fjernes.",
       "no_controllers": "Ingen controllere er konfigureret.",
-      "no_sub_devices": "Der er ingen underenheder defineret for denne controller."
+      "no_sub_devices": "Der er ingen underenheder defineret for denne controller.",
+      "cannot_connect": "Kan ikke nå controlleren. Tjek vært/port, og prøv igen."
+    },
+    "progress": {
+      "listen": "Lytter efter zencontrol-controllere på netværket… Tryk på en vægknap for at sende en opdagelig pakke.",
+      "setup_devices": "Kortlægger alle entiteter på dine controllere…"
     }
   },
   "entity": {

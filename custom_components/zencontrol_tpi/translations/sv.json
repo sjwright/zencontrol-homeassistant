@@ -3,6 +3,14 @@
   "config": {
     "step": {
       "user": {
+        "title": "Konfigurera zencontrol",
+        "description": "Upptäck styrenheter i ditt nätverk via multicast, eller ange anslutningsuppgifter manuellt. Styrenheter behöver en TPI Advanced-licens.",
+        "menu_options": {
+          "discover": "Sök efter styrenheter",
+          "manual": "Ange manuellt"
+        }
+      },
+      "manual": {
         "title": "Anslut till zencontrol-styrenhet",
         "description": "Ange uppgifterna för din zencontrol-applikationsstyrenhet. Observera att styrenheten måste ha en TPI Advanced-licens kopplad.",
         "data": {
@@ -10,11 +18,33 @@
           "port": "Port",
           "mac": "MAC-adress",
           "label": "Styrenhetens namn",
-          "unicast": "Använd unicast-händelser (rekommenderas inte — endast om broadcast-paket inte stöds av din nätverkstopologi)"
+          "unicast": "Använd unicast-händelser (rekommenderas inte — endast om broadcast-paket inte stöds av din nätverkstopologi)",
+          "abort_manual": "Aktivera detta och tryck på Skicka för att avbryta manuell datainmatning"
         },
         "data_description": {
           "mac": "Lämna tomt och skicka för att söka upp från värdens IP (endast samma subnät). Bekräfta värdet och skicka igen."
         }
+      },
+      "select_discovered": {
+        "title": "Välj styrenheter",
+        "description": "Dessa styrenheter hittades via multicast. Välj en eller flera att lägga till.",
+        "data": {
+          "discovered": "Styrenheter"
+        }
+      },
+      "discovery_failed": {
+        "title": "Kunde inte lägga till en styrenhet",
+        "description": "Ingen ytterligare styrenhet lades till. Du kan försöka upptäcka igen, ange uppgifter manuellt eller fortsätta med redan konfigurerade styrenheter.",
+        "menu_options": {
+          "discover": "Försök upptäcka igen",
+          "manual": "Lägg till manuellt",
+          "add_another": "Lägg till manuellt",
+          "finish": "✅ Klar med att lägga till styrenheter"
+        }
+      },
+      "confirm_discovery": {
+        "title": "Bekräfta zencontrol-styrenhet",
+        "description": "Hittade **{label}** på `{host}` (MAC `{mac}`). Vill du lägga till den?"
       },
       "add_another": {
         "title": "Lägg till ytterligare styrenhet",
@@ -23,7 +53,8 @@
           "host": "Värd (IP-adress)",
           "port": "Port",
           "mac": "MAC-adress",
-          "label": "Styrenhetens namn"
+          "label": "Styrenhetens namn",
+          "abort_manual": "Aktivera detta och tryck på Skicka för att avbryta manuell datainmatning"
         },
         "data_description": {
           "mac": "Lämna tomt och skicka för att söka upp från värdens IP (endast samma subnät). Bekräfta värdet och skicka igen."
@@ -31,10 +62,11 @@
       },
       "add_more": {
         "title": "Lägga till fler styrenheter?",
-        "description": "Du kan lägga till en annan styrenhet nu, eller avsluta installationen. Efteråt kan du skapa underenheter för att tilldela rum.",
+        "description": "Du kan upptäcka eller manuellt lägga till en annan styrenhet nu, eller avsluta installationen. Efteråt kan du skapa underenheter för att tilldela rum.",
         "menu_options": {
-          "add_another": "➕ Lägg till ytterligare styrenhet",
-          "finish": "✅ Fortsätt"
+          "discover": "Upptäck ytterligare styrenhet",
+          "add_another": "Lägg till ytterligare styrenhet manuellt",
+          "finish": "✅ Klar med att lägga till styrenheter"
         }
       },
       "reconfigure": {
@@ -68,15 +100,25 @@
     "error": {
       "cannot_connect": "Kan inte nå styrenheten. Kontrollera värd/port och försök igen.",
       "invalid_mac": "Ogiltigt MAC-adressformat. Använd XX:XX:XX:XX:XX:XX.",
+      "invalid_host": "Värd krävs när du lägger till en styrenhet.",
       "invalid_label": "Styrenhetens namn får inte vara tomt.",
       "mac_not_found": "Kunde inte hitta en MAC-adress för den värden. Ange den manuellt (samma subnät krävs för uppslag).",
-      "duplicate_mac": "En styrenhet med den här MAC-adressen är redan konfigurerad."
+      "duplicate_mac": "En styrenhet med den här MAC-adressen är redan konfigurerad.",
+      "no_devices_found": "Inga styrenheter hittades."
     },
     "abort": {
       "already_configured": "Denna zencontrol-applikationsstyrenhet är redan konfigurerad.",
       "reconfigure_successful": "Omkonfiguration lyckades.",
       "no_controllers": "Inga styrenheter är konfigurerade.",
-      "last_controller": "Den sista styrenheten kan inte tas bort."
+      "last_controller": "Den sista styrenheten kan inte tas bort.",
+      "no_devices_found": "Inga zencontrol-styrenheter hittades i nätverket. Försök igen eller ange uppgifter manuellt.",
+      "cannot_connect": "Kan inte nå den upptäckta styrenheten.",
+      "controller_added": "Styrenhet tillagd."
+    },
+    "progress": {
+      "listen": "Lyssnar efter zencontrol-styrenheter i nätverket… Tryck på en väggknapp för att skicka ett upptäckbart paket.",
+      "connect_controllers": "Ansluter till valda styrenheter…",
+      "setup_devices": "Läser in lampor och enheter från dina styrenheter…"
     }
   },
   "options": {
@@ -85,7 +127,8 @@
         "title": "Hantera zencontrol",
         "description": "Välj en styrenhet att hantera, eller lägg till en.",
         "menu_options": {
-          "add_controller": "➕ Lägg till styrenhet"
+          "discover": "Upptäck ytterligare styrenhet",
+          "add_controller": "Lägg till ytterligare styrenhet manuellt"
         }
       },
       "controller": {
@@ -117,9 +160,32 @@
           "mac": "Lämna tomt och skicka för att söka upp från värdens IP (endast samma subnät). Bekräfta värdet och skicka igen."
         }
       },
+      "discovery_failed": {
+        "title": "Inga styrenheter hittades",
+        "description": "Inga zencontrol-styrenheter hittades i nätverket via multicast. Du kan försöka igen eller ange uppgifter manuellt.",
+        "menu_options": {
+          "discover": "Försök igen",
+          "add_controller": "Lägg till manuellt"
+        }
+      },
+      "add_discovered": {
+        "title": "Lägg till upptäckta styrenheter",
+        "description": "Välj en eller flera styrenheter som hittats via multicast i ditt nätverk.",
+        "data": {
+          "discovered": "Styrenheter"
+        }
+      },
       "remove_controller": {
         "title": "Ta bort styrenhet",
         "description": "Ta bort {controller}? Minst en styrenhet måste finnas kvar."
+      },
+      "suggest_sub_devices": {
+        "title": "Konfigurera underenheter?",
+        "description": "### {controller}\n\nUnderenheter grupperar enheter efter etiketprefix så att du kan tilldela dem ett rum. Du kan hoppa över detta och lägga till dem senare under Konfigurera.",
+        "menu_options": {
+          "add_sub_device": "➕ Lägg till underenhet",
+          "finish_setup": "Hoppa över tills vidare"
+        }
       },
       "add_sub_device": {
         "title": "Lägg till underenhet",
@@ -148,29 +214,28 @@
       "delete_sub_device": {
         "title": "Ta bort underenhet",
         "description": "Ta bort {sub_device} från {controller}? Berörda entiteter återgår till styrenhetens enhet."
-      },
-      "suggest_sub_devices": {
-        "title": "Konfigurera underenheter?",
-        "description": "### {controller}\n\nUnderenheter grupperar enheter efter etiketprefix så att du kan tilldela dem ett rum. Du kan hoppa över detta och lägga till dem senare under Konfigurera.",
-        "menu_options": {
-          "add_sub_device": "➕ Lägg till underenhet",
-          "finish_setup": "Hoppa över tills vidare"
-        }
       }
     },
     "error": {
       "cannot_connect": "Kan inte nå styrenheten. Kontrollera värd/port och försök igen.",
+      "invalid_host": "Värd krävs när du lägger till en styrenhet.",
       "invalid_mac": "Ogiltigt MAC-adressformat. Använd XX:XX:XX:XX:XX:XX.",
       "invalid_label": "Styrenhetens namn får inte vara tomt.",
       "mac_not_found": "Kunde inte hitta en MAC-adress för den värden. Ange den manuellt (samma subnät krävs för uppslag).",
       "duplicate_mac": "En styrenhet med den här MAC-adressen är redan konfigurerad.",
       "empty_prefixes": "Ange minst ett etikettprefix.",
-      "duplicate_prefix": "Det prefixet används redan av en annan underenhet på den här styrenheten."
+      "duplicate_prefix": "Det prefixet används redan av en annan underenhet på den här styrenheten.",
+      "no_devices_found": "Inga styrenheter hittades."
     },
     "abort": {
       "last_controller": "Den sista styrenheten kan inte tas bort.",
       "no_controllers": "Inga styrenheter är konfigurerade.",
-      "no_sub_devices": "Inga underenheter är definierade för den här styrenheten."
+      "no_sub_devices": "Inga underenheter är definierade för den här styrenheten.",
+      "cannot_connect": "Kan inte nå styrenheten. Kontrollera värd/port och försök igen."
+    },
+    "progress": {
+      "listen": "Lyssnar efter zencontrol-styrenheter i nätverket… Tryck på en väggknapp för att skicka ett upptäckbart paket.",
+      "setup_devices": "Kartlägger alla entiteter på dina styrenheter…"
     }
   },
   "entity": {

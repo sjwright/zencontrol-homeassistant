@@ -3,6 +3,14 @@
   "config": {
     "step": {
       "user": {
+        "title": "Configurer zencontrol",
+        "description": "Découvrez les contrôleurs sur votre réseau via multicast, ou saisissez les détails de connexion manuellement. Les contrôleurs nécessitent une licence TPI Advanced.",
+        "menu_options": {
+          "discover": "Rechercher des contrôleurs",
+          "manual": "Saisir manuellement"
+        }
+      },
+      "manual": {
         "title": "Connexion au contrôleur zencontrol",
         "description": "Saisissez les informations de votre contrôleur d'application zencontrol. Notez que le contrôleur doit disposer d'une licence TPI Advanced.",
         "data": {
@@ -10,11 +18,33 @@
           "port": "Port",
           "mac": "Adresse MAC",
           "label": "Nom du contrôleur",
-          "unicast": "Utiliser les événements en unicast (non recommandé — uniquement si les paquets de diffusion ne sont pas pris en charge par votre topologie réseau)"
+          "unicast": "Utiliser les événements en unicast (non recommandé — uniquement si les paquets de diffusion ne sont pas pris en charge par votre topologie réseau)",
+          "abort_manual": "Activez cette option et appuyez sur Envoyer pour annuler la saisie manuelle"
         },
         "data_description": {
           "mac": "Laissez vide et validez pour rechercher à partir de l'IP de l'hôte (même sous-réseau uniquement). Confirmez la valeur, puis validez à nouveau."
         }
+      },
+      "select_discovered": {
+        "title": "Sélectionner les contrôleurs",
+        "description": "Ces contrôleurs ont été trouvés via multicast. Sélectionnez-en un ou plusieurs à ajouter.",
+        "data": {
+          "discovered": "Contrôleurs"
+        }
+      },
+      "discovery_failed": {
+        "title": "Impossible d'ajouter un contrôleur",
+        "description": "Aucun contrôleur supplémentaire n'a été ajouté. Vous pouvez relancer la découverte, saisir les détails manuellement ou continuer avec les contrôleurs déjà configurés.",
+        "menu_options": {
+          "discover": "Relancer la découverte",
+          "manual": "Ajouter manuellement",
+          "add_another": "Ajouter manuellement",
+          "finish": "✅ Terminé d'ajouter des contrôleurs"
+        }
+      },
+      "confirm_discovery": {
+        "title": "Confirmer le contrôleur zencontrol",
+        "description": "**{label}** trouvé à `{host}` (MAC `{mac}`). Voulez-vous l'ajouter ?"
       },
       "add_another": {
         "title": "Ajouter un autre contrôleur",
@@ -23,7 +53,8 @@
           "host": "Hôte (adresse IP)",
           "port": "Port",
           "mac": "Adresse MAC",
-          "label": "Nom du contrôleur"
+          "label": "Nom du contrôleur",
+          "abort_manual": "Activez cette option et appuyez sur Envoyer pour annuler la saisie manuelle"
         },
         "data_description": {
           "mac": "Laissez vide et validez pour rechercher à partir de l'IP de l'hôte (même sous-réseau uniquement). Confirmez la valeur, puis validez à nouveau."
@@ -31,10 +62,11 @@
       },
       "add_more": {
         "title": "Ajouter d'autres contrôleurs ?",
-        "description": "Vous pouvez ajouter un autre contrôleur maintenant, ou terminer la configuration. Ensuite, vous pourrez créer des sous-appareils pour assigner des pièces.",
+        "description": "Vous pouvez découvrir ou ajouter manuellement un autre contrôleur maintenant, ou terminer la configuration. Ensuite, vous pourrez créer des sous-appareils pour assigner des pièces.",
         "menu_options": {
-          "add_another": "➕ Ajouter un autre contrôleur",
-          "finish": "✅ Continuer"
+          "discover": "Découvrir un autre contrôleur",
+          "add_another": "Ajouter un autre contrôleur manuellement",
+          "finish": "✅ Terminé d'ajouter des contrôleurs"
         }
       },
       "reconfigure": {
@@ -68,15 +100,25 @@
     "error": {
       "cannot_connect": "Impossible d'atteindre le contrôleur. Vérifiez l'hôte/le port et réessayez.",
       "invalid_mac": "Format d'adresse MAC invalide. Utilisez XX:XX:XX:XX:XX:XX.",
+      "invalid_host": "L'hôte est requis lors de l'ajout d'un contrôleur.",
       "invalid_label": "Le nom du contrôleur ne peut pas être vide.",
       "mac_not_found": "Impossible de découvrir une adresse MAC pour cet hôte. Saisissez-la manuellement (même sous-réseau requis pour la recherche).",
-      "duplicate_mac": "Un contrôleur avec cette adresse MAC est déjà configuré."
+      "duplicate_mac": "Un contrôleur avec cette adresse MAC est déjà configuré.",
+      "no_devices_found": "Aucun contrôleur n'a été trouvé."
     },
     "abort": {
       "already_configured": "Ce contrôleur d'application zencontrol est déjà configuré.",
       "reconfigure_successful": "Reconfiguration réussie.",
       "no_controllers": "Aucun contrôleur n'est configuré.",
-      "last_controller": "Impossible de supprimer le dernier contrôleur."
+      "last_controller": "Impossible de supprimer le dernier contrôleur.",
+      "no_devices_found": "Aucun contrôleur zencontrol n'a été trouvé sur le réseau. Réessayez ou saisissez les détails manuellement.",
+      "cannot_connect": "Impossible d'atteindre le contrôleur découvert.",
+      "controller_added": "Contrôleur ajouté."
+    },
+    "progress": {
+      "listen": "Écoute des contrôleurs zencontrol sur le réseau… Appuyez sur un bouton mural pour émettre un paquet détectable.",
+      "connect_controllers": "Connexion aux contrôleurs sélectionnés…",
+      "setup_devices": "Chargement des lumières et appareils depuis vos contrôleurs…"
     }
   },
   "options": {
@@ -85,7 +127,8 @@
         "title": "Gérer zencontrol",
         "description": "Sélectionnez un contrôleur à gérer, ou ajoutez-en un.",
         "menu_options": {
-          "add_controller": "➕ Ajouter un contrôleur"
+          "discover": "Découvrir un autre contrôleur",
+          "add_controller": "Ajouter un autre contrôleur manuellement"
         }
       },
       "controller": {
@@ -117,9 +160,32 @@
           "mac": "Laissez vide et validez pour rechercher à partir de l'IP de l'hôte (même sous-réseau uniquement). Confirmez la valeur, puis validez à nouveau."
         }
       },
+      "discovery_failed": {
+        "title": "Aucun contrôleur trouvé",
+        "description": "Aucun contrôleur zencontrol n'a été trouvé sur le réseau via multicast. Vous pouvez réessayer ou saisir les détails manuellement.",
+        "menu_options": {
+          "discover": "Réessayer",
+          "add_controller": "Ajouter manuellement"
+        }
+      },
+      "add_discovered": {
+        "title": "Ajouter les contrôleurs découverts",
+        "description": "Sélectionnez un ou plusieurs contrôleurs trouvés via multicast sur votre réseau.",
+        "data": {
+          "discovered": "Contrôleurs"
+        }
+      },
       "remove_controller": {
         "title": "Supprimer le contrôleur",
         "description": "Supprimer {controller} ? Au moins un contrôleur doit rester."
+      },
+      "suggest_sub_devices": {
+        "title": "Configurer des sous-appareils ?",
+        "description": "### {controller}\n\nLes sous-appareils regroupent les entités par préfixe d’étiquette pour les assigner à une pièce. Vous pouvez ignorer cette étape et les ajouter plus tard via Configurer.",
+        "menu_options": {
+          "add_sub_device": "➕ Ajouter un sous-appareil",
+          "finish_setup": "Ignorer pour l’instant"
+        }
       },
       "add_sub_device": {
         "title": "Ajouter un sous-appareil",
@@ -148,29 +214,28 @@
       "delete_sub_device": {
         "title": "Supprimer le sous-appareil",
         "description": "Supprimer {sub_device} de {controller} ? Les entités concernées reviennent à l'appareil du contrôleur."
-      },
-      "suggest_sub_devices": {
-        "title": "Configurer des sous-appareils ?",
-        "description": "### {controller}\n\nLes sous-appareils regroupent les entités par préfixe d’étiquette pour les assigner à une pièce. Vous pouvez ignorer cette étape et les ajouter plus tard via Configurer.",
-        "menu_options": {
-          "add_sub_device": "➕ Ajouter un sous-appareil",
-          "finish_setup": "Ignorer pour l’instant"
-        }
       }
     },
     "error": {
       "cannot_connect": "Impossible d'atteindre le contrôleur. Vérifiez l'hôte/le port et réessayez.",
+      "invalid_host": "L'hôte est requis lors de l'ajout d'un contrôleur.",
       "invalid_mac": "Format d'adresse MAC invalide. Utilisez XX:XX:XX:XX:XX:XX.",
       "invalid_label": "Le nom du contrôleur ne peut pas être vide.",
       "mac_not_found": "Impossible de découvrir une adresse MAC pour cet hôte. Saisissez-la manuellement (même sous-réseau requis pour la recherche).",
       "duplicate_mac": "Un contrôleur avec cette adresse MAC est déjà configuré.",
       "empty_prefixes": "Saisissez au moins un préfixe d'étiquette.",
-      "duplicate_prefix": "Ce préfixe est déjà utilisé par un autre sous-appareil sur ce contrôleur."
+      "duplicate_prefix": "Ce préfixe est déjà utilisé par un autre sous-appareil sur ce contrôleur.",
+      "no_devices_found": "Aucun contrôleur n'a été trouvé."
     },
     "abort": {
       "last_controller": "Impossible de supprimer le dernier contrôleur.",
       "no_controllers": "Aucun contrôleur n'est configuré.",
-      "no_sub_devices": "Aucun sous-appareil n'est défini pour ce contrôleur."
+      "no_sub_devices": "Aucun sous-appareil n'est défini pour ce contrôleur.",
+      "cannot_connect": "Impossible d'atteindre le contrôleur. Vérifiez l'hôte/le port et réessayez."
+    },
+    "progress": {
+      "listen": "Écoute des contrôleurs zencontrol sur le réseau… Appuyez sur un bouton mural pour émettre un paquet détectable.",
+      "setup_devices": "Correspondance de toutes les entités sur vos contrôleurs…"
     }
   },
   "entity": {

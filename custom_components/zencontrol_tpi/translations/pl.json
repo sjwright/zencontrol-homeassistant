@@ -3,6 +3,14 @@
   "config": {
     "step": {
       "user": {
+        "title": "Skonfiguruj zencontrol",
+        "description": "Wykryj kontrolery w sieci przez multicast lub wprowadź dane połączenia ręcznie. Kontrolery wymagają licencji TPI Advanced.",
+        "menu_options": {
+          "discover": "Szukaj kontrolerów",
+          "manual": "Wprowadź ręcznie"
+        }
+      },
+      "manual": {
         "title": "Połącz z kontrolerem zencontrol",
         "description": "Wprowadź dane swojego kontrolera aplikacji zencontrol. Uwaga: kontroler musi mieć przypisaną licencję TPI Advanced.",
         "data": {
@@ -10,11 +18,33 @@
           "port": "Port",
           "mac": "Adres MAC",
           "label": "Nazwa kontrolera",
-          "unicast": "Używaj zdarzeń unicast (niezalecane — tylko gdy pakiety rozgłoszeniowe nie są obsługiwane przez topologię sieci)"
+          "unicast": "Używaj zdarzeń unicast (niezalecane — tylko gdy pakiety rozgłoszeniowe nie są obsługiwane przez topologię sieci)",
+          "abort_manual": "Włącz to i naciśnij Wyślij, aby przerwać ręczne wprowadzanie danych"
         },
         "data_description": {
           "mac": "Pozostaw puste i wyślij, aby wyszukać na podstawie IP hosta (tylko ta sama podsieć). Potwierdź wartość i wyślij ponownie."
         }
+      },
+      "select_discovered": {
+        "title": "Wybierz kontrolery",
+        "description": "Te kontrolery znaleziono przez multicast. Wybierz jeden lub więcej do dodania.",
+        "data": {
+          "discovered": "Kontrolery"
+        }
+      },
+      "discovery_failed": {
+        "title": "Nie udało się dodać kontrolera",
+        "description": "Nie dodano dodatkowego kontrolera. Możesz ponowić wykrywanie, wprowadzić dane ręcznie lub kontynuować z już skonfigurowanymi kontrolerami.",
+        "menu_options": {
+          "discover": "Ponów wykrywanie",
+          "manual": "Dodaj ręcznie",
+          "add_another": "Dodaj ręcznie",
+          "finish": "✅ Zakończono dodawanie kontrolerów"
+        }
+      },
+      "confirm_discovery": {
+        "title": "Potwierdź kontroler zencontrol",
+        "description": "Znaleziono **{label}** pod `{host}` (MAC `{mac}`). Czy chcesz go dodać?"
       },
       "add_another": {
         "title": "Dodaj kolejny kontroler",
@@ -23,7 +53,8 @@
           "host": "Host (adres IP)",
           "port": "Port",
           "mac": "Adres MAC",
-          "label": "Nazwa kontrolera"
+          "label": "Nazwa kontrolera",
+          "abort_manual": "Włącz to i naciśnij Wyślij, aby przerwać ręczne wprowadzanie danych"
         },
         "data_description": {
           "mac": "Pozostaw puste i wyślij, aby wyszukać na podstawie IP hosta (tylko ta sama podsieć). Potwierdź wartość i wyślij ponownie."
@@ -31,10 +62,11 @@
       },
       "add_more": {
         "title": "Dodać więcej kontrolerów?",
-        "description": "Możesz teraz dodać kolejny kontroler lub zakończyć konfigurację. Potem możesz utworzyć podurządzenia, aby przypisać pomieszczenia.",
+        "description": "Możesz teraz wykryć lub ręcznie dodać kolejny kontroler albo zakończyć konfigurację. Potem możesz utworzyć podurządzenia, aby przypisać pomieszczenia.",
         "menu_options": {
-          "add_another": "➕ Dodaj kolejny kontroler",
-          "finish": "✅ Kontynuuj"
+          "discover": "Wykryj kolejny kontroler",
+          "add_another": "Dodaj kolejny kontroler ręcznie",
+          "finish": "✅ Zakończono dodawanie kontrolerów"
         }
       },
       "reconfigure": {
@@ -68,15 +100,25 @@
     "error": {
       "cannot_connect": "Nie można połączyć się z kontrolerem. Sprawdź host/port i spróbuj ponownie.",
       "invalid_mac": "Nieprawidłowy format adresu MAC. Użyj XX:XX:XX:XX:XX:XX.",
+      "invalid_host": "Host jest wymagany przy dodawaniu kontrolera.",
       "invalid_label": "Nazwa kontrolera nie może być pusta.",
       "mac_not_found": "Nie udało się wykryć adresu MAC dla tego hosta. Wprowadź go ręcznie (wyszukiwanie wymaga tej samej podsieci).",
-      "duplicate_mac": "Kontroler z tym adresem MAC jest już skonfigurowany."
+      "duplicate_mac": "Kontroler z tym adresem MAC jest już skonfigurowany.",
+      "no_devices_found": "Nie znaleziono żadnych kontrolerów."
     },
     "abort": {
       "already_configured": "Ten kontroler aplikacji zencontrol jest już skonfigurowany.",
       "reconfigure_successful": "Ponowna konfiguracja zakończona pomyślnie.",
       "no_controllers": "Nie skonfigurowano żadnych kontrolerów.",
-      "last_controller": "Nie można usunąć ostatniego kontrolera."
+      "last_controller": "Nie można usunąć ostatniego kontrolera.",
+      "no_devices_found": "Nie znaleziono kontrolerów zencontrol w sieci. Spróbuj ponownie lub wprowadź dane ręcznie.",
+      "cannot_connect": "Nie można połączyć się z wykrytym kontrolerem.",
+      "controller_added": "Kontroler dodany."
+    },
+    "progress": {
+      "listen": "Nasłuchiwanie kontrolerów zencontrol w sieci… Naciśnij przycisk ścienny, aby wysłać wykrywalny pakiet.",
+      "connect_controllers": "Łączenie z wybranymi kontrolerami…",
+      "setup_devices": "Ładowanie świateł i urządzeń z kontrolerów…"
     }
   },
   "options": {
@@ -85,7 +127,8 @@
         "title": "Zarządzaj zencontrol",
         "description": "Wybierz kontroler do zarządzania albo dodaj kolejny.",
         "menu_options": {
-          "add_controller": "➕ Dodaj kontroler"
+          "discover": "Wykryj kolejny kontroler",
+          "add_controller": "Dodaj kolejny kontroler ręcznie"
         }
       },
       "controller": {
@@ -117,9 +160,32 @@
           "mac": "Pozostaw puste i wyślij, aby wyszukać na podstawie IP hosta (tylko ta sama podsieć). Potwierdź wartość i wyślij ponownie."
         }
       },
+      "discovery_failed": {
+        "title": "Nie znaleziono kontrolerów",
+        "description": "Nie znaleziono kontrolerów zencontrol w sieci przez multicast. Możesz spróbować ponownie lub wprowadzić dane ręcznie.",
+        "menu_options": {
+          "discover": "Spróbuj ponownie",
+          "add_controller": "Dodaj ręcznie"
+        }
+      },
+      "add_discovered": {
+        "title": "Dodaj wykryte kontrolery",
+        "description": "Wybierz jeden lub więcej kontrolerów znalezionych przez multicast w sieci.",
+        "data": {
+          "discovered": "Kontrolery"
+        }
+      },
       "remove_controller": {
         "title": "Usuń kontroler",
         "description": "Usunąć {controller}? Co najmniej jeden kontroler musi pozostać."
+      },
+      "suggest_sub_devices": {
+        "title": "Skonfigurować podurządzenia?",
+        "description": "### {controller}\n\nPodurządzenia grupują encje według prefiksu etykiety, aby przypisać je do pomieszczenia. Możesz pominąć ten krok i dodać je później w Konfiguruj.",
+        "menu_options": {
+          "add_sub_device": "➕ Dodaj podurządzenie",
+          "finish_setup": "Pomiń na razie"
+        }
       },
       "add_sub_device": {
         "title": "Dodaj podurządzenie",
@@ -148,29 +214,28 @@
       "delete_sub_device": {
         "title": "Usuń podurządzenie",
         "description": "Usunąć {sub_device} z {controller}? Dotknięte encje wracają do urządzenia kontrolera."
-      },
-      "suggest_sub_devices": {
-        "title": "Skonfigurować podurządzenia?",
-        "description": "### {controller}\n\nPodurządzenia grupują encje według prefiksu etykiety, aby przypisać je do pomieszczenia. Możesz pominąć ten krok i dodać je później w Konfiguruj.",
-        "menu_options": {
-          "add_sub_device": "➕ Dodaj podurządzenie",
-          "finish_setup": "Pomiń na razie"
-        }
       }
     },
     "error": {
       "cannot_connect": "Nie można połączyć się z kontrolerem. Sprawdź host/port i spróbuj ponownie.",
+      "invalid_host": "Host jest wymagany przy dodawaniu kontrolera.",
       "invalid_mac": "Nieprawidłowy format adresu MAC. Użyj XX:XX:XX:XX:XX:XX.",
       "invalid_label": "Nazwa kontrolera nie może być pusta.",
       "mac_not_found": "Nie udało się wykryć adresu MAC dla tego hosta. Wprowadź go ręcznie (wyszukiwanie wymaga tej samej podsieci).",
       "duplicate_mac": "Kontroler z tym adresem MAC jest już skonfigurowany.",
       "empty_prefixes": "Wprowadź co najmniej jeden prefiks etykiety.",
-      "duplicate_prefix": "Ten prefiks jest już używany przez inne podurządzenie na tym kontrolerze."
+      "duplicate_prefix": "Ten prefiks jest już używany przez inne podurządzenie na tym kontrolerze.",
+      "no_devices_found": "Nie znaleziono żadnych kontrolerów."
     },
     "abort": {
       "last_controller": "Nie można usunąć ostatniego kontrolera.",
       "no_controllers": "Nie skonfigurowano żadnych kontrolerów.",
-      "no_sub_devices": "Dla tego kontrolera nie zdefiniowano żadnych podurządzeń."
+      "no_sub_devices": "Dla tego kontrolera nie zdefiniowano żadnych podurządzeń.",
+      "cannot_connect": "Nie można połączyć się z kontrolerem. Sprawdź host/port i spróbuj ponownie."
+    },
+    "progress": {
+      "listen": "Nasłuchiwanie kontrolerów zencontrol w sieci… Naciśnij przycisk ścienny, aby wysłać wykrywalny pakiet.",
+      "setup_devices": "Mapowanie wszystkich encji na kontrolerach…"
     }
   },
   "entity": {
