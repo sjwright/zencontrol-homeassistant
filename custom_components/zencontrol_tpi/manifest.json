@@ -1,5 +1,5 @@
 {
-  "domain": "zencontrol_homeassistant",
+  "domain": "zencontrol_tpi",
   "name": "Zencontrol",
   "codeowners": ["@sjwright"],
   "config_flow": true,
@@ -12,5 +12,5 @@
     "zencontrol-python>=0.1.2"
   ],
   "single_config_entry": true,
-  "version": "0.2.1"
+  "version": "0.2.2"
 }
