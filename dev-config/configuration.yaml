@@ -16,5 +16,6 @@ scene: !include scenes.yaml
 logger:
   default: warning
   logs:
+    # Logger path uses the legacy HA domain — do not rename.
     custom_components.zencontrol_tpi: debug
     zencontrol: debug

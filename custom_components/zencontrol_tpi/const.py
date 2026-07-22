@@ -7,6 +7,8 @@ from typing import Final
 
 from homeassistant.const import Platform
 
+# Legacy HA domain — must remain "zencontrol_tpi" (and match manifest.json
+# "domain" + custom_components/zencontrol_tpi/) so existing installs keep working.
 DOMAIN: Final = "zencontrol_tpi"
 
 # hass.data[DOMAIN] key for a manifest built during config-flow progress
