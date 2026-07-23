@@ -92,7 +92,6 @@ def test_group_membership_overrides_light_name() -> None:
     )
 
     assignments = build_assignments(
-        controllers=[ctrl],
         controller_sub_devices={"house": [emily, kitchen]},
         lights=[light],
         groups=[group],
@@ -104,6 +103,17 @@ def test_group_membership_overrides_light_name() -> None:
     assert assignments["light:house:3"] == "emily"
 
 
+def test_controller_identifier_prefers_normalized_mac() -> None:
+    from custom_components.zencontrol_tpi.const import DOMAIN
+    from custom_components.zencontrol_tpi.entity import controller_identifier
+
+    ctrl = SimpleNamespace(name="house", mac="aa-bb-cc-dd-ee-ff")
+    assert controller_identifier(ctrl) == (DOMAIN, "AA:BB:CC:DD:EE:FF")
+
+    no_mac = SimpleNamespace(name="house", mac=None)
+    assert controller_identifier(no_mac) == (DOMAIN, "house")
+
+
 def test_ungrouped_light_uses_name() -> None:
     ctrl = SimpleNamespace(name="house")
     kitchen = SubDeviceDef("kitchen", "Kitchen", ("Kitchen",))
@@ -113,7 +123,6 @@ def test_ungrouped_light_uses_name() -> None:
         label="Kitchen pendant",
     )
     assignments = build_assignments(
-        controllers=[ctrl],
         controller_sub_devices={"house": [kitchen]},
         lights=[light],
         groups=[],

@@ -15,6 +15,26 @@ from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 
+from .const import (
+    CONF_CONTROLLERS,
+    CONF_LABEL,
+    CONF_MAC,
+    CONF_NAME,
+    CONF_UNICAST,
+    DATA_PENDING_MANIFEST,
+    DOMAIN,
+)
+from .entity import (
+    controller_device_info,
+    controller_identifier,
+    sub_device_device_info,
+)
+from .manifest_store import (
+    DiscoveryManifestStore,
+    build_manifest,
+    load_entities_from_manifest,
+)
+from .rate_limiter import RateLimiter
 from .sub_devices import (
     SubDeviceDef,
     build_assignments,
@@ -25,22 +45,6 @@ from .sub_devices import (
     sub_devices_from_controller,
     sysvar_assignment_key,
 )
-from .const import (
-    CONF_CONTROLLERS,
-    CONF_LABEL,
-    CONF_MAC,
-    CONF_NAME,
-    CONF_UNICAST,
-    DATA_PENDING_MANIFEST,
-    DOMAIN,
-)
-from .entity import controller_device_info, sub_device_device_info
-from .manifest_store import (
-    DiscoveryManifestStore,
-    build_manifest,
-    load_entities_from_manifest,
-)
-from .rate_limiter import RateLimiter
 from .sysvar import classify_sysvar_entity
 
 _LOGGER = logging.getLogger(__name__)
@@ -151,7 +155,107 @@ class ZenHub:
             zen_ctrl, sub_device_id=device.id, sub_device_name=device.name
         )
 
-    def rebuild_sub_device_assignments(self) -> None:
+    def sync_device_assignments(self) -> None:
+        """Idempotently assign every entity to its controller or sub-device.
+
+        This is the only routine that may change device membership. It:
+
+        1. Rebuilds group-first then label-prefix assignments from live config
+        2. Ensures controller and sub-device registry entries (and areas) exist
+        3. Moves every known entity onto the matching device
+        4. Removes orphaned controller/sub-device registry entries for this entry
+
+        Safe to call repeatedly after any config or discovery change (add/remove
+        controllers or sub-devices, reload, re-enrollment, options save). When
+        entities are not yet registered, steps 1-2/4 still run; call again after
+        ``async_block_till_done()`` so entity registry moves can apply.
+        """
+        self._rebuild_sub_device_assignments()
+
+        device_registry = dr.async_get(self.hass)
+        entity_registry = er.async_get(self.hass)
+        expected_identifiers = self._expected_device_identifiers()
+
+        # Controllers first so sub-device via_device links resolve.
+        for zen_ctrl in self.controllers:
+            self._ensure_registry_device(
+                device_registry, controller_device_info(zen_ctrl)
+            )
+
+        for zen_ctrl in self.controllers:
+            for device_def in self._sub_devices_by_controller.get(zen_ctrl.name) or []:
+                device = self._ensure_registry_device(
+                    device_registry,
+                    sub_device_device_info(
+                        zen_ctrl,
+                        sub_device_id=device_def.id,
+                        sub_device_name=device_def.name,
+                    ),
+                )
+                if device.area_id != device_def.area_id:
+                    device_registry.async_update_device(
+                        device.id, area_id=device_def.area_id
+                    )
+
+        updated = 0
+        for entity, zen_ctrl, key in self._iter_device_assignment_targets():
+            info = self.device_info_for(zen_ctrl, assignment_key=key)
+            entity._attr_device_info = info
+            entity_id = getattr(entity, "entity_id", None)
+            if not entity_id:
+                continue
+
+            registry_entry = entity_registry.async_get(entity_id)
+            if registry_entry is None:
+                _LOGGER.debug(
+                    "Skipping device assignment for %s; not in entity registry yet",
+                    entity_id,
+                )
+                continue
+
+            device = self._ensure_registry_device(device_registry, info)
+            if registry_entry.device_id == device.id:
+                continue
+            try:
+                entity_registry.async_update_entity(entity_id, device_id=device.id)
+            except ValueError as err:
+                _LOGGER.warning(
+                    "Could not assign %s to device %s: %s",
+                    entity_id,
+                    device.id,
+                    err,
+                )
+                continue
+            updated += 1
+
+        removed = self._prune_orphaned_devices(device_registry, expected_identifiers)
+
+        _LOGGER.info(
+            "Synced device assignments: %d entities updated, %d orphan devices "
+            "removed (%d assignment keys, %d controllers)",
+            updated,
+            removed,
+            len(self._sub_device_assignments),
+            len(self.controllers),
+        )
+
+    def _ensure_registry_device(
+        self,
+        device_registry: dr.DeviceRegistry,
+        info: Any,
+    ) -> Any:
+        """Create or update a registry device from DeviceInfo."""
+        return device_registry.async_get_or_create(
+            config_entry_id=self.entry.entry_id,
+            identifiers=info["identifiers"],
+            manufacturer=info.get("manufacturer"),
+            model=info.get("model"),
+            name=info.get("name"),
+            sw_version=info.get("sw_version"),
+            via_device=info.get("via_device"),
+        )
+
+    def _rebuild_sub_device_assignments(self) -> None:
         """Recompute label-prefix sub-device assignments from config + discovery."""
         self._sub_devices_by_controller = {}
         for ctrl_cfg in self.entry.data.get(CONF_CONTROLLERS, []):
@@ -164,7 +268,6 @@ class ZenHub:
 
         sysvars = list({*self.sv_switches, *self.sv_sensors})
         self._sub_device_assignments = build_assignments(
-            controllers=self.controllers,
             controller_sub_devices=self._sub_devices_by_controller,
             lights=self.lights,
             groups=self.groups,
@@ -178,16 +281,50 @@ class ZenHub:
             len(self._sub_devices_by_controller),
         )
 
-    def apply_sub_device_config(self) -> None:
-        """Rebuild assignments and move entities to the matching devices.
+    def _expected_device_identifiers(self) -> set[tuple[str, str]]:
+        """Identifiers for controllers and sub-devices that should exist."""
+        expected: set[tuple[str, str]] = set()
+        for zen_ctrl in self.controllers:
+            parent = controller_identifier(zen_ctrl)
+            expected.add(parent)
+            for device_def in self._sub_devices_by_controller.get(zen_ctrl.name) or []:
+                expected.add((DOMAIN, f"{parent[1]}:sub:{device_def.id}"))
+        return expected
 
-        Used after options changes so we do not reload the entry or rescan the bus.
+    def _prune_orphaned_devices(
+        self,
+        device_registry: dr.DeviceRegistry,
+        expected_identifiers: set[tuple[str, str]],
+    ) -> int:
+        """Remove config-entry devices whose identifiers are no longer expected.
+
+        Refuses to prune when the expected set is empty so a transient empty
+        controller list cannot wipe every device for this entry.
         """
-        self.rebuild_sub_device_assignments()
+        if not expected_identifiers:
+            _LOGGER.debug(
+                "Skipping device prune; no expected controller/sub-device identifiers"
+            )
+            return 0
 
-        device_registry = dr.async_get(self.hass)
-        entity_registry = er.async_get(self.hass)
+        removed = 0
+        for device in dr.async_entries_for_config_entry(
+            device_registry, self.entry.entry_id
+        ):
+            domain_idents = {
+                ident for ident in device.identifiers if ident[0] == DOMAIN
+            }
+            if not domain_idents:
+                continue
+            if domain_idents.isdisjoint(expected_identifiers):
+                device_registry.async_remove_device(device.id)
+                removed += 1
+        return removed
 
+    def _iter_device_assignment_targets(
+        self,
+    ) -> list[tuple[Any, Any, str | None]]:
+        """Return (entity, controller, assignment_key) for every hub entity."""
         targets: list[tuple[Any, Any, str | None]] = []
         for zen_light, entity in self._light_entities.items():
             targets.append(
@@ -229,54 +366,7 @@ class ZenHub:
             ctrl = next((c for c in self.controllers if c.name == ctrl_name), None)
             if ctrl is not None:
                 targets.append((entity, ctrl, None))
-
-        for entity, zen_ctrl, key in targets:
-            info = self.device_info_for(zen_ctrl, assignment_key=key)
-            entity._attr_device_info = info
-            entity_id = getattr(entity, "entity_id", None)
-            if not entity_id:
-                continue
-            device = device_registry.async_get_or_create(
-                config_entry_id=self.entry.entry_id,
-                identifiers=info["identifiers"],
-                manufacturer=info.get("manufacturer"),
-                model=info.get("model"),
-                name=info.get("name"),
-                sw_version=info.get("sw_version"),
-                via_device=info.get("via_device"),
-            )
-            entity_registry.async_update_entity(entity_id, device_id=device.id)
-
-        self.sync_sub_device_areas()
-
-        _LOGGER.info(
-            "Applied sub-device assignments to %d entities (no rediscovery)",
-            len(targets),
-        )
-
-    def sync_sub_device_areas(self) -> None:
-        """Create/update registry entries for sub-devices and apply area_id."""
-        device_registry = dr.async_get(self.hass)
-        for zen_ctrl in self.controllers:
-            for device_def in self._sub_devices_by_controller.get(zen_ctrl.name) or []:
-                info = sub_device_device_info(
-                    zen_ctrl,
-                    sub_device_id=device_def.id,
-                    sub_device_name=device_def.name,
-                )
-                device = device_registry.async_get_or_create(
-                    config_entry_id=self.entry.entry_id,
-                    identifiers=info["identifiers"],
-                    manufacturer=info.get("manufacturer"),
-                    model=info.get("model"),
-                    name=info.get("name"),
-                    via_device=info.get("via_device"),
-                )
-                if device.area_id != device_def.area_id:
-                    device_registry.async_update_device(
-                        device.id, area_id=device_def.area_id
-                    )
-
+        return targets
 
     # ------------------------------------------------------------------
     # Entity registration
@@ -403,11 +493,17 @@ class ZenHub:
         try:
             await self._wait_for_controllers()
             await self._discover_entities()
+            # Build assignment map + devices before platforms construct entities.
+            self.sync_device_assignments()
             await self._refresh_light_states()
             assert self.zen is not None
             await self.zen.start()
             self._available = True
             await self._notify_discovery_complete()
+            # Entity registry device_id is sticky across reload; re-run after
+            # entities have entity_ids so membership is corrected idempotently.
+            await self.hass.async_block_till_done()
+            self.sync_device_assignments()
         except ConfigEntryNotReady:
             self._available = False
             await self._notify_discovery_complete()
@@ -521,8 +617,6 @@ class ZenHub:
             len(self.sv_sensors),
             len(self.profiles),
         )
-        self.rebuild_sub_device_assignments()
-        self.sync_sub_device_areas()
 
     async def _run_full_discovery(self) -> None:
         """Scan the bus for all entity types."""

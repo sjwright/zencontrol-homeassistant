@@ -1,4 +1,14 @@
-"""Label-prefix sub-devices for HA child devices under a controller."""
+"""Label-prefix sub-devices for HA child devices under a controller.
+
+Lifecycle (owned by ZenHub.sync_device_assignments):
+
+1. Config: per-controller ``sub_devices`` list in the config entry
+2. Assign: group-first, then longest label-prefix match (build_assignments)
+3. Sync: create/update devices + areas, move entities, prune orphans
+
+Sub-device CRUD in options persists config and calls sync without reload.
+Controller add/remove reloads, then rediscovery + sync.
+"""
 
 from __future__ import annotations
 
@@ -7,10 +17,11 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from .const import CONF_SUB_DEVICES
+
 _LOGGER = logging.getLogger(__name__)
 
-# Sub-device definition keys in controller config
-CONF_SUB_DEVICES = "sub_devices"
+# Sub-device definition keys inside each controller's sub_devices list
 CONF_SUB_DEVICE_ID = "id"
 CONF_SUB_DEVICE_NAME = "name"
 CONF_SUB_DEVICE_PREFIXES = "prefixes"
@@ -145,7 +156,11 @@ def prefix_matches(label: str, prefix: str) -> bool:
 
 
 def match_sub_device(label: str, sub_devices: list[SubDeviceDef]) -> SubDeviceDef | None:
-    """Return the sub-device with the longest matching prefix, or None."""
+    """Return the sub-device with the longest matching prefix, or None.
+
+    Tie-break when two prefixes share the same length: the first match in
+    config order (sub-device list, then that device's prefix tuple) wins.
+    """
     label = (label or "").strip()
     if not label or not sub_devices:
         return None
@@ -223,7 +238,6 @@ def sysvar_assignment_key(sv: Any) -> str:
 
 def build_assignments(
     *,
-    controllers: list[Any],
     controller_sub_devices: dict[str, list[SubDeviceDef]],
     lights: list[Any],
     groups: list[Any],
@@ -233,9 +247,10 @@ def build_assignments(
 ) -> dict[str, str]:
     """Compute assignment key → sub-device id.
 
-    Groups are matched first; member lights inherit that sub-device and are not
-    name-matched. Remaining lights and other entities use name matching.
-    Profile entities are never assigned here (always parent).
+    Groups are matched first (lowest address number wins when a light sits in
+    multiple matched groups); member lights inherit that sub-device and are not
+    name-matched. Remaining lights and other entities use longest-prefix name
+    matching. Profile entities are never assigned here (always parent).
     """
     assignments: dict[str, str] = {}
     lights_claimed: set[str] = set()

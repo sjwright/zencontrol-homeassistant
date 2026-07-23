@@ -196,7 +196,7 @@
         },
         "data_description": {
           "prefixes": "Case-insensitive. Comma delimited. Matches labels that start with any of these strings.",
-          "area_id": "Optional. Assign this sub-device to a Home Assistant area (room)."
+          "area_id": "Optional. Assign this sub-device to a Home Assistant area. The integration owns this area; changes made on the Devices page are overwritten on the next sync."
         }
       },
       "reconfigure_sub_device": {
@@ -208,7 +208,7 @@
         },
         "data_description": {
           "prefixes": "Case-insensitive. Comma delimited. Matches labels that start with any of these strings.",
-          "area_id": "Optional. Assign this sub-device to a Home Assistant area (room)."
+          "area_id": "Optional. Assign this sub-device to a Home Assistant area. The integration owns this area; changes made on the Devices page are overwritten on the next sync."
         }
       },
       "delete_sub_device": {
@@ -230,7 +230,6 @@
     "abort": {
       "last_controller": "Cannot remove the last controller.",
       "no_controllers": "No controllers are configured.",
-      "no_sub_devices": "No sub-devices are defined for this controller.",
       "cannot_connect": "Unable to reach the controller. Check the host/port and try again."
     },
     "progress": {

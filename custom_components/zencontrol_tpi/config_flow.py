@@ -8,8 +8,9 @@ import logging
 import re
 import socket
 import time
+from collections.abc import Callable
 from functools import partial
-from typing import Any, Callable
+from typing import Any
 
 import getmac
 import voluptuous as vol
@@ -24,7 +25,11 @@ from homeassistant.config_entries import (
 )
 from homeassistant.const import CONF_HOST, CONF_PORT
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.selector import AreaSelector, SelectSelector, SelectSelectorConfig
+from homeassistant.helpers.selector import (
+    AreaSelector,
+    SelectSelector,
+    SelectSelectorConfig,
+)
 from homeassistant.helpers.translation import async_get_translations
 
 from .const import (
@@ -39,7 +44,6 @@ from .const import (
     DOMAIN,
 )
 from .manifest_store import build_manifest
-from .sysvar import classify_sysvar_entity
 from .sub_devices import (
     SubDeviceDef,
     parse_sub_device_prefixes,
@@ -48,6 +52,7 @@ from .sub_devices import (
     sub_devices_to_config,
     validate_sub_device_prefixes,
 )
+from .sysvar import classify_sysvar_entity
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -888,13 +893,13 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
     async def async_on_create_entry(self, result: ConfigFlowResult) -> ConfigFlowResult:
-        """Continue into options to suggest sub-devices (skips Name and assign)."""
+        """Continue into options to suggest sub-devices for each controller."""
         entry = result["result"]
-        ctrl_name = self._controllers[0][CONF_NAME] if self._controllers else None
+        ctrl_names = [c[CONF_NAME] for c in self._controllers]
         options_result = await self.hass.config_entries.options.async_init(
             entry.entry_id,
             context={"source": SOURCE_USER},
-            data={CTX_SUGGEST_SUB_DEVICES: ctrl_name},
+            data={CTX_SUGGEST_SUB_DEVICES: ctrl_names},
         )
         result["next_flow"] = (FlowType.OPTIONS_FLOW, options_result["flow_id"])
         return result
@@ -1179,15 +1184,32 @@ class ZencontrolTpiOptionsFlow(OptionsFlow):
             return None
         return next((c for c in self._controllers() if c[CONF_NAME] == name), None)
 
+    def _set_suggest_queue(self, names: list[str]) -> None:
+        """Queue controllers that should each get the sub-device prompt."""
+        self._suggest_queue = [n for n in names if n]
+
+    def _pop_suggest_controller(self) -> str | None:
+        """Return the next controller name awaiting a sub-device prompt."""
+        queue: list[str] = getattr(self, "_suggest_queue", None) or []
+        self._suggest_queue = queue
+        while queue:
+            name = queue.pop(0)
+            if self._controller(name) is not None:
+                return name
+        return None
+
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """List controllers plus Add controller, or open suggest after setup."""
         init_data = self.init_data if isinstance(self.init_data, dict) else {}
-        suggest_ctrl = init_data.get(CTX_SUGGEST_SUB_DEVICES)
-        if suggest_ctrl and not self._suggest_from_setup_handled:
+        suggest = init_data.get(CTX_SUGGEST_SUB_DEVICES)
+        if suggest is not None and not self._suggest_from_setup_handled:
             self._suggest_from_setup_handled = True
-            self._ctrl_name = str(suggest_ctrl)
+            if isinstance(suggest, str):
+                self._set_suggest_queue([suggest])
+            else:
+                self._set_suggest_queue([str(n) for n in suggest])
             return await self.async_step_suggest_sub_devices()
 
         menu_options: dict[str, str] = {
@@ -1208,6 +1230,8 @@ class ZencontrolTpiOptionsFlow(OptionsFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """After adding a controller, offer to create sub-devices."""
+        if self._ctrl_name is None or self._controller(self._ctrl_name) is None:
+            self._ctrl_name = self._pop_suggest_controller()
         ctrl = self._controller(self._ctrl_name)
         if ctrl is None:
             return await self.async_step_init()
@@ -1224,8 +1248,14 @@ class ZencontrolTpiOptionsFlow(OptionsFlow):
     async def async_step_finish_setup(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Close options after declining or finishing sub-device setup."""
+        """Close options after declining or finishing sub-device setup.
+
+        If more newly added controllers are queued, prompt for the next one.
+        """
         self._return_after_save = None
+        self._ctrl_name = None
+        if getattr(self, "_suggest_queue", None):
+            return await self.async_step_suggest_sub_devices()
         return self.async_create_entry(title="", data={})
 
     async def async_step_controller(
@@ -1336,7 +1366,8 @@ class ZencontrolTpiOptionsFlow(OptionsFlow):
                     controllers.append(
                         build_controller_dict(host, int(port), mac_n, label, name)
                     )
-                    self._ctrl_name = name
+                    self._set_suggest_queue([name])
+                    self._ctrl_name = None
                     self._pending_controllers = controllers
                     self._pending_title = entry_title(controllers)
                     self._reload_next_step = "suggest_sub_devices"
@@ -1465,7 +1496,8 @@ class ZencontrolTpiOptionsFlow(OptionsFlow):
             if error:
                 errors["base" if error != "duplicate_mac" else CONF_MAC] = error
             else:
-                self._ctrl_name = added[-1]
+                self._set_suggest_queue(added)
+                self._ctrl_name = None
                 self._pending_controllers = controllers
                 self._pending_title = entry_title(controllers)
                 self._reload_next_step = "suggest_sub_devices"
@@ -1702,7 +1734,7 @@ class ZencontrolTpiOptionsFlow(OptionsFlow):
         )
         hub = self.config_entry.runtime_data
         if hub is not None:
-            hub.apply_sub_device_config()
+            hub.sync_device_assignments()
 
         if self._return_after_save == "suggest_sub_devices":
             return await self.async_step_suggest_sub_devices()
@@ -1728,16 +1760,6 @@ class ZencontrolTpiOptionsFlow(OptionsFlow):
         )
         if reload:
             await self.hass.config_entries.async_reload(self.config_entry.entry_id)
-
-    async def _async_save_and_reload(
-        self,
-        controllers: list[dict[str, Any]],
-        *,
-        title: str,
-    ) -> ConfigFlowResult:
-        """Persist controllers, reload the entry, and close the options flow."""
-        await self._async_persist_controllers(controllers, title=title, reload=True)
-        return self.async_create_entry(title="", data={})
 
 
 

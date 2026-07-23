@@ -11,8 +11,15 @@ from .const import DOMAIN
 
 
 def controller_identifier(zen_ctrl: Any) -> tuple[str, str]:
-    """Stable parent-device identifier for a controller."""
-    return (DOMAIN, zen_ctrl.mac or zen_ctrl.name)
+    """Stable parent-device identifier for a controller.
+
+    Prefer MAC (always present in config). Fall back to controller name only
+    when MAC is missing so legacy/test stubs still resolve.
+    """
+    mac = getattr(zen_ctrl, "mac", None)
+    if mac:
+        return (DOMAIN, str(mac).upper().replace("-", ":"))
+    return (DOMAIN, zen_ctrl.name)
 
 
 def controller_device_info(zen_ctrl: Any) -> DeviceInfo:
