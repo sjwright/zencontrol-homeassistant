@@ -10,10 +10,10 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .sub_devices import group_assignment_key
 from .const import SCENE_NONE
 from .entity import ZenControllerEntity
-from .hub import ZenHub, ZencontrolTpiConfigEntry
+from .hub import ZencontrolTpiConfigEntry, ZenHub
+from .sub_devices import group_assignment_key
 
 PARALLEL_UPDATES = 0
 
@@ -117,15 +117,13 @@ class ZenGroupSceneSelectEntity(ZenControllerEntity, SelectEntity):
         hub.register_scene_entity(zen_group, self)
 
     def _current_option_from_group(self) -> str | None:
-        level = self._group.level
-        colour = self._group.colour
-        scene = self._group.scene
-        if level is None and colour is None and scene is None:
-            return SCENE_NONE
-        if scene is None:
-            return None
-        label = self._group.get_scene_label_from_number(scene)
-        return label if label is not None else SCENE_NONE
+        match (self._group.level, self._group.colour, self._group.scene):
+            case (None, None, None):
+                return SCENE_NONE
+            case (_, _, None):
+                return None
+            case (_, _, scene):
+                return self._group.get_scene_label_from_number(scene) or SCENE_NONE
 
     def update_current_option(self) -> None:
         """Called by ZenHub when the group scene/level changes."""

@@ -6,6 +6,7 @@ import json
 import logging
 from typing import Any
 
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 from zencontrol import (  # type: ignore[import-untyped]
     ZenAddress,
@@ -18,6 +19,7 @@ from zencontrol import (  # type: ignore[import-untyped]
     ZenMotionSensor,
     ZenSystemVariable,
 )
+
 # ZenProfile in the top-level package is the api.models dataclass (no
 # create()). The interface-layer singleton class must be imported directly.
 from zencontrol.interface.interface import ZenProfile  # type: ignore[import-untyped]
@@ -39,7 +41,7 @@ MANIFEST_VERSION = 2
 class DiscoveryManifestStore:
     """Load/save discovered entity keys per config entry."""
 
-    def __init__(self, hass: Any, entry_id: str) -> None:
+    def __init__(self, hass: HomeAssistant, entry_id: str) -> None:
         self._store = Store(
             hass,
             STORE_VERSION,

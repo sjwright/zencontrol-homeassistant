@@ -9,9 +9,9 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .sub_devices import sysvar_assignment_key
 from .entity import ZenControllerEntity
-from .hub import ZenHub, ZencontrolTpiConfigEntry
+from .hub import ZencontrolTpiConfigEntry, ZenHub
+from .sub_devices import sysvar_assignment_key
 
 PARALLEL_UPDATES = 0
 

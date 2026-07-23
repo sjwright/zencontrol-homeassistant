@@ -7,8 +7,8 @@ from homeassistant.exceptions import ConfigEntryNotReady
 
 from .const import PLATFORMS
 from .hub import (
-    ZenHub,
     ZencontrolTpiConfigEntry,
+    ZenHub,
     mark_force_full_discovery,
     pop_force_full_discovery,
 )

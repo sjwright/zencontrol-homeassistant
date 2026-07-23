@@ -5,6 +5,13 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
+from homeassistant.components.light import (
+    ATTR_COLOR_TEMP_KELVIN,
+    ATTR_RGB_COLOR,
+    ATTR_RGBW_COLOR,
+    ATTR_RGBWW_COLOR,
+)
+from zencontrol import ZenColourType  # type: ignore[import-untyped]
 
 from custom_components.zencontrol_tpi.config_flow import (
     build_controller_dict,
@@ -19,6 +26,7 @@ from custom_components.zencontrol_tpi.const import (
     arc_to_brightness,
     brightness_to_arc,
 )
+from custom_components.zencontrol_tpi.light import _colour_from_turn_on_kwargs
 from custom_components.zencontrol_tpi.manifest_store import build_manifest
 from custom_components.zencontrol_tpi.rate_limiter import RateLimiter
 from custom_components.zencontrol_tpi.sysvar import classify_sysvar
@@ -100,9 +108,33 @@ def test_unique_controller_name_avoids_collisions() -> None:
 def test_entry_title_is_fixed() -> None:
     """Entry title is always the hub name, not the first controller."""
     one = [{CONF_LABEL: "House", CONF_NAME: "house", CONF_MAC: "AA:BB:CC:DD:EE:01"}]
-    two = one + [
-        {CONF_LABEL: "Garage", CONF_NAME: "garage", CONF_MAC: "AA:BB:CC:DD:EE:02"}
+    two = [
+        *one,
+        {CONF_LABEL: "Garage", CONF_NAME: "garage", CONF_MAC: "AA:BB:CC:DD:EE:02"},
     ]
     assert entry_title(one) == "zencontrol controllers"
     assert entry_title(two) == "zencontrol controllers"
     assert entry_title([]) == "zencontrol controllers"
+
+
+def test_colour_from_turn_on_kwargs() -> None:
+    """turn_on colour kwargs map to the matching ZenColour type."""
+    assert _colour_from_turn_on_kwargs({}) is None
+
+    tc = _colour_from_turn_on_kwargs({ATTR_COLOR_TEMP_KELVIN: 3000})
+    assert tc is not None
+    assert tc.type == ZenColourType.TC
+    assert tc.kelvin == 3000
+
+    rgb = _colour_from_turn_on_kwargs({ATTR_RGB_COLOR: (1, 2, 3)})
+    assert rgb is not None
+    assert rgb.type == ZenColourType.RGBWAF
+    assert (rgb.r, rgb.g, rgb.b, rgb.w, rgb.a) == (1, 2, 3, 0, 0)
+
+    rgbw = _colour_from_turn_on_kwargs({ATTR_RGBW_COLOR: (1, 2, 3, 4)})
+    assert rgbw is not None
+    assert (rgbw.r, rgbw.g, rgbw.b, rgbw.w, rgbw.a) == (1, 2, 3, 4, 0)
+
+    rgbww = _colour_from_turn_on_kwargs({ATTR_RGBWW_COLOR: (1, 2, 3, 4, 5)})
+    assert rgbww is not None
+    assert (rgbww.r, rgbww.g, rgbww.b, rgbww.w, rgbww.a) == (1, 2, 3, 4, 5)

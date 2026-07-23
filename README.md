@@ -14,6 +14,7 @@ Home Assistant custom integration for [zencontrol](https://zencontrol.com) appli
 
 ## Requirements
 
+- Home Assistant **2026.3** or later (Python **3.14+**)
 - A zencontrol application controller with a **TPI Advanced** license
 - Network reachability to the controller (host/port); MAC address is used for identification
 - [`zencontrol-python`](https://github.com/sjwright/zencontrol-python)

@@ -11,9 +11,9 @@ from homeassistant.components.binary_sensor import (
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .sub_devices import motion_assignment_key
 from .entity import ZenControllerEntity
-from .hub import ZenHub, ZencontrolTpiConfigEntry
+from .hub import ZencontrolTpiConfigEntry, ZenHub
+from .sub_devices import motion_assignment_key
 
 PARALLEL_UPDATES = 0
 

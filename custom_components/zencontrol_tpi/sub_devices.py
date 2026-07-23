@@ -15,7 +15,7 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 
 from .const import CONF_SUB_DEVICES
 
@@ -28,6 +28,8 @@ CONF_SUB_DEVICE_PREFIXES = "prefixes"
 CONF_SUB_DEVICE_AREA_ID = "area_id"
 
 _SLUG_RE = re.compile(r"[^a-z0-9]+")
+
+type SubDevicePrefixError = Literal["empty_prefixes", "duplicate_prefix"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -116,7 +118,7 @@ def validate_sub_device_prefixes(
     new_prefixes: list[str],
     *,
     replacing_id: str | None = None,
-) -> str | None:
+) -> SubDevicePrefixError | None:
     """Return an error key if new prefixes conflict; else None.
 
     Conflicts: empty list, or a prefix (casefold) already used by another sub-device.

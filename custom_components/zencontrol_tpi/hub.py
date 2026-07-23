@@ -49,6 +49,8 @@ from .sysvar import classify_sysvar_entity
 
 _LOGGER = logging.getLogger(__name__)
 
+type DiscoveryCallback = Callable[[], Coroutine[Any, Any, None]]
+
 _STARTUP_RETRY_INTERVAL = 10  # seconds between is_controller_ready polls
 _READY_QUERY_TIMEOUT = 10.0
 _READY_WAIT_MAX = 300.0  # give up waiting for controller boot after 5 minutes
@@ -103,7 +105,7 @@ class ZenHub:
         self.sv_sensors: list[zencontrol.ZenSystemVariable] = []
         self.profiles: list[zencontrol.ZenProfile] = []
 
-        self._discovery_callbacks: list[Callable[[], Coroutine[Any, Any, None]]] = []
+        self._discovery_callbacks: list[DiscoveryCallback] = []
         self._discovery_complete = False
 
         self._light_entities: dict[Any, Any] = {}
@@ -397,9 +399,7 @@ class ZenHub:
     def register_scene_entity(self, zen_group: Any, entity: Any) -> None:
         self._scene_entities[zen_group] = entity
 
-    def register_discovery_callback(
-        self, callback: Callable[[], Coroutine[Any, Any, None]]
-    ) -> None:
+    def register_discovery_callback(self, callback: DiscoveryCallback) -> None:
         """Register a coroutine to call when discovery completes."""
         if self._discovery_complete:
             self.hass.async_create_task(callback())
@@ -768,8 +768,7 @@ class ZenHub:
         colour: Any | None = None,
         scene: int | None = None,
     ) -> None:
-        entity = self._light_entities.get(light)
-        if entity is not None:
+        if (entity := self._light_entities.get(light)) is not None:
             entity.update_state()
 
     async def _on_group_change(
@@ -780,26 +779,21 @@ class ZenHub:
         scene: int | None = None,
         discoordinated: bool | None = None,
     ) -> None:
-        group_entity = self._group_entities.get(group)
-        if group_entity is not None:
+        if (group_entity := self._group_entities.get(group)) is not None:
             group_entity.update_state()
-        scene_entity = self._scene_entities.get(group)
-        if scene_entity is not None:
+        if (scene_entity := self._scene_entities.get(group)) is not None:
             scene_entity.update_current_option()
 
     async def _on_button_press(self, button: Any) -> None:
-        entity = self._button_entities.get(button)
-        if entity is not None:
+        if (entity := self._button_entities.get(button)) is not None:
             entity.trigger_event("short_press")
 
     async def _on_button_long_press(self, button: Any) -> None:
-        entity = self._button_entities.get(button)
-        if entity is not None:
+        if (entity := self._button_entities.get(button)) is not None:
             entity.trigger_event("long_press")
 
     async def _on_motion_event(self, sensor: Any, occupied: bool) -> None:
-        entity = self._motion_sensor_entities.get(sensor)
-        if entity is not None:
+        if (entity := self._motion_sensor_entities.get(sensor)) is not None:
             entity.update_occupied(occupied)
 
     async def _on_sv_change(
@@ -809,20 +803,17 @@ class ZenHub:
         changed: bool,
         by_me: bool,
     ) -> None:
-        sensor_entity = self._sv_sensor_entities.get(system_variable)
-        if sensor_entity is not None:
+        if (sensor_entity := self._sv_sensor_entities.get(system_variable)) is not None:
             sensor_entity.update_value(value)
 
         if by_me:
             return
 
-        switch_entity = self._sv_switch_entities.get(system_variable)
-        if switch_entity is not None:
+        if (switch_entity := self._sv_switch_entities.get(system_variable)) is not None:
             switch_entity.update_value(value)
 
     async def _on_profile_change(self, profile: Any) -> None:
-        entity = self._profile_entities.get(profile.controller.name)
-        if entity is not None:
+        if (entity := self._profile_entities.get(profile.controller.name)) is not None:
             entity.update_current_option()
 
 

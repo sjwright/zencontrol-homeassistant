@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, ClassVar
 
 from homeassistant.components.event import EventDeviceClass, EventEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .sub_devices import button_assignment_key
 from .entity import ZenControllerEntity
-from .hub import ZenHub, ZencontrolTpiConfigEntry
+from .hub import ZencontrolTpiConfigEntry, ZenHub
+from .sub_devices import button_assignment_key
 
 PARALLEL_UPDATES = 0
 
@@ -35,7 +35,7 @@ class ZenButtonEntity(ZenControllerEntity, EventEntity):
     """HA event entity wrapping a ZenButton (physical push button)."""
 
     _attr_device_class = EventDeviceClass.BUTTON
-    _attr_event_types: list[str] = ["short_press", "long_press"]
+    _attr_event_types: ClassVar[list[str]] = ["short_press", "long_press"]
 
     def __init__(self, hub: ZenHub, zen_button: Any) -> None:
         ctrl = zen_button.instance.address.controller

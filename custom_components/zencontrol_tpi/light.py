@@ -19,9 +19,9 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from zencontrol import ZenColour, ZenColourType  # type: ignore[import-untyped]
 
 from .const import arc_to_brightness, brightness_to_arc
-from .sub_devices import group_assignment_key, light_assignment_key
 from .entity import ZenControllerEntity
-from .hub import ZenHub, ZencontrolTpiConfigEntry
+from .hub import ZencontrolTpiConfigEntry, ZenHub
+from .sub_devices import group_assignment_key, light_assignment_key
 
 PARALLEL_UPDATES = 0
 
@@ -35,12 +35,12 @@ async def async_setup_entry(
     hub = entry.runtime_data
 
     async def on_discovery() -> None:
-        entities: list[LightEntity] = []
-        for light in hub.lights:
-            entities.append(ZenLightEntity(hub, light))
-        for group in hub.groups:
-            if group.lights:
-                entities.append(ZenGroupEntity(hub, group))
+        entities: list[LightEntity] = [
+            ZenLightEntity(hub, light) for light in hub.lights
+        ]
+        entities.extend(
+            ZenGroupEntity(hub, group) for group in hub.groups if group.lights
+        )
         if entities:
             async_add_entities(entities)
 
@@ -48,7 +48,7 @@ async def async_setup_entry(
 
 
 # ---------------------------------------------------------------------------
-# Shared helper
+# Shared helpers
 # ---------------------------------------------------------------------------
 
 def _build_supported_modes(features: dict[str, bool]) -> set[ColorMode]:
@@ -74,15 +74,21 @@ def _current_color_mode(
 ) -> ColorMode:
     """Determine the active color mode from the current colour object."""
     if colour is not None:
-        if colour.type == ZenColourType.TC and ColorMode.COLOR_TEMP in supported:
-            return ColorMode.COLOR_TEMP
-        if colour.type == ZenColourType.RGBWAF:
-            for mode in (ColorMode.RGBWW, ColorMode.RGBW, ColorMode.RGB):
-                if mode in supported:
-                    return mode
+        match colour.type:
+            case ZenColourType.TC if ColorMode.COLOR_TEMP in supported:
+                return ColorMode.COLOR_TEMP
+            case ZenColourType.RGBWAF:
+                for mode in (ColorMode.RGBWW, ColorMode.RGBW, ColorMode.RGB):
+                    if mode in supported:
+                        return mode
+            case _:
+                pass
     for mode in (
-        ColorMode.RGBWW, ColorMode.RGBW, ColorMode.RGB,
-        ColorMode.COLOR_TEMP, ColorMode.BRIGHTNESS,
+        ColorMode.RGBWW,
+        ColorMode.RGBW,
+        ColorMode.RGB,
+        ColorMode.COLOR_TEMP,
+        ColorMode.BRIGHTNESS,
     ):
         if mode in supported:
             return mode
@@ -90,30 +96,83 @@ def _current_color_mode(
 
 
 def _color_temp_kelvin(colour: Any | None) -> int | None:
-    if colour is None or colour.type != ZenColourType.TC:
-        return None
-    return colour.kelvin
+    match colour:
+        case object(type=ZenColourType.TC):
+            return colour.kelvin
+        case _:
+            return None
 
 
 def _rgb_color(colour: Any | None) -> tuple[int, int, int] | None:
-    if colour is None or colour.type != ZenColourType.RGBWAF:
-        return None
-    return (colour.r or 0, colour.g or 0, colour.b or 0)
+    match colour:
+        case object(type=ZenColourType.RGBWAF):
+            return (colour.r or 0, colour.g or 0, colour.b or 0)
+        case _:
+            return None
 
 
 def _rgbw_color(colour: Any | None) -> tuple[int, int, int, int] | None:
-    if colour is None or colour.type != ZenColourType.RGBWAF:
-        return None
-    return (colour.r or 0, colour.g or 0, colour.b or 0, colour.w or 0)
+    match colour:
+        case object(type=ZenColourType.RGBWAF):
+            return (colour.r or 0, colour.g or 0, colour.b or 0, colour.w or 0)
+        case _:
+            return None
 
 
 def _rgbww_color(colour: Any | None) -> tuple[int, int, int, int, int] | None:
-    if colour is None or colour.type != ZenColourType.RGBWAF:
-        return None
-    return (
-        colour.r or 0, colour.g or 0, colour.b or 0,
-        colour.w or 0, colour.a or 0,
-    )
+    match colour:
+        case object(type=ZenColourType.RGBWAF):
+            return (
+                colour.r or 0,
+                colour.g or 0,
+                colour.b or 0,
+                colour.w or 0,
+                colour.a or 0,
+            )
+        case _:
+            return None
+
+
+def _colour_from_turn_on_kwargs(kwargs: dict[str, Any]) -> ZenColour | None:
+    """Build a ZenColour from HA turn_on colour kwargs, if any."""
+    match (
+        kwargs.get(ATTR_COLOR_TEMP_KELVIN),
+        kwargs.get(ATTR_RGB_COLOR),
+        kwargs.get(ATTR_RGBW_COLOR),
+        kwargs.get(ATTR_RGBWW_COLOR),
+    ):
+        case (kelvin, None, None, None) if kelvin is not None:
+            return ZenColour(type=ZenColourType.TC, kelvin=kelvin)
+        case (None, (r, g, b), None, None):
+            return ZenColour(type=ZenColourType.RGBWAF, r=r, g=g, b=b, w=0, a=0, f=0)
+        case (None, None, (r, g, b, w), None):
+            return ZenColour(type=ZenColourType.RGBWAF, r=r, g=g, b=b, w=w, a=0, f=0)
+        case (None, None, None, (r, g, b, w, a)):
+            return ZenColour(type=ZenColourType.RGBWAF, r=r, g=g, b=b, w=w, a=a, f=0)
+        case _:
+            return None
+
+
+async def _async_set_level_or_colour(
+    target: Any,
+    *,
+    brightness: int | None,
+    colour: ZenColour | None,
+    current_level: int | None,
+) -> None:
+    """Apply brightness/colour to a ZenLight or ZenGroup, or just turn on."""
+    if brightness == 0:
+        await target.off(fade=True)
+        return
+
+    arc = brightness_to_arc(brightness) if brightness is not None else None
+    if arc is not None or colour is not None:
+        # Preserve current level when only colour is changing
+        if arc is None:
+            arc = current_level if current_level is not None else 254
+        await target.set(level=arc, colour=colour, fade=True)
+    else:
+        await target.on(fade=True)
 
 
 # ---------------------------------------------------------------------------
@@ -138,10 +197,10 @@ class ZenLightEntity(ZenControllerEntity, LightEntity):
         self._supported_modes = _build_supported_modes(zen_light.features)
         self._attr_supported_color_modes = self._supported_modes
 
-        if zen_light.properties.get("min_kelvin"):
-            self._attr_min_color_temp_kelvin = zen_light.properties["min_kelvin"]
-        if zen_light.properties.get("max_kelvin"):
-            self._attr_max_color_temp_kelvin = zen_light.properties["max_kelvin"]
+        if (min_k := zen_light.properties.get("min_kelvin")):
+            self._attr_min_color_temp_kelvin = min_k
+        if (max_k := zen_light.properties.get("max_kelvin")):
+            self._attr_max_color_temp_kelvin = max_k
 
         self._apply_state()
         hub.register_light_entity(zen_light, self)
@@ -170,39 +229,13 @@ class ZenLightEntity(ZenControllerEntity, LightEntity):
         self.async_write_ha_state()
 
     async def async_turn_on(self, **kwargs: Any) -> None:
-        brightness = kwargs.get(ATTR_BRIGHTNESS)
-        kelvin = kwargs.get(ATTR_COLOR_TEMP_KELVIN)
-        rgb = kwargs.get(ATTR_RGB_COLOR)
-        rgbw = kwargs.get(ATTR_RGBW_COLOR)
-        rgbww = kwargs.get(ATTR_RGBWW_COLOR)
-
-        arc = brightness_to_arc(brightness) if brightness is not None else None
-        colour: ZenColour | None = None
-
         try:
-            if brightness == 0:
-                await self._light.off(fade=True)
-                return
-
-            if kelvin is not None:
-                colour = ZenColour(type=ZenColourType.TC, kelvin=kelvin)
-            elif rgb is not None:
-                r, g, b = rgb
-                colour = ZenColour(type=ZenColourType.RGBWAF, r=r, g=g, b=b, w=0, a=0, f=0)
-            elif rgbw is not None:
-                r, g, b, w = rgbw
-                colour = ZenColour(type=ZenColourType.RGBWAF, r=r, g=g, b=b, w=w, a=0, f=0)
-            elif rgbww is not None:
-                r, g, b, w, a = rgbww
-                colour = ZenColour(type=ZenColourType.RGBWAF, r=r, g=g, b=b, w=w, a=a, f=0)
-
-            if arc is not None or colour is not None:
-                # Preserve current level when only colour is changing
-                if arc is None:
-                    arc = self._light.level if self._light.level is not None else 254
-                await self._light.set(level=arc, colour=colour, fade=True)
-            else:
-                await self._light.on(fade=True)
+            await _async_set_level_or_colour(
+                self._light,
+                brightness=kwargs.get(ATTR_BRIGHTNESS),
+                colour=_colour_from_turn_on_kwargs(kwargs),
+                current_level=self._light.level,
+            )
         except HomeAssistantError:
             raise
         except Exception as err:
@@ -300,38 +333,13 @@ class ZenGroupEntity(ZenControllerEntity, LightEntity):
         self.async_write_ha_state()
 
     async def async_turn_on(self, **kwargs: Any) -> None:
-        brightness = kwargs.get(ATTR_BRIGHTNESS)
-        kelvin = kwargs.get(ATTR_COLOR_TEMP_KELVIN)
-        rgb = kwargs.get(ATTR_RGB_COLOR)
-        rgbw = kwargs.get(ATTR_RGBW_COLOR)
-        rgbww = kwargs.get(ATTR_RGBWW_COLOR)
-
-        arc = brightness_to_arc(brightness) if brightness is not None else None
-        colour: ZenColour | None = None
-
         try:
-            if brightness == 0:
-                await self._group.off(fade=True)
-                return
-
-            if kelvin is not None:
-                colour = ZenColour(type=ZenColourType.TC, kelvin=kelvin)
-            elif rgb is not None:
-                r, g, b = rgb
-                colour = ZenColour(type=ZenColourType.RGBWAF, r=r, g=g, b=b, w=0, a=0, f=0)
-            elif rgbw is not None:
-                r, g, b, w = rgbw
-                colour = ZenColour(type=ZenColourType.RGBWAF, r=r, g=g, b=b, w=w, a=0, f=0)
-            elif rgbww is not None:
-                r, g, b, w, a = rgbww
-                colour = ZenColour(type=ZenColourType.RGBWAF, r=r, g=g, b=b, w=w, a=a, f=0)
-
-            if arc is not None or colour is not None:
-                if arc is None:
-                    arc = self._group.level if self._group.level is not None else 254
-                await self._group.set(level=arc, colour=colour, fade=True)
-            else:
-                await self._group.on(fade=True)
+            await _async_set_level_or_colour(
+                self._group,
+                brightness=kwargs.get(ATTR_BRIGHTNESS),
+                colour=_colour_from_turn_on_kwargs(kwargs),
+                current_level=self._group.level,
+            )
         except HomeAssistantError:
             raise
         except Exception as err:
