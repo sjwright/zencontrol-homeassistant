@@ -4,7 +4,7 @@
     "step": {
       "user": {
         "title": "Set up zencontrol",
-        "description": "Discover controllers on your network via multicast, or enter connection details manually. Controllers need a TPI Advanced license.",
+        "description": "Discover a controller on your network via multicast, or enter connection details manually. Controllers need a TPI Advanced license. Each controller is a separate Home Assistant entry.",
         "menu_options": {
           "discover": "Search for controllers",
           "manual": "Enter manually"
@@ -18,60 +18,35 @@
           "port": "Port",
           "mac": "MAC address",
           "label": "Controller name",
-          "unicast": "Use unicast events (not recommended - only use if broadcast packets are unsupported by your network topology)",
-          "abort_manual": "Enable this and press Submit to abort manual data entry"
+          "unicast": "Use unicast events (not recommended - only use if broadcast packets are unsupported by your network topology)"
         },
         "data_description": {
-          "mac": "Leave blank and submit to look up from the host IP (same subnet only). Confirm the value, then submit again."
+          "mac": "Leave blank and submit to look up from the host IP (same subnet only). Confirm the value, then submit again.",
+          "unicast": "Shared by all controllers. Only applied when the shared runtime is first created; changing it later requires recreating the runtime."
         }
       },
       "select_discovered": {
-        "title": "Select controllers",
-        "description": "These controllers were found via multicast. Select one or more to add.",
+        "title": "Select a controller",
+        "description": "These controllers were found via multicast. Select one to add.",
         "data": {
-          "discovered": "Controllers"
+          "discovered": "Controller"
         }
       },
       "discovery_failed": {
-        "title": "Couldn\u2019t add a controller",
-        "description": "No additional controller was added. You can try discovery again, enter details manually, or continue with the controllers already configured.",
+        "title": "No controllers found",
+        "description": "No zencontrol controllers were found on the network via multicast. You can try discovery again or enter details manually.",
         "menu_options": {
           "discover": "Try discovery again",
-          "manual": "Add manually",
-          "add_another": "Add manually",
-          "finish": "✅ Done adding controllers"
+          "manual": "Enter manually"
         }
       },
       "confirm_discovery": {
         "title": "Confirm zencontrol controller",
         "description": "Found **{label}** at `{host}` (MAC `{mac}`). Do you want to add it?"
       },
-      "add_another": {
-        "title": "Add another controller",
-        "description": "Configure an additional zencontrol application controller for this integration.",
-        "data": {
-          "host": "Host (IP address)",
-          "port": "Port",
-          "mac": "MAC address",
-          "label": "Controller name",
-          "abort_manual": "Enable this and press Submit to abort manual data entry"
-        },
-        "data_description": {
-          "mac": "Leave blank and submit to look up from the host IP (same subnet only). Confirm the value, then submit again."
-        }
-      },
-      "add_more": {
-        "title": "Add more controllers?",
-        "description": "You can discover or manually add another controller now, or finish setup. After finishing you can create sub-devices to assign rooms.",
-        "menu_options": {
-          "discover": "Discover another controller",
-          "add_another": "Add another controller manually",
-          "finish": "✅ Done adding controllers"
-        }
-      },
       "reconfigure": {
         "title": "Reconfigure zencontrol",
-        "description": "Choose a controller to edit, or change unicast settings.",
+        "description": "Edit this controller's connection settings, or change the domain-wide unicast flag (takes effect when the shared runtime is recreated).",
         "data": {
           "target": "What to reconfigure"
         }
@@ -91,7 +66,7 @@
       },
       "unicast_settings": {
         "title": "Unicast settings",
-        "description": "Unicast is shared by all controllers in this integration.",
+        "description": "Unicast is domain-wide and used when the shared ZenControl runtime is created. Updating this entry stores the preference but does not hot-swap a running runtime.",
         "data": {
           "unicast": "Use unicast events (not recommended - only use if broadcast packets are unsupported by your network topology)"
         }
@@ -110,33 +85,26 @@
       "already_configured": "This zencontrol application controller is already configured.",
       "reconfigure_successful": "Reconfiguration successful.",
       "no_controllers": "No controllers are configured.",
-      "last_controller": "Cannot remove the last controller.",
       "no_devices_found": "No zencontrol controllers were found on the network. Try again or enter details manually.",
-      "cannot_connect": "Unable to reach the discovered controller.",
-      "controller_added": "Controller added."
+      "cannot_connect": "Unable to reach the discovered controller."
     },
     "progress": {
       "listen": "Listening for zencontrol controllers on the network\u2026 Push a wall button to emit a discoverable packet.",
-      "connect_controllers": "Connecting to selected controllers\u2026",
-      "setup_devices": "Discovering all lights and devices on your controllers\u2026"
+      "connect_controllers": "Connecting to the selected controller\u2026",
+      "setup_devices": "Discovering all lights and devices on your controller\u2026"
     }
   },
   "options": {
     "step": {
       "init": {
         "title": "Manage zencontrol",
-        "description": "Select a controller to manage, or add another.",
-        "menu_options": {
-          "discover": "Discover another controller",
-          "add_controller": "Add another controller manually"
-        }
+        "description": "Manage sub-devices for this controller."
       },
       "controller": {
         "title": "Manage controller",
         "description": "### {controller}\n\nSub-devices let you split some of this controller's entities onto a virtual child device, so you can assign them a room in Home Assistant.",
         "menu_options": {
-          "add_sub_device": "\u2795 Add sub-device",
-          "remove_controller": "\u274c Remove controller"
+          "add_sub_device": "\u2795 Add sub-device"
         }
       },
       "sub_device": {
@@ -146,38 +114,6 @@
           "reconfigure_sub_device": "\u2699\ufe0f Reconfigure",
           "delete_sub_device": "\u274c Delete"
         }
-      },
-      "add_controller": {
-        "title": "Add controller",
-        "description": "Enter the details for an additional zencontrol application controller.",
-        "data": {
-          "host": "Host (IP address)",
-          "port": "Port",
-          "mac": "MAC address",
-          "label": "Controller name"
-        },
-        "data_description": {
-          "mac": "Leave blank and submit to look up from the host IP (same subnet only). Confirm the value, then submit again."
-        }
-      },
-      "discovery_failed": {
-        "title": "No controllers found",
-        "description": "No zencontrol controllers were found on the network via multicast. You can try again or enter details manually.",
-        "menu_options": {
-          "discover": "Try again",
-          "add_controller": "Add manually"
-        }
-      },
-      "add_discovered": {
-        "title": "Add discovered controllers",
-        "description": "Select one or more controllers found via multicast on your network.",
-        "data": {
-          "discovered": "Controllers"
-        }
-      },
-      "remove_controller": {
-        "title": "Remove controller",
-        "description": "Remove {controller}? At least one controller must remain."
       },
       "suggest_sub_devices": {
         "title": "Set up sub-devices?",
@@ -217,24 +153,11 @@
       }
     },
     "error": {
-      "cannot_connect": "Unable to reach the controller. Check the host/port and try again.",
-      "invalid_host": "Host is required when adding a controller.",
-      "invalid_mac": "Invalid MAC address format. Use XX:XX:XX:XX:XX:XX.",
-      "invalid_label": "Controller name cannot be empty.",
-      "mac_not_found": "Could not discover a MAC address for that host. Enter it manually (same subnet required for lookup).",
-      "duplicate_mac": "A controller with this MAC address is already configured.",
       "empty_prefixes": "Enter at least one label prefix.",
-      "duplicate_prefix": "That prefix is already used by another sub-device on this controller.",
-      "no_devices_found": "No controllers were found."
+      "duplicate_prefix": "That prefix is already used by another sub-device on this controller."
     },
     "abort": {
-      "last_controller": "Cannot remove the last controller.",
-      "no_controllers": "No controllers are configured.",
-      "cannot_connect": "Unable to reach the controller. Check the host/port and try again."
-    },
-    "progress": {
-      "listen": "Listening for zencontrol controllers on the network\u2026 Push a wall button to emit a discoverable packet.",
-      "setup_devices": "Mapping all entities on your controllers\u2026"
+      "no_controllers": "No controllers are configured."
     }
   },
   "entity": {

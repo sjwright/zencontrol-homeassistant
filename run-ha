@@ -3,11 +3,23 @@
 set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
+VENV_DIR="$PROJECT_DIR/.venv"
+HASS_BIN="$VENV_DIR/bin/hass"
 
 cd "$PROJECT_DIR"
-source .venv/bin/activate
 
-exec hass \
+if [[ ! -x "$HASS_BIN" ]]; then
+  echo "Missing $HASS_BIN" >&2
+  echo "Create the venv and install deps:" >&2
+  echo "  python3.14 -m venv .venv && source .venv/bin/activate" >&2
+  echo "  pip install 'homeassistant>=2026.3'" >&2
+  echo "  pip install -e ../zencontrol-python" >&2
+  exit 1
+fi
+
+source "$VENV_DIR/bin/activate"
+
+exec "$HASS_BIN" \
   --config "$PROJECT_DIR/dev-config" \
   --skip-pip-packages zencontrol-python \
   --debug

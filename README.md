@@ -1,10 +1,10 @@
-# Zencontrol TPI
+# Zencontrol Home Assistant
 
 A comprehensive Home Assistant custom integration for [zencontrol](https://zencontrol.com) application controllers over TPI Advanced.
 
 ## Features
 
-* **Easy setup** — find controllers on your subnet automatically at the press of a DALI button, or enter a host manually
+* **Easy setup** — find a controller on your subnet automatically at the press of a DALI button
 * **Auto-discovery** — lights, groups, buttons, motion sensors, profiles, and labelled system variables appear automatically after setup
 * **Rooms and areas** — group entities into sub-devices by label prefix so rooms map cleanly to Home Assistant areas
 * **Live updates** — light levels, colour, scenes, profiles, motion, and buttons update in Home Assistant as they change on the controller (no polling)
@@ -14,7 +14,7 @@ A comprehensive Home Assistant custom integration for [zencontrol](https://zenco
 * **Button events** — short and long press events for controlling automations
 * **Motion sensors** — occupancy detections as binary sensors for lighting and presence automations
 * **Profiles** — view and change the active controller profile from Home Assistant
-* **System variables** — expose SVs as binary switches or numeric sensors by suffixing SV names with `switch` or `sensor`
+* **System variables** — expose SVs as binary switches or numeric sensors by suffixing SV names with `switch` or `sensor` or `lux sensor`
 * **Translations** — UI strings in English, German, French, Danish, Swedish, Polish, Hindi, and Simplified Chinese
 
 ## Architecture

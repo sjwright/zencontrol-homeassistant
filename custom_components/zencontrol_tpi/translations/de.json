@@ -4,7 +4,7 @@
     "step": {
       "user": {
         "title": "zencontrol einrichten",
-        "description": "Controller im Netzwerk per Multicast entdecken oder Verbindungsdaten manuell eingeben. Controller benötigen eine TPI Advanced-Lizenz.",
+        "description": "Controller im Netzwerk per Multicast entdecken oder Verbindungsdaten manuell eingeben. Controller benötigen eine TPI Advanced-Lizenz. Jeder Controller ist ein eigener Home-Assistant-Eintrag.",
         "menu_options": {
           "discover": "Nach Controllern suchen",
           "manual": "Manuell eingeben"
@@ -18,60 +18,35 @@
           "port": "Port",
           "mac": "MAC-Adresse",
           "label": "Controllername",
-          "unicast": "Unicast-Ereignisse verwenden (nicht empfohlen — nur wenn Broadcast-Pakete von Ihrer Netzwerktopologie nicht unterstützt werden)",
-          "abort_manual": "Aktivieren und Absenden, um die manuelle Dateneingabe abzubrechen"
+          "unicast": "Unicast-Ereignisse verwenden (nicht empfohlen — nur wenn Broadcast-Pakete von Ihrer Netzwerktopologie nicht unterstützt werden)"
         },
         "data_description": {
-          "mac": "Leer lassen und absenden, um die Adresse über die Host-IP zu ermitteln (nur gleiches Subnetz). Wert prüfen und erneut absenden."
+          "mac": "Leer lassen und absenden, um die Adresse über die Host-IP zu ermitteln (nur gleiches Subnetz). Wert prüfen und erneut absenden.",
+          "unicast": "Gilt gemeinsam für alle Controller. Wird nur angewendet, wenn die gemeinsame Runtime erstmals erstellt wird; spätere Änderungen erfordern eine Neuerstellung der Runtime."
         }
       },
       "select_discovered": {
         "title": "Controller auswählen",
-        "description": "Diese Controller wurden per Multicast gefunden. Wählen Sie einen oder mehrere zum Hinzufügen aus.",
+        "description": "Diese Controller wurden per Multicast gefunden. Wählen Sie einen zum Hinzufügen aus.",
         "data": {
           "discovered": "Controller"
         }
       },
       "discovery_failed": {
-        "title": "Controller konnte nicht hinzugefügt werden",
-        "description": "Es wurde kein weiterer Controller hinzugefügt. Sie können die Erkennung erneut versuchen, Daten manuell eingeben oder mit den bereits konfigurierten Controllern fortfahren.",
+        "title": "Keine Controller gefunden",
+        "description": "Im Netzwerk wurden per Multicast keine zencontrol-Controller gefunden. Sie können die Erkennung erneut versuchen oder Daten manuell eingeben.",
         "menu_options": {
           "discover": "Erkennung erneut versuchen",
-          "manual": "Manuell hinzufügen",
-          "add_another": "Manuell hinzufügen",
-          "finish": "✅ Fertig mit dem Hinzufügen von Controllern"
+          "manual": "Manuell eingeben"
         }
       },
       "confirm_discovery": {
         "title": "zencontrol-Controller bestätigen",
         "description": "**{label}** unter `{host}` gefunden (MAC `{mac}`). Möchten Sie ihn hinzufügen?"
       },
-      "add_another": {
-        "title": "Weiteren Controller hinzufügen",
-        "description": "Konfigurieren Sie einen weiteren zencontrol-Anwendungscontroller für diese Integration.",
-        "data": {
-          "host": "Host (IP-Adresse)",
-          "port": "Port",
-          "mac": "MAC-Adresse",
-          "label": "Controllername",
-          "abort_manual": "Aktivieren und Absenden, um die manuelle Dateneingabe abzubrechen"
-        },
-        "data_description": {
-          "mac": "Leer lassen und absenden, um die Adresse über die Host-IP zu ermitteln (nur gleiches Subnetz). Wert prüfen und erneut absenden."
-        }
-      },
-      "add_more": {
-        "title": "Weitere Controller hinzufügen?",
-        "description": "Sie können jetzt einen weiteren Controller entdecken oder manuell hinzufügen oder die Einrichtung abschließen. Danach können Sie Sub-Geräte erstellen, um Räume zuzuweisen.",
-        "menu_options": {
-          "discover": "Weiteren Controller entdecken",
-          "add_another": "Weiteren Controller manuell hinzufügen",
-          "finish": "✅ Fertig mit dem Hinzufügen von Controllern"
-        }
-      },
       "reconfigure": {
         "title": "zencontrol neu konfigurieren",
-        "description": "Wählen Sie einen Controller zum Bearbeiten oder ändern Sie die Unicast-Einstellungen.",
+        "description": "Bearbeiten Sie die Verbindungseinstellungen dieses Controllers oder ändern Sie die integrationsweite Unicast-Option (wirksam, wenn die gemeinsame Runtime neu erstellt wird).",
         "data": {
           "target": "Was neu konfigurieren"
         }
@@ -91,7 +66,7 @@
       },
       "unicast_settings": {
         "title": "Unicast-Einstellungen",
-        "description": "Unicast gilt gemeinsam für alle Controller in dieser Integration.",
+        "description": "Unicast gilt integrationsweit und wird verwendet, wenn die gemeinsame ZenControl-Runtime erstellt wird. Eine Aktualisierung speichert die Einstellung, wechselt aber keine laufende Runtime.",
         "data": {
           "unicast": "Unicast-Ereignisse verwenden (nicht empfohlen — nur wenn Broadcast-Pakete von Ihrer Netzwerktopologie nicht unterstützt werden)"
         }
@@ -110,33 +85,26 @@
       "already_configured": "Dieser zencontrol-Anwendungscontroller ist bereits konfiguriert.",
       "reconfigure_successful": "Neukonfiguration erfolgreich.",
       "no_controllers": "Es sind keine Controller konfiguriert.",
-      "last_controller": "Der letzte Controller kann nicht entfernt werden.",
       "no_devices_found": "Im Netzwerk wurden keine zencontrol-Controller gefunden. Erneut versuchen oder Daten manuell eingeben.",
-      "cannot_connect": "Der entdeckte Controller ist nicht erreichbar.",
-      "controller_added": "Controller hinzugefügt."
+      "cannot_connect": "Der entdeckte Controller ist nicht erreichbar."
     },
     "progress": {
       "listen": "Suche nach zencontrol-Controllern im Netzwerk… Drücken Sie einen Wandtaster, um ein erkennbares Paket zu senden.",
-      "connect_controllers": "Verbindung zu ausgewählten Controllern wird hergestellt…",
-      "setup_devices": "Lichter und Geräte von Ihren Controllern werden geladen…"
+      "connect_controllers": "Verbindung zum ausgewählten Controller wird hergestellt…",
+      "setup_devices": "Lichter und Geräte Ihres Controllers werden geladen…"
     }
   },
   "options": {
     "step": {
       "init": {
         "title": "zencontrol verwalten",
-        "description": "Wählen Sie einen Controller zur Verwaltung, oder fügen Sie einen hinzu.",
-        "menu_options": {
-          "discover": "Weiteren Controller entdecken",
-          "add_controller": "Weiteren Controller manuell hinzufügen"
-        }
+        "description": "Untergeräte für diesen Controller verwalten."
       },
       "controller": {
         "title": "Controller verwalten",
         "description": "### {controller}\n\nUntergeräte lassen Sie einen Teil der Entitäten dieses Controllers auf ein virtuelles Kindgerät auslagern, damit Sie ihnen in Home Assistant einen Raum zuweisen können.",
         "menu_options": {
-          "add_sub_device": "➕ Untergerät hinzufügen",
-          "remove_controller": "❌ Controller entfernen"
+          "add_sub_device": "➕ Untergerät hinzufügen"
         }
       },
       "sub_device": {
@@ -146,38 +114,6 @@
           "reconfigure_sub_device": "⚙️ Neu konfigurieren",
           "delete_sub_device": "❌ Löschen"
         }
-      },
-      "add_controller": {
-        "title": "Controller hinzufügen",
-        "description": "Geben Sie die Daten für einen weiteren zencontrol-Anwendungscontroller ein.",
-        "data": {
-          "host": "Host (IP-Adresse)",
-          "port": "Port",
-          "mac": "MAC-Adresse",
-          "label": "Controllername"
-        },
-        "data_description": {
-          "mac": "Leer lassen und absenden, um die Adresse über die Host-IP zu ermitteln (nur gleiches Subnetz). Wert prüfen und erneut absenden."
-        }
-      },
-      "discovery_failed": {
-        "title": "Keine Controller gefunden",
-        "description": "Im Netzwerk wurden per Multicast keine zencontrol-Controller gefunden. Sie können es erneut versuchen oder Daten manuell eingeben.",
-        "menu_options": {
-          "discover": "Erneut versuchen",
-          "add_controller": "Manuell hinzufügen"
-        }
-      },
-      "add_discovered": {
-        "title": "Entdeckte Controller hinzufügen",
-        "description": "Wählen Sie einen oder mehrere per Multicast im Netzwerk gefundene Controller aus.",
-        "data": {
-          "discovered": "Controller"
-        }
-      },
-      "remove_controller": {
-        "title": "Controller entfernen",
-        "description": "{controller} entfernen? Mindestens ein Controller muss bleiben."
       },
       "suggest_sub_devices": {
         "title": "Sub-Geräte einrichten?",
@@ -196,7 +132,7 @@
         },
         "data_description": {
           "prefixes": "Groß-/Kleinschreibung wird ignoriert. Kommagetrennt. Passt auf Labels, die mit einer dieser Zeichenfolgen beginnen.",
-          "area_id": "Optional. Weisen Sie dieses Sub-Gerät einem Home Assistant-Bereich (Raum) zu."
+          "area_id": "Optional. Weisen Sie dieses Untergerät einem Home-Assistant-Bereich zu. Die Integration verwaltet diesen Bereich; Änderungen auf der Geräte-Seite werden bei der nächsten Synchronisierung überschrieben."
         }
       },
       "reconfigure_sub_device": {
@@ -208,7 +144,7 @@
         },
         "data_description": {
           "prefixes": "Groß-/Kleinschreibung wird ignoriert. Kommagetrennt. Passt auf Labels, die mit einer dieser Zeichenfolgen beginnen.",
-          "area_id": "Optional. Weisen Sie dieses Sub-Gerät einem Home Assistant-Bereich (Raum) zu."
+          "area_id": "Optional. Weisen Sie dieses Untergerät einem Home-Assistant-Bereich zu. Die Integration verwaltet diesen Bereich; Änderungen auf der Geräte-Seite werden bei der nächsten Synchronisierung überschrieben."
         }
       },
       "delete_sub_device": {
@@ -217,25 +153,11 @@
       }
     },
     "error": {
-      "cannot_connect": "Controller nicht erreichbar. Prüfen Sie Host/Port und versuchen Sie es erneut.",
-      "invalid_host": "Host ist erforderlich, wenn ein Controller hinzugefügt wird.",
-      "invalid_mac": "Ungültiges MAC-Adressformat. Verwenden Sie XX:XX:XX:XX:XX:XX.",
-      "invalid_label": "Der Controllername darf nicht leer sein.",
-      "mac_not_found": "MAC-Adresse für diesen Host konnte nicht ermittelt werden. Bitte manuell eingeben (Lookup erfordert gleiches Subnetz).",
-      "duplicate_mac": "Ein Controller mit dieser MAC-Adresse ist bereits konfiguriert.",
       "empty_prefixes": "Geben Sie mindestens ein Label-Präfix ein.",
-      "duplicate_prefix": "Dieses Präfix wird bereits von einem anderen Untergerät auf diesem Controller verwendet.",
-      "no_devices_found": "Es wurden keine Controller gefunden."
+      "duplicate_prefix": "Dieses Präfix wird bereits von einem anderen Untergerät auf diesem Controller verwendet."
     },
     "abort": {
-      "last_controller": "Der letzte Controller kann nicht entfernt werden.",
-      "no_controllers": "Es sind keine Controller konfiguriert.",
-      "no_sub_devices": "Für diesen Controller sind keine Untergeräte definiert.",
-      "cannot_connect": "Controller nicht erreichbar. Prüfen Sie Host/Port und versuchen Sie es erneut."
-    },
-    "progress": {
-      "listen": "Suche nach zencontrol-Controllern im Netzwerk… Drücken Sie einen Wandtaster, um ein erkennbares Paket zu senden.",
-      "setup_devices": "Alle Entitäten auf Ihren Controllern werden zugeordnet…"
+      "no_controllers": "Es sind keine Controller konfiguriert."
     }
   },
   "entity": {

@@ -105,16 +105,13 @@ def test_unique_controller_name_avoids_collisions() -> None:
     assert name not in {c[CONF_NAME] for c in existing}
 
 
-def test_entry_title_is_fixed() -> None:
-    """Entry title is always the hub name, not the first controller."""
-    one = [{CONF_LABEL: "House", CONF_NAME: "house", CONF_MAC: "AA:BB:CC:DD:EE:01"}]
-    two = [
-        *one,
-        {CONF_LABEL: "Garage", CONF_NAME: "garage", CONF_MAC: "AA:BB:CC:DD:EE:02"},
-    ]
-    assert entry_title(one) == "zencontrol controllers"
-    assert entry_title(two) == "zencontrol controllers"
-    assert entry_title([]) == "zencontrol controllers"
+def test_entry_title_uses_label() -> None:
+    """Entry title is the controller label (or name)."""
+    labeled = {CONF_LABEL: "House", CONF_NAME: "house", CONF_MAC: "AA:BB:CC:DD:EE:01"}
+    named = {CONF_NAME: "garage", CONF_MAC: "AA:BB:CC:DD:EE:02"}
+    assert entry_title(labeled) == "House"
+    assert entry_title(named) == "garage"
+    assert entry_title({}) == "zencontrol"
 
 
 def test_colour_from_turn_on_kwargs() -> None:

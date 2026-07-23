@@ -4,7 +4,7 @@
     "step": {
       "user": {
         "title": "Konfigurera zencontrol",
-        "description": "Upptäck styrenheter i ditt nätverk via multicast, eller ange anslutningsuppgifter manuellt. Styrenheter behöver en TPI Advanced-licens.",
+        "description": "Hitta en styrenhet på ditt nätverk via multicast, eller ange anslutningsuppgifter manuellt. Styrenheter behöver en TPI Advanced-licens. Varje styrenhet är en separat Home Assistant-post.",
         "menu_options": {
           "discover": "Sök efter styrenheter",
           "manual": "Ange manuellt"
@@ -18,60 +18,35 @@
           "port": "Port",
           "mac": "MAC-adress",
           "label": "Styrenhetens namn",
-          "unicast": "Använd unicast-händelser (rekommenderas inte — endast om broadcast-paket inte stöds av din nätverkstopologi)",
-          "abort_manual": "Aktivera detta och tryck på Skicka för att avbryta manuell datainmatning"
+          "unicast": "Använd unicast-händelser (rekommenderas inte — endast om broadcast-paket inte stöds av din nätverkstopologi)"
         },
         "data_description": {
-          "mac": "Lämna tomt och skicka för att söka upp från värdens IP (endast samma subnät). Bekräfta värdet och skicka igen."
+          "mac": "Lämna tomt och skicka för att söka upp från värdens IP (endast samma subnät). Bekräfta värdet och skicka igen.",
+          "unicast": "Delas av alla styrenheter. Används endast när den delade runtime skapas första gången; att ändra senare kräver att runtime skapas om."
         }
       },
       "select_discovered": {
-        "title": "Välj styrenheter",
-        "description": "Dessa styrenheter hittades via multicast. Välj en eller flera att lägga till.",
+        "title": "Välj en styrenhet",
+        "description": "Dessa styrenheter hittades via multicast. Välj en att lägga till.",
         "data": {
-          "discovered": "Styrenheter"
+          "discovered": "Styrenhet"
         }
       },
       "discovery_failed": {
-        "title": "Kunde inte lägga till en styrenhet",
-        "description": "Ingen ytterligare styrenhet lades till. Du kan försöka upptäcka igen, ange uppgifter manuellt eller fortsätta med redan konfigurerade styrenheter.",
+        "title": "Inga styrenheter hittades",
+        "description": "Inga zencontrol-styrenheter hittades på nätverket via multicast. Du kan försöka upptäcka igen eller ange uppgifter manuellt.",
         "menu_options": {
           "discover": "Försök upptäcka igen",
-          "manual": "Lägg till manuellt",
-          "add_another": "Lägg till manuellt",
-          "finish": "✅ Klar med att lägga till styrenheter"
+          "manual": "Ange manuellt"
         }
       },
       "confirm_discovery": {
         "title": "Bekräfta zencontrol-styrenhet",
         "description": "Hittade **{label}** på `{host}` (MAC `{mac}`). Vill du lägga till den?"
       },
-      "add_another": {
-        "title": "Lägg till ytterligare styrenhet",
-        "description": "Konfigurera ytterligare en zencontrol-applikationsstyrenhet för den här integrationen.",
-        "data": {
-          "host": "Värd (IP-adress)",
-          "port": "Port",
-          "mac": "MAC-adress",
-          "label": "Styrenhetens namn",
-          "abort_manual": "Aktivera detta och tryck på Skicka för att avbryta manuell datainmatning"
-        },
-        "data_description": {
-          "mac": "Lämna tomt och skicka för att söka upp från värdens IP (endast samma subnät). Bekräfta värdet och skicka igen."
-        }
-      },
-      "add_more": {
-        "title": "Lägga till fler styrenheter?",
-        "description": "Du kan upptäcka eller manuellt lägga till en annan styrenhet nu, eller avsluta installationen. Efteråt kan du skapa underenheter för att tilldela rum.",
-        "menu_options": {
-          "discover": "Upptäck ytterligare styrenhet",
-          "add_another": "Lägg till ytterligare styrenhet manuellt",
-          "finish": "✅ Klar med att lägga till styrenheter"
-        }
-      },
       "reconfigure": {
         "title": "Konfigurera om zencontrol",
-        "description": "Välj en styrenhet att redigera, eller ändra unicast-inställningarna.",
+        "description": "Redigera den här styrenhetens anslutningsinställningar, eller ändra den domänomfattande unicast-flaggan (träder i kraft när den delade runtime skapas om).",
         "data": {
           "target": "Vad ska konfigureras om"
         }
@@ -91,7 +66,7 @@
       },
       "unicast_settings": {
         "title": "Unicast-inställningar",
-        "description": "Unicast delas av alla styrenheter i den här integrationen.",
+        "description": "Unicast är domänomfattande och används när den delade ZenControl-runtime skapas. Att uppdatera den här posten sparar inställningen men byter inte en körande runtime.",
         "data": {
           "unicast": "Använd unicast-händelser (rekommenderas inte — endast om broadcast-paket inte stöds av din nätverkstopologi)"
         }
@@ -110,33 +85,26 @@
       "already_configured": "Denna zencontrol-applikationsstyrenhet är redan konfigurerad.",
       "reconfigure_successful": "Omkonfiguration lyckades.",
       "no_controllers": "Inga styrenheter är konfigurerade.",
-      "last_controller": "Den sista styrenheten kan inte tas bort.",
       "no_devices_found": "Inga zencontrol-styrenheter hittades i nätverket. Försök igen eller ange uppgifter manuellt.",
-      "cannot_connect": "Kan inte nå den upptäckta styrenheten.",
-      "controller_added": "Styrenhet tillagd."
+      "cannot_connect": "Kan inte nå den upptäckta styrenheten."
     },
     "progress": {
       "listen": "Lyssnar efter zencontrol-styrenheter i nätverket… Tryck på en väggknapp för att skicka ett upptäckbart paket.",
-      "connect_controllers": "Ansluter till valda styrenheter…",
-      "setup_devices": "Läser in lampor och enheter från dina styrenheter…"
+      "connect_controllers": "Ansluter till den valda styrenheten…",
+      "setup_devices": "Upptäcker alla lampor och enheter på din styrenhet…"
     }
   },
   "options": {
     "step": {
       "init": {
         "title": "Hantera zencontrol",
-        "description": "Välj en styrenhet att hantera, eller lägg till en.",
-        "menu_options": {
-          "discover": "Upptäck ytterligare styrenhet",
-          "add_controller": "Lägg till ytterligare styrenhet manuellt"
-        }
+        "description": "Hantera underenheter för den här styrenheten."
       },
       "controller": {
         "title": "Hantera styrenhet",
         "description": "### {controller}\n\nUnderenheter låter dig flytta en del av den här styrenhetens entiteter till en virtuell underordnad enhet, så att du kan tilldela dem ett rum i Home Assistant.",
         "menu_options": {
-          "add_sub_device": "➕ Lägg till underenhet",
-          "remove_controller": "❌ Ta bort styrenhet"
+          "add_sub_device": "➕ Lägg till underenhet"
         }
       },
       "sub_device": {
@@ -146,38 +114,6 @@
           "reconfigure_sub_device": "⚙️ Konfigurera om",
           "delete_sub_device": "❌ Ta bort"
         }
-      },
-      "add_controller": {
-        "title": "Lägg till styrenhet",
-        "description": "Ange uppgifterna för ytterligare en zencontrol-applikationsstyrenhet.",
-        "data": {
-          "host": "Värd (IP-adress)",
-          "port": "Port",
-          "mac": "MAC-adress",
-          "label": "Styrenhetens namn"
-        },
-        "data_description": {
-          "mac": "Lämna tomt och skicka för att söka upp från värdens IP (endast samma subnät). Bekräfta värdet och skicka igen."
-        }
-      },
-      "discovery_failed": {
-        "title": "Inga styrenheter hittades",
-        "description": "Inga zencontrol-styrenheter hittades i nätverket via multicast. Du kan försöka igen eller ange uppgifter manuellt.",
-        "menu_options": {
-          "discover": "Försök igen",
-          "add_controller": "Lägg till manuellt"
-        }
-      },
-      "add_discovered": {
-        "title": "Lägg till upptäckta styrenheter",
-        "description": "Välj en eller flera styrenheter som hittats via multicast i ditt nätverk.",
-        "data": {
-          "discovered": "Styrenheter"
-        }
-      },
-      "remove_controller": {
-        "title": "Ta bort styrenhet",
-        "description": "Ta bort {controller}? Minst en styrenhet måste finnas kvar."
       },
       "suggest_sub_devices": {
         "title": "Konfigurera underenheter?",
@@ -196,7 +132,7 @@
         },
         "data_description": {
           "prefixes": "Skiftlägesokänsligt. Kommaseparerat. Matchar etiketter som börjar med någon av dessa strängar.",
-          "area_id": "Valfritt. Tilldela denna underenhet till en Home Assistant-yta (rum)."
+          "area_id": "Valfritt. Tilldela den här underenheten till ett Home Assistant-område. Integrationen äger området; ändringar på Enheter-sidan skrivs över vid nästa synkronisering."
         }
       },
       "reconfigure_sub_device": {
@@ -208,7 +144,7 @@
         },
         "data_description": {
           "prefixes": "Skiftlägesokänsligt. Kommaseparerat. Matchar etiketter som börjar med någon av dessa strängar.",
-          "area_id": "Valfritt. Tilldela denna underenhet till en Home Assistant-yta (rum)."
+          "area_id": "Valfritt. Tilldela den här underenheten till ett Home Assistant-område. Integrationen äger området; ändringar på Enheter-sidan skrivs över vid nästa synkronisering."
         }
       },
       "delete_sub_device": {
@@ -217,25 +153,11 @@
       }
     },
     "error": {
-      "cannot_connect": "Kan inte nå styrenheten. Kontrollera värd/port och försök igen.",
-      "invalid_host": "Värd krävs när du lägger till en styrenhet.",
-      "invalid_mac": "Ogiltigt MAC-adressformat. Använd XX:XX:XX:XX:XX:XX.",
-      "invalid_label": "Styrenhetens namn får inte vara tomt.",
-      "mac_not_found": "Kunde inte hitta en MAC-adress för den värden. Ange den manuellt (samma subnät krävs för uppslag).",
-      "duplicate_mac": "En styrenhet med den här MAC-adressen är redan konfigurerad.",
       "empty_prefixes": "Ange minst ett etikettprefix.",
-      "duplicate_prefix": "Det prefixet används redan av en annan underenhet på den här styrenheten.",
-      "no_devices_found": "Inga styrenheter hittades."
+      "duplicate_prefix": "Det prefixet används redan av en annan underenhet på den här styrenheten."
     },
     "abort": {
-      "last_controller": "Den sista styrenheten kan inte tas bort.",
-      "no_controllers": "Inga styrenheter är konfigurerade.",
-      "no_sub_devices": "Inga underenheter är definierade för den här styrenheten.",
-      "cannot_connect": "Kan inte nå styrenheten. Kontrollera värd/port och försök igen."
-    },
-    "progress": {
-      "listen": "Lyssnar efter zencontrol-styrenheter i nätverket… Tryck på en väggknapp för att skicka ett upptäckbart paket.",
-      "setup_devices": "Kartlägger alla entiteter på dina styrenheter…"
+      "no_controllers": "Inga styrenheter är konfigurerade."
     }
   },
   "entity": {

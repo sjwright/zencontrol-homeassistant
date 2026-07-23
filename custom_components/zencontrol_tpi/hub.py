@@ -1,4 +1,4 @@
-"""ZenHub: manages the ZenControl lifecycle and entity dispatch."""
+"""ZenHub: per-entry controller slice over the shared ZenControl runtime."""
 
 from __future__ import annotations
 
@@ -7,7 +7,6 @@ import logging
 from collections.abc import Callable, Coroutine
 from typing import Any
 
-import zencontrol  # type: ignore[import-untyped]
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import Event, HomeAssistant
@@ -16,13 +15,10 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 
 from .const import (
-    CONF_CONTROLLERS,
-    CONF_LABEL,
-    CONF_MAC,
     CONF_NAME,
-    CONF_UNICAST,
     DATA_PENDING_MANIFEST,
     DOMAIN,
+    controller_from_entry_data,
 )
 from .entity import (
     controller_device_info,
@@ -35,6 +31,7 @@ from .manifest_store import (
     load_entities_from_manifest,
 )
 from .rate_limiter import RateLimiter
+from .runtime import SharedZenRuntime
 from .sub_devices import (
     SubDeviceDef,
     build_assignments,
@@ -74,36 +71,37 @@ def mark_force_full_discovery(entry_id: str) -> None:
 
 
 class ZenHub:
-    """Manages the zencontrol-python client and dispatches events to HA entities."""
+    """Per-config-entry hub for one controller on the shared runtime."""
 
     def __init__(
         self,
         hass: HomeAssistant,
         entry: ZencontrolTpiConfigEntry,
+        runtime: SharedZenRuntime,
         *,
         force_full_discovery: bool = False,
     ) -> None:
         self.hass = hass
         self.entry = entry
+        self.runtime = runtime
         self._force_full_discovery = force_full_discovery
         self._manifest_store = DiscoveryManifestStore(hass, entry.entry_id)
         self._rate_limiter = RateLimiter(max_concurrent=5, delay_between_batches=0.1)
-        self._available = False
+        self._controller_online = False
         self._stopping = False
-        # Per-controller online flags (name → bool). Event-listener up/down still
-        # gates all entities via _available; this tracks controller.connected too.
-        self._controller_online: dict[str, bool] = {}
+        self._attached = False
 
-        self.zen: zencontrol.ZenControl | None = None
-        self.controllers: list[zencontrol.ZenController] = []
+        self.controller: Any | None = None
+        # Compatibility alias used by platforms/tests that iterate controllers.
+        self.controllers: list[Any] = []
 
-        self.lights: list[zencontrol.ZenLight] = []
-        self.groups: list[zencontrol.ZenGroup] = []
-        self.buttons: list[zencontrol.ZenButton] = []
-        self.motion_sensors: list[zencontrol.ZenMotionSensor] = []
-        self.sv_switches: list[zencontrol.ZenSystemVariable] = []
-        self.sv_sensors: list[zencontrol.ZenSystemVariable] = []
-        self.profiles: list[zencontrol.ZenProfile] = []
+        self.lights: list[Any] = []
+        self.groups: list[Any] = []
+        self.buttons: list[Any] = []
+        self.motion_sensors: list[Any] = []
+        self.sv_switches: list[Any] = []
+        self.sv_sensors: list[Any] = []
+        self.profiles: list[Any] = []
 
         self._discovery_callbacks: list[DiscoveryCallback] = []
         self._discovery_complete = False
@@ -117,25 +115,33 @@ class ZenHub:
         self._profile_entities: dict[Any, Any] = {}
         self._scene_entities: dict[Any, Any] = {}
 
-        # ctrl_name → sub-device defs; assignment key → sub-device id
         self._sub_devices_by_controller: dict[str, list[SubDeviceDef]] = {}
         self._sub_device_assignments: dict[str, str] = {}
 
     @property
+    def zen(self) -> Any:
+        """Shared ZenControl client."""
+        return self.runtime.zen
+
+    @property
     def available(self) -> bool:
-        """Return True when the event listener is up and discovery succeeded."""
-        return self._available
+        """Return True when the listener is up and this controller is online."""
+        return self.runtime.listener_up and self._controller_online
 
     def is_controller_available(self, zen_ctrl: Any | None = None) -> bool:
-        """Return availability for a specific controller (or hub-wide if None)."""
-        if not self._available:
+        """Return availability for this hub's controller."""
+        if not self.runtime.listener_up:
             return False
         if zen_ctrl is None:
-            return True
-        name = getattr(zen_ctrl, "name", None)
-        if name is None:
-            return True
-        return self._controller_online.get(name, bool(getattr(zen_ctrl, "connected", True)))
+            return self._controller_online
+        if zen_ctrl is self.controller:
+            return self._controller_online
+        if (
+            self.controller is not None
+            and getattr(zen_ctrl, "name", None) == self.controller.name
+        ):
+            return self._controller_online
+        return False
 
     def device_info_for(
         self,
@@ -158,27 +164,13 @@ class ZenHub:
         )
 
     def sync_device_assignments(self) -> None:
-        """Idempotently assign every entity to its controller or sub-device.
-
-        This is the only routine that may change device membership. It:
-
-        1. Rebuilds group-first then label-prefix assignments from live config
-        2. Ensures controller and sub-device registry entries (and areas) exist
-        3. Moves every known entity onto the matching device
-        4. Removes orphaned controller/sub-device registry entries for this entry
-
-        Safe to call repeatedly after any config or discovery change (add/remove
-        controllers or sub-devices, reload, re-enrollment, options save). When
-        entities are not yet registered, steps 1-2/4 still run; call again after
-        ``async_block_till_done()`` so entity registry moves can apply.
-        """
+        """Idempotently assign every entity to its controller or sub-device."""
         self._rebuild_sub_device_assignments()
 
         device_registry = dr.async_get(self.hass)
         entity_registry = er.async_get(self.hass)
         expected_identifiers = self._expected_device_identifiers()
 
-        # Controllers first so sub-device via_device links resolve.
         for zen_ctrl in self.controllers:
             self._ensure_registry_device(
                 device_registry, controller_device_info(zen_ctrl)
@@ -234,11 +226,10 @@ class ZenHub:
 
         _LOGGER.info(
             "Synced device assignments: %d entities updated, %d orphan devices "
-            "removed (%d assignment keys, %d controllers)",
+            "removed (%d assignment keys)",
             updated,
             removed,
             len(self._sub_device_assignments),
-            len(self.controllers),
         )
 
     def _ensure_registry_device(
@@ -260,13 +251,13 @@ class ZenHub:
     def _rebuild_sub_device_assignments(self) -> None:
         """Recompute label-prefix sub-device assignments from config + discovery."""
         self._sub_devices_by_controller = {}
-        for ctrl_cfg in self.entry.data.get(CONF_CONTROLLERS, []):
+        ctrl_cfg = controller_from_entry_data(self.entry.data)
+        if ctrl_cfg:
             name = ctrl_cfg.get(CONF_NAME)
-            if not name:
-                continue
-            self._sub_devices_by_controller[name] = sub_devices_from_controller(
-                ctrl_cfg
-            )
+            if name:
+                self._sub_devices_by_controller[name] = sub_devices_from_controller(
+                    ctrl_cfg
+                )
 
         sysvars = list({*self.sv_switches, *self.sv_sensors})
         self._sub_device_assignments = build_assignments(
@@ -276,11 +267,6 @@ class ZenHub:
             buttons=self.buttons,
             motion_sensors=self.motion_sensors,
             sysvars=sysvars,
-        )
-        _LOGGER.debug(
-            "Sub-device assignments: %d entities across %d controllers",
-            len(self._sub_device_assignments),
-            len(self._sub_devices_by_controller),
         )
 
     def _expected_device_identifiers(self) -> set[tuple[str, str]]:
@@ -298,15 +284,8 @@ class ZenHub:
         device_registry: dr.DeviceRegistry,
         expected_identifiers: set[tuple[str, str]],
     ) -> int:
-        """Remove config-entry devices whose identifiers are no longer expected.
-
-        Refuses to prune when the expected set is empty so a transient empty
-        controller list cannot wipe every device for this entry.
-        """
+        """Remove config-entry devices whose identifiers are no longer expected."""
         if not expected_identifiers:
-            _LOGGER.debug(
-                "Skipping device prune; no expected controller/sub-device identifiers"
-            )
             return 0
 
         removed = 0
@@ -393,7 +372,6 @@ class ZenHub:
         self._sv_switch_entities[zen_sv] = entity
 
     def register_profile_entity(self, zen_controller: Any, entity: Any) -> None:
-        # ZenController is a dataclass (unhashable). Key by name instead.
         self._profile_entities[zen_controller.name] = entity
 
     def register_scene_entity(self, zen_group: Any, entity: Any) -> None:
@@ -411,39 +389,16 @@ class ZenHub:
     # ------------------------------------------------------------------
 
     async def async_setup(self) -> None:
-        """Create ZenControl, wire callbacks, and add controllers from config."""
-        data = self.entry.data
-        unicast: bool = data.get(CONF_UNICAST, False)
+        """Attach this entry's controller to the shared runtime."""
+        ctrl_cfg = controller_from_entry_data(self.entry.data)
+        if not ctrl_cfg:
+            raise ConfigEntryNotReady("Config entry has no controller")
 
-        self.zen = zencontrol.ZenControl(
-            logger=_LOGGER,
-            unicast=unicast,
-        )
+        self.controller = await self.runtime.async_attach(self, ctrl_cfg)
+        self.controllers = [self.controller]
+        self._attached = True
+        self._controller_online = False
 
-        self.zen.on_connect = self._on_connect
-        self.zen.on_disconnect = self._on_disconnect
-        self.zen.light_change = self._on_light_change
-        self.zen.group_change = self._on_group_change
-        self.zen.button_press = self._on_button_press
-        self.zen.button_long_press = self._on_button_long_press
-        self.zen.motion_event = self._on_motion_event
-        self.zen.system_variable_change = self._on_sv_change
-        self.zen.profile_change = self._on_profile_change
-        self.zen.controller_discovered = self._on_controller_discovered
-
-        for idx, ctrl_cfg in enumerate(data.get(CONF_CONTROLLERS, []), start=1):
-            ctrl = self.zen.add_controller(
-                id=idx,
-                name=ctrl_cfg[CONF_NAME],
-                label=ctrl_cfg[CONF_LABEL],
-                host=ctrl_cfg["host"],
-                port=ctrl_cfg.get("port", 5108),
-                mac=ctrl_cfg.get(CONF_MAC),
-            )
-            self.controllers.append(ctrl)
-            self._controller_online[ctrl.name] = False
-
-        # Stop before HA cancels lingering tasks on shutdown (avoids reconnect).
         self.entry.async_on_unload(
             self.hass.bus.async_listen_once(
                 EVENT_HOMEASSISTANT_STOP, self._async_hass_stop
@@ -454,125 +409,95 @@ class ZenHub:
         """Close connections as soon as Home Assistant begins shutting down."""
         await self.async_stop()
 
-    async def _on_controller_discovered(self, discovered: Any) -> None:
-        """Start a discovery flow when multicast reveals an unknown controller."""
-        mac = getattr(discovered, "mac", None)
-        host = getattr(discovered, "host", None)
-        if not mac or not host:
-            return
-        mac_n = str(mac).upper().replace("-", ":")
-        mac_id = mac_n.replace(":", "")
-        for ctrl in self.entry.data.get(CONF_CONTROLLERS, []):
-            configured = str(ctrl.get(CONF_MAC, "")).upper().replace("-", ":").replace(":", "")
-            if configured == mac_id:
-                return
-
-        label = getattr(discovered, "label", None) or mac_n
-        port = int(getattr(discovered, "port", 5108) or 5108)
-        _LOGGER.info(
-            "Discovered zencontrol controller %s (%s) label=%r",
-            host,
-            mac_n,
-            label,
-        )
-        self.hass.async_create_task(
-            self.hass.config_entries.flow.async_init(
-                DOMAIN,
-                context={"source": "discovery"},
-                data={
-                    "host": host,
-                    "port": port,
-                    "mac": mac_n,
-                    "label": label,
-                },
-            )
-        )
-
     async def async_start(self) -> None:
-        """Wait for controllers, discover entities, refresh state, start events."""
+        """Wait for this controller, discover entities, then ensure listener."""
         try:
-            await self._wait_for_controllers()
+            await self._wait_for_controller()
             await self._discover_entities()
-            # Build assignment map + devices before platforms construct entities.
             self.sync_device_assignments()
             await self._refresh_light_states()
-            assert self.zen is not None
-            await self.zen.start()
-            self._available = True
+            await self.runtime.async_ensure_started()
+            self._controller_online = True
             await self._notify_discovery_complete()
-            # Entity registry device_id is sticky across reload; re-run after
-            # entities have entity_ids so membership is corrected idempotently.
             await self.hass.async_block_till_done()
             self.sync_device_assignments()
         except ConfigEntryNotReady:
-            self._available = False
+            self._controller_online = False
             await self._notify_discovery_complete()
             raise
         except asyncio.CancelledError:
             _LOGGER.debug("ZenHub startup task cancelled")
             raise
         except Exception as err:
-            self._available = False
+            self._controller_online = False
             await self._notify_discovery_complete()
             raise ConfigEntryNotReady(
                 f"zencontrol setup failed: {err}"
             ) from err
 
-    async def _wait_for_controllers(self) -> None:
-        """Poll until every controller is ready, then interview.
-
-        Raises ConfigEntryNotReady if a controller is unreachable or still
-        booting after ``_READY_WAIT_MAX`` seconds so HA can retry with backoff.
-        """
-        for ctrl in self.controllers:
-            _LOGGER.info("Waiting for controller %s to be ready…", ctrl.label)
-            deadline = asyncio.get_running_loop().time() + _READY_WAIT_MAX
-            while True:
-                try:
-                    ready = await asyncio.wait_for(
-                        ctrl.is_controller_ready(),
-                        timeout=_READY_QUERY_TIMEOUT,
-                    )
-                except TimeoutError:
-                    ready = None
-
-                if ready is None:
-                    raise ConfigEntryNotReady(
-                        f"Cannot reach controller {ctrl.label} ({ctrl.host})"
-                    )
-                if ready:
-                    break
-                if asyncio.get_running_loop().time() >= deadline:
-                    raise ConfigEntryNotReady(
-                        f"Controller {ctrl.label} ({ctrl.host}) still starting "
-                        f"after {_READY_WAIT_MAX:.0f}s"
-                    )
-                _LOGGER.info(
-                    "Controller %s still starting up, retrying in %ds…",
-                    ctrl.label,
-                    _STARTUP_RETRY_INTERVAL,
+    async def _wait_for_controller(self) -> None:
+        """Poll until this controller is ready, then interview."""
+        ctrl = self.controller
+        assert ctrl is not None
+        _LOGGER.info("Waiting for controller %s to be ready…", ctrl.label)
+        deadline = asyncio.get_running_loop().time() + _READY_WAIT_MAX
+        while True:
+            try:
+                ready = await asyncio.wait_for(
+                    ctrl.is_controller_ready(),
+                    timeout=_READY_QUERY_TIMEOUT,
                 )
-                await asyncio.sleep(_STARTUP_RETRY_INTERVAL)
+            except TimeoutError:
+                ready = None
 
-            await ctrl.interview()
-            ctrl.connected = True
-            self._controller_online[ctrl.name] = True
+            if ready is None:
+                raise ConfigEntryNotReady(
+                    f"Cannot reach controller {ctrl.label} ({ctrl.host})"
+                )
+            if ready:
+                break
+            if asyncio.get_running_loop().time() >= deadline:
+                raise ConfigEntryNotReady(
+                    f"Controller {ctrl.label} ({ctrl.host}) still starting "
+                    f"after {_READY_WAIT_MAX:.0f}s"
+                )
             _LOGGER.info(
-                "Controller %s ready (version %s)", ctrl.label, ctrl.version
+                "Controller %s still starting up, retrying in %ds…",
+                ctrl.label,
+                _STARTUP_RETRY_INTERVAL,
             )
+            await asyncio.sleep(_STARTUP_RETRY_INTERVAL)
+
+        await ctrl.interview()
+        ctrl.connected = True
+        self._controller_online = True
+        _LOGGER.info(
+            "Controller %s ready (version %s)", ctrl.label, ctrl.version
+        )
 
     async def _discover_entities(self) -> None:
-        """Full bus discovery or cached manifest load."""
+        """Full bus discovery or cached manifest load for this controller."""
         from_pending = False
         if self._force_full_discovery:
             manifest = None
         else:
-            pending = self.hass.data.get(DOMAIN, {}).pop(DATA_PENDING_MANIFEST, None)
-            if (
-                isinstance(pending, dict)
-                and pending.get("unique_id") == self.entry.unique_id
-                and isinstance(pending.get("manifest"), dict)
-            ):
+            pending = None
+            domain_data = self.hass.data.get(DOMAIN, {})
+            pending_map = domain_data.get(DATA_PENDING_MANIFEST)
+            if isinstance(pending_map, dict):
+                # New shape: mac_id → {"manifest": ...}
+                if self.entry.unique_id in pending_map:
+                    pending = pending_map.pop(self.entry.unique_id)
+                    if not pending_map:
+                        domain_data.pop(DATA_PENDING_MANIFEST, None)
+                # Legacy single-blob shape (unique_id + manifest keys)
+                elif (
+                    pending_map.get("unique_id") == self.entry.unique_id
+                    and isinstance(pending_map.get("manifest"), dict)
+                ):
+                    pending = domain_data.pop(DATA_PENDING_MANIFEST)
+
+            if isinstance(pending, dict) and isinstance(pending.get("manifest"), dict):
                 _LOGGER.info("Loading entities from config-flow discovery manifest")
                 manifest = pending["manifest"]
                 from_pending = True
@@ -619,15 +544,16 @@ class ZenHub:
         )
 
     async def _run_full_discovery(self) -> None:
-        """Scan the bus for all entity types."""
-        assert self.zen is not None
+        """Scan the bus for entity types on this controller only."""
+        assert self.controller is not None
+        zen = self.zen
 
-        raw_lights = await self.zen.get_lights()
-        raw_groups = await self.zen.get_groups()
-        raw_buttons = await self.zen.get_buttons()
-        raw_sensors = await self.zen.get_motion_sensors()
-        raw_svars = await self.zen.get_system_variables()
-        raw_profiles = await self.zen.get_profiles()
+        raw_lights = await zen.get_lights(controller=self.controller)
+        raw_groups = await zen.get_groups(controller=self.controller)
+        raw_buttons = await zen.get_buttons(controller=self.controller)
+        raw_sensors = await zen.get_motion_sensors(controller=self.controller)
+        raw_svars = await zen.get_system_variables(controller=self.controller)
+        raw_profiles = await zen.get_profiles(controller=self.controller)
 
         self.lights = sorted(raw_lights, key=lambda lt: lt.address.number)
         self.groups = sorted(raw_groups, key=lambda g: g.address.number)
@@ -653,11 +579,7 @@ class ZenHub:
                 self.sv_sensors.append(sv)
 
     async def _refresh_light_states(self) -> None:
-        """Batch refresh runtime state after discovery (mqtt_bridge pattern).
-
-        Interview/hydrate only restore static metadata. Current light/group
-        levels and system-variable values are queried here.
-        """
+        """Batch refresh runtime state after discovery."""
         coros: list[Coroutine[Any, Any, Any]] = [
             light.refresh_state_from_controller()
             for light in self.lights
@@ -696,51 +618,34 @@ class ZenHub:
             await cb()
 
     async def async_stop(self) -> None:
-        """Stop monitoring, close UDP clients, and clear callbacks."""
+        """Detach this entry from the shared runtime."""
         if self._stopping:
             return
         self._stopping = True
-        self._available = False
-        zen = self.zen
-        if zen is None:
+        self._controller_online = False
+        if not self._attached:
             return
-        await zen.aclose()
-        zen.on_connect = None
-        zen.on_disconnect = None
-        zen.light_change = None
-        zen.group_change = None
-        zen.button_press = None
-        zen.button_long_press = None
-        zen.motion_event = None
-        zen.system_variable_change = None
-        zen.profile_change = None
-        zen.controller_discovered = None
+        self._attached = False
+        await self.runtime.async_detach(self.entry.entry_id)
 
     # ------------------------------------------------------------------
-    # zencontrol-python callbacks → HA entity dispatch
+    # Runtime → hub event handlers
     # ------------------------------------------------------------------
 
-    def _set_all_controllers_online(self, online: bool) -> None:
-        """Update per-controller online flags (e.g. on event-listener connect)."""
-        for ctrl in self.controllers:
-            ctrl.connected = online
-            self._controller_online[ctrl.name] = online
-
-    async def _on_connect(self) -> None:
-        """Library reconnect supervisor calls this on each successful session."""
-        _LOGGER.info("zencontrol event listener connected")
-        self._available = True
-        self._set_all_controllers_online(True)
-        # Initial setup already refreshed before zen.start(); re-query only on reconnect.
+    async def handle_listener_connect(self) -> None:
+        """Shared listener came up."""
+        if self.controller is not None:
+            self.controller.connected = True
+        self._controller_online = True
         if self._discovery_complete and not self._stopping:
             await self._refresh_light_states()
         self._write_entity_states()
 
-    async def _on_disconnect(self) -> None:
-        """Library notifies disconnect; reconnect is handled inside ZenControl."""
-        _LOGGER.info("zencontrol event listener disconnected")
-        self._available = False
-        self._set_all_controllers_online(False)
+    def handle_listener_disconnect(self) -> None:
+        """Shared listener went down."""
+        if self.controller is not None:
+            self.controller.connected = False
+        self._controller_online = False
         self._write_entity_states()
 
     def _write_entity_states(self) -> None:
@@ -755,64 +660,46 @@ class ZenHub:
             *self._profile_entities.values(),
             *self._scene_entities.values(),
         ):
-            # Only write state for entities that have been added to HA.
-            # During a failed setup, entities may be constructed but never
-            # registered, so entity_id is not yet set.
             if entity.entity_id:
                 entity.async_write_ha_state()
 
-    async def _on_light_change(
-        self,
-        light: Any,
-        level: int | None = None,
-        colour: Any | None = None,
-        scene: int | None = None,
-    ) -> None:
+    def handle_light_change(self, light: Any) -> None:
         if (entity := self._light_entities.get(light)) is not None:
             entity.update_state()
 
-    async def _on_group_change(
-        self,
-        group: Any,
-        level: int | None = None,
-        colour: Any | None = None,
-        scene: int | None = None,
-        discoordinated: bool | None = None,
-    ) -> None:
+    def handle_group_change(self, group: Any) -> None:
         if (group_entity := self._group_entities.get(group)) is not None:
             group_entity.update_state()
         if (scene_entity := self._scene_entities.get(group)) is not None:
             scene_entity.update_current_option()
 
-    async def _on_button_press(self, button: Any) -> None:
+    def handle_button_press(self, button: Any) -> None:
         if (entity := self._button_entities.get(button)) is not None:
             entity.trigger_event("short_press")
 
-    async def _on_button_long_press(self, button: Any) -> None:
+    def handle_button_long_press(self, button: Any) -> None:
         if (entity := self._button_entities.get(button)) is not None:
             entity.trigger_event("long_press")
 
-    async def _on_motion_event(self, sensor: Any, occupied: bool) -> None:
+    def handle_motion_event(self, sensor: Any, occupied: bool) -> None:
         if (entity := self._motion_sensor_entities.get(sensor)) is not None:
             entity.update_occupied(occupied)
 
-    async def _on_sv_change(
+    def handle_sv_change(
         self,
         system_variable: Any,
         value: int,
-        changed: bool,
+        *,
         by_me: bool,
     ) -> None:
         if (sensor_entity := self._sv_sensor_entities.get(system_variable)) is not None:
             sensor_entity.update_value(value)
-
         if by_me:
             return
-
         if (switch_entity := self._sv_switch_entities.get(system_variable)) is not None:
             switch_entity.update_value(value)
 
-    async def _on_profile_change(self, profile: Any) -> None:
+    def handle_profile_change(self, profile: Any) -> None:
         if (entity := self._profile_entities.get(profile.controller.name)) is not None:
             entity.update_current_option()
 

@@ -4,7 +4,7 @@
     "step": {
       "user": {
         "title": "设置 zencontrol",
-        "description": "通过组播在网络上发现控制器，或手动输入连接信息。控制器需要 TPI Advanced 许可证。",
+        "description": "通过组播在网络上发现控制器，或手动输入连接详情。控制器需要 TPI Advanced 许可证。每个控制器对应一个独立的 Home Assistant 条目。",
         "menu_options": {
           "discover": "搜索控制器",
           "manual": "手动输入"
@@ -18,60 +18,35 @@
           "port": "端口",
           "mac": "MAC 地址",
           "label": "控制器名称",
-          "unicast": "使用单播事件（不推荐 — 仅当您的网络拓扑不支持广播数据包时使用）",
-          "abort_manual": "启用此项并按提交以中止手动数据输入"
+          "unicast": "使用单播事件（不推荐 — 仅当您的网络拓扑不支持广播数据包时使用）"
         },
         "data_description": {
-          "mac": "留空并提交可根据主机 IP 查找（仅限同一子网）。确认后再次提交。"
+          "mac": "留空并提交可根据主机 IP 查找（仅限同一子网）。确认后再次提交。",
+          "unicast": "由所有控制器共享。仅在首次创建共享运行时时生效；之后更改需要重新创建运行时。"
         }
       },
       "select_discovered": {
         "title": "选择控制器",
-        "description": "这些控制器通过组播发现。请选择一台或多台添加。",
+        "description": "通过组播发现了这些控制器。请选择一台添加。",
         "data": {
           "discovered": "控制器"
         }
       },
       "discovery_failed": {
-        "title": "无法添加控制器",
-        "description": "未添加其他控制器。您可以再次尝试发现、手动输入详细信息，或继续使用已配置的控制器。",
+        "title": "未找到控制器",
+        "description": "未能通过组播在网络上找到 zencontrol 控制器。可以重试发现，或手动输入详情。",
         "menu_options": {
           "discover": "再次尝试发现",
-          "manual": "手动添加",
-          "add_another": "手动添加",
-          "finish": "✅ 完成添加控制器"
+          "manual": "手动输入"
         }
       },
       "confirm_discovery": {
         "title": "确认 zencontrol 控制器",
         "description": "在 `{host}` 发现 **{label}**（MAC `{mac}`）。要添加它吗？"
       },
-      "add_another": {
-        "title": "添加另一台控制器",
-        "description": "为此集成配置另一台 zencontrol 应用控制器。",
-        "data": {
-          "host": "主机（IP 地址）",
-          "port": "端口",
-          "mac": "MAC 地址",
-          "label": "控制器名称",
-          "abort_manual": "启用此项并按提交以中止手动数据输入"
-        },
-        "data_description": {
-          "mac": "留空并提交可根据主机 IP 查找（仅限同一子网）。确认后再次提交。"
-        }
-      },
-      "add_more": {
-        "title": "添加更多控制器？",
-        "description": "现在可以继续发现或手动添加控制器，或完成设置。完成后可创建子设备以分配房间。",
-        "menu_options": {
-          "discover": "发现另一台控制器",
-          "add_another": "手动添加另一台控制器",
-          "finish": "✅ 完成添加控制器"
-        }
-      },
       "reconfigure": {
         "title": "重新配置 zencontrol",
-        "description": "选择要编辑的控制器，或更改单播设置。",
+        "description": "编辑此控制器的连接设置，或更改域级单播标志（在重新创建共享运行时时生效）。",
         "data": {
           "target": "要重新配置的内容"
         }
@@ -91,7 +66,7 @@
       },
       "unicast_settings": {
         "title": "单播设置",
-        "description": "单播由此集成中的所有控制器共享。",
+        "description": "单播为域级设置，在创建共享 ZenControl 运行时时使用。更新此条目会保存偏好，但不会热切换正在运行的运行时。",
         "data": {
           "unicast": "使用单播事件（不推荐 — 仅当您的网络拓扑不支持广播数据包时使用）"
         }
@@ -110,33 +85,26 @@
       "already_configured": "此 zencontrol 应用控制器已配置。",
       "reconfigure_successful": "重新配置成功。",
       "no_controllers": "未配置任何控制器。",
-      "last_controller": "无法移除最后一台控制器。",
       "no_devices_found": "网络上未找到 zencontrol 控制器。请重试或手动输入详细信息。",
-      "cannot_connect": "无法连接到发现的控制器。",
-      "controller_added": "控制器已添加。"
+      "cannot_connect": "无法连接到发现的控制器。"
     },
     "progress": {
       "listen": "正在网络上侦听 zencontrol 控制器… 按下墙面按钮以发出可发现的数据包。",
       "connect_controllers": "正在连接到所选控制器…",
-      "setup_devices": "正在从控制器加载灯具和设备…"
+      "setup_devices": "正在发现控制器上的所有灯具和设备…"
     }
   },
   "options": {
     "step": {
       "init": {
         "title": "管理 zencontrol",
-        "description": "选择要管理的控制器，或添加另一台。",
-        "menu_options": {
-          "discover": "发现另一台控制器",
-          "add_controller": "手动添加另一台控制器"
-        }
+        "description": "管理此控制器的子设备。"
       },
       "controller": {
         "title": "管理控制器",
         "description": "### {controller}\n\n子设备可将此控制器的部分实体拆分到虚拟子级设备上，以便在 Home Assistant 中为其分配房间。",
         "menu_options": {
-          "add_sub_device": "➕ 添加子设备",
-          "remove_controller": "❌ 移除控制器"
+          "add_sub_device": "➕ 添加子设备"
         }
       },
       "sub_device": {
@@ -146,38 +114,6 @@
           "reconfigure_sub_device": "⚙️ 重新配置",
           "delete_sub_device": "❌ 删除"
         }
-      },
-      "add_controller": {
-        "title": "添加控制器",
-        "description": "输入另一台 zencontrol 应用控制器的详细信息。",
-        "data": {
-          "host": "主机（IP 地址）",
-          "port": "端口",
-          "mac": "MAC 地址",
-          "label": "控制器名称"
-        },
-        "data_description": {
-          "mac": "留空并提交可根据主机 IP 查找（仅限同一子网）。确认后再次提交。"
-        }
-      },
-      "discovery_failed": {
-        "title": "未找到控制器",
-        "description": "通过组播在网络上未找到 zencontrol 控制器。您可以重试或手动输入详细信息。",
-        "menu_options": {
-          "discover": "重试",
-          "add_controller": "手动添加"
-        }
-      },
-      "add_discovered": {
-        "title": "添加发现的控制器",
-        "description": "选择通过组播在网络上发现的一台或多台控制器。",
-        "data": {
-          "discovered": "控制器"
-        }
-      },
-      "remove_controller": {
-        "title": "移除控制器",
-        "description": "移除 {controller}？至少需保留一台控制器。"
       },
       "suggest_sub_devices": {
         "title": "设置子设备？",
@@ -196,7 +132,7 @@
         },
         "data_description": {
           "prefixes": "不区分大小写。逗号分隔。匹配以这些字符串之一开头的标签。",
-          "area_id": "可选。将此子设备分配到 Home Assistant 区域（房间）。"
+          "area_id": "可选。将此子设备分配到 Home Assistant 区域。集成拥有该区域；在“设备”页面所做的更改会在下次同步时被覆盖。"
         }
       },
       "reconfigure_sub_device": {
@@ -208,7 +144,7 @@
         },
         "data_description": {
           "prefixes": "不区分大小写。逗号分隔。匹配以这些字符串之一开头的标签。",
-          "area_id": "可选。将此子设备分配到 Home Assistant 区域（房间）。"
+          "area_id": "可选。将此子设备分配到 Home Assistant 区域。集成拥有该区域；在“设备”页面所做的更改会在下次同步时被覆盖。"
         }
       },
       "delete_sub_device": {
@@ -217,25 +153,11 @@
       }
     },
     "error": {
-      "cannot_connect": "无法连接到控制器。请检查主机/端口后重试。",
-      "invalid_host": "添加控制器时必须填写主机。",
-      "invalid_mac": "MAC 地址格式无效。请使用 XX:XX:XX:XX:XX:XX。",
-      "invalid_label": "控制器名称不能为空。",
-      "mac_not_found": "无法发现该主机的 MAC 地址。请手动输入（查找需要同一子网）。",
-      "duplicate_mac": "已配置具有此 MAC 地址的控制器。",
       "empty_prefixes": "请至少输入一个标签前缀。",
-      "duplicate_prefix": "该前缀已被此控制器上的另一个子设备使用。",
-      "no_devices_found": "未找到任何控制器。"
+      "duplicate_prefix": "该前缀已被此控制器上的另一个子设备使用。"
     },
     "abort": {
-      "last_controller": "无法移除最后一台控制器。",
-      "no_controllers": "未配置任何控制器。",
-      "no_sub_devices": "此控制器未定义任何子设备。",
-      "cannot_connect": "无法连接到控制器。请检查主机/端口后重试。"
-    },
-    "progress": {
-      "listen": "正在网络上侦听 zencontrol 控制器… 按下墙面按钮以发出可发现的数据包。",
-      "setup_devices": "正在映射控制器上的所有实体…"
+      "no_controllers": "未配置任何控制器。"
     }
   },
   "entity": {

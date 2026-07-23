@@ -4,7 +4,7 @@
     "step": {
       "user": {
         "title": "Opsæt zencontrol",
-        "description": "Find controllere på dit netværk via multicast, eller indtast forbindelsesoplysninger manuelt. Controllere kræver en TPI Advanced-licens.",
+        "description": "Find en controller på dit netværk via multicast, eller indtast forbindelsesoplysninger manuelt. Controllers kræver en TPI Advanced-licens. Hver controller er en separat Home Assistant-post.",
         "menu_options": {
           "discover": "Søg efter controllere",
           "manual": "Indtast manuelt"
@@ -18,60 +18,35 @@
           "port": "Port",
           "mac": "MAC-adresse",
           "label": "Controllernavn",
-          "unicast": "Brug unicast-hændelser (anbefales ikke — kun hvis broadcast-pakker ikke understøttes af din netværkstopologi)",
-          "abort_manual": "Aktivér dette, og tryk på Send for at afbryde manuel dataindtastning"
+          "unicast": "Brug unicast-hændelser (anbefales ikke — kun hvis broadcast-pakker ikke understøttes af din netværkstopologi)"
         },
         "data_description": {
-          "mac": "Lad feltet være tomt og indsend for at slå op fra værtens IP (kun samme subnet). Bekræft værdien, og indsend igen."
+          "mac": "Lad feltet være tomt og indsend for at slå op fra værtens IP (kun samme subnet). Bekræft værdien, og indsend igen.",
+          "unicast": "Delt af alle controllers. Anvendes kun, når den delte runtime oprettes første gang; ændring senere kræver, at runtimen oprettes på ny."
         }
       },
       "select_discovered": {
-        "title": "Vælg controllere",
-        "description": "Disse controllere blev fundet via multicast. Vælg én eller flere, der skal tilføjes.",
+        "title": "Vælg en controller",
+        "description": "Disse controllers blev fundet via multicast. Vælg én at tilføje.",
         "data": {
-          "discovered": "Controllere"
+          "discovered": "Controller"
         }
       },
       "discovery_failed": {
-        "title": "Kunne ikke tilføje en controller",
-        "description": "Der blev ikke tilføjet nogen yderligere controller. Du kan prøve opdagelse igen, indtaste oplysninger manuelt eller fortsætte med de allerede konfigurerede controllere.",
+        "title": "Ingen controllers fundet",
+        "description": "Ingen zencontrol-controllers blev fundet på netværket via multicast. Du kan prøve opdagelse igen eller indtaste oplysninger manuelt.",
         "menu_options": {
           "discover": "Prøv opdagelse igen",
-          "manual": "Tilføj manuelt",
-          "add_another": "Tilføj manuelt",
-          "finish": "✅ Færdig med at tilføje controllere"
+          "manual": "Indtast manuelt"
         }
       },
       "confirm_discovery": {
         "title": "Bekræft zencontrol-controller",
         "description": "Fandt **{label}** på `{host}` (MAC `{mac}`). Vil du tilføje den?"
       },
-      "add_another": {
-        "title": "Tilføj endnu en controller",
-        "description": "Konfigurer en ekstra zencontrol-applikationscontroller til denne integration.",
-        "data": {
-          "host": "Vært (IP-adresse)",
-          "port": "Port",
-          "mac": "MAC-adresse",
-          "label": "Controllernavn",
-          "abort_manual": "Aktivér dette, og tryk på Send for at afbryde manuel dataindtastning"
-        },
-        "data_description": {
-          "mac": "Lad feltet være tomt og indsend for at slå op fra værtens IP (kun samme subnet). Bekræft værdien, og indsend igen."
-        }
-      },
-      "add_more": {
-        "title": "Tilføje flere controllere?",
-        "description": "Du kan opdage eller manuelt tilføje en anden controller nu, eller afslutte opsætningen. Bagefter kan du oprette underenheder for at tildele rum.",
-        "menu_options": {
-          "discover": "Opdag endnu en controller",
-          "add_another": "Tilføj endnu en controller manuelt",
-          "finish": "✅ Færdig med at tilføje controllere"
-        }
-      },
       "reconfigure": {
         "title": "Omkonfigurer zencontrol",
-        "description": "Vælg en controller at redigere, eller ændr unicast-indstillingerne.",
+        "description": "Rediger denne controllers forbindelsesindstillinger, eller ændr den domæneomfattende unicast-indstilling (træder i kraft, når den delte runtime oprettes igen).",
         "data": {
           "target": "Hvad skal omkonfigureres"
         }
@@ -91,7 +66,7 @@
       },
       "unicast_settings": {
         "title": "Unicast-indstillinger",
-        "description": "Unicast deles af alle controllere i denne integration.",
+        "description": "Unicast er domæneomfattende og bruges, når den delte ZenControl-runtime oprettes. Opdatering af denne post gemmer præferencen, men skifter ikke en kørende runtime.",
         "data": {
           "unicast": "Brug unicast-hændelser (anbefales ikke — kun hvis broadcast-pakker ikke understøttes af din netværkstopologi)"
         }
@@ -110,33 +85,26 @@
       "already_configured": "Denne zencontrol-applikationscontroller er allerede konfigureret.",
       "reconfigure_successful": "Omkonfiguration lykkedes.",
       "no_controllers": "Ingen controllere er konfigureret.",
-      "last_controller": "Den sidste controller kan ikke fjernes.",
       "no_devices_found": "Ingen zencontrol-controllere blev fundet på netværket. Prøv igen, eller indtast oplysninger manuelt.",
-      "cannot_connect": "Kan ikke nå den fundne controller.",
-      "controller_added": "Controller tilføjet."
+      "cannot_connect": "Kan ikke nå den fundne controller."
     },
     "progress": {
       "listen": "Lytter efter zencontrol-controllere på netværket… Tryk på en vægknap for at sende en opdagelig pakke.",
-      "connect_controllers": "Opretter forbindelse til valgte controllere…",
-      "setup_devices": "Indlæser lys og enheder fra dine controllere…"
+      "connect_controllers": "Forbinder til den valgte controller…",
+      "setup_devices": "Opdager alle lys og enheder på din controller…"
     }
   },
   "options": {
     "step": {
       "init": {
         "title": "Administrer zencontrol",
-        "description": "Vælg en controller at administrere, eller tilføj en.",
-        "menu_options": {
-          "discover": "Opdag endnu en controller",
-          "add_controller": "Tilføj endnu en controller manuelt"
-        }
+        "description": "Administrer underenheder for denne controller."
       },
       "controller": {
         "title": "Administrer controller",
         "description": "### {controller}\n\nUnderenheder lader dig flytte nogle af denne controllers entiteter over på en virtuel underordnet enhed, så du kan tildele dem et rum i Home Assistant.",
         "menu_options": {
-          "add_sub_device": "➕ Tilføj underenhed",
-          "remove_controller": "❌ Fjern controller"
+          "add_sub_device": "➕ Tilføj underenhed"
         }
       },
       "sub_device": {
@@ -146,38 +114,6 @@
           "reconfigure_sub_device": "⚙️ Omkonfigurer",
           "delete_sub_device": "❌ Slet"
         }
-      },
-      "add_controller": {
-        "title": "Tilføj controller",
-        "description": "Indtast oplysningerne for en ekstra zencontrol-applikationscontroller.",
-        "data": {
-          "host": "Vært (IP-adresse)",
-          "port": "Port",
-          "mac": "MAC-adresse",
-          "label": "Controllernavn"
-        },
-        "data_description": {
-          "mac": "Lad feltet være tomt og indsend for at slå op fra værtens IP (kun samme subnet). Bekræft værdien, og indsend igen."
-        }
-      },
-      "discovery_failed": {
-        "title": "Ingen controllere fundet",
-        "description": "Ingen zencontrol-controllere blev fundet på netværket via multicast. Du kan prøve igen eller indtaste oplysninger manuelt.",
-        "menu_options": {
-          "discover": "Prøv igen",
-          "add_controller": "Tilføj manuelt"
-        }
-      },
-      "add_discovered": {
-        "title": "Tilføj fundne controllere",
-        "description": "Vælg én eller flere controllere fundet via multicast på dit netværk.",
-        "data": {
-          "discovered": "Controllere"
-        }
-      },
-      "remove_controller": {
-        "title": "Fjern controller",
-        "description": "Fjern {controller}? Mindst én controller skal forblive."
       },
       "suggest_sub_devices": {
         "title": "Konfigurer underenheder?",
@@ -196,7 +132,7 @@
         },
         "data_description": {
           "prefixes": "Uafhængig af store/små bogstaver. Kommasepareret. Matcher etiketter, der starter med en af disse strenge.",
-          "area_id": "Valgfrit. Tildel denne underenhed til et Home Assistant-område (rum)."
+          "area_id": "Valgfrit. Tildel denne underenhed til et Home Assistant-område. Integrationen ejer området; ændringer på Enheder-siden overskrives ved næste synkronisering."
         }
       },
       "reconfigure_sub_device": {
@@ -208,7 +144,7 @@
         },
         "data_description": {
           "prefixes": "Uafhængig af store/små bogstaver. Kommasepareret. Matcher etiketter, der starter med en af disse strenge.",
-          "area_id": "Valgfrit. Tildel denne underenhed til et Home Assistant-område (rum)."
+          "area_id": "Valgfrit. Tildel denne underenhed til et Home Assistant-område. Integrationen ejer området; ændringer på Enheder-siden overskrives ved næste synkronisering."
         }
       },
       "delete_sub_device": {
@@ -217,25 +153,11 @@
       }
     },
     "error": {
-      "cannot_connect": "Kan ikke nå controlleren. Tjek vært/port, og prøv igen.",
-      "invalid_host": "Vært er påkrævet, når du tilføjer en controller.",
-      "invalid_mac": "Ugyldigt MAC-adresseformat. Brug XX:XX:XX:XX:XX:XX.",
-      "invalid_label": "Controllernavnet må ikke være tomt.",
-      "mac_not_found": "Kunne ikke finde en MAC-adresse for den vært. Indtast den manuelt (samme subnet kræves for opslag).",
-      "duplicate_mac": "En controller med denne MAC-adresse er allerede konfigureret.",
       "empty_prefixes": "Indtast mindst ét etiketpræfiks.",
-      "duplicate_prefix": "Det præfiks bruges allerede af en anden underenhed på denne controller.",
-      "no_devices_found": "Ingen controllere blev fundet."
+      "duplicate_prefix": "Det præfiks bruges allerede af en anden underenhed på denne controller."
     },
     "abort": {
-      "last_controller": "Den sidste controller kan ikke fjernes.",
-      "no_controllers": "Ingen controllere er konfigureret.",
-      "no_sub_devices": "Der er ingen underenheder defineret for denne controller.",
-      "cannot_connect": "Kan ikke nå controlleren. Tjek vært/port, og prøv igen."
-    },
-    "progress": {
-      "listen": "Lytter efter zencontrol-controllere på netværket… Tryk på en vægknap for at sende en opdagelig pakke.",
-      "setup_devices": "Kortlægger alle entiteter på dine controllere…"
+      "no_controllers": "Ingen controllere er konfigureret."
     }
   },
   "entity": {
