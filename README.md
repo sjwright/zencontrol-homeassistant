@@ -6,73 +6,55 @@ A comprehensive Home Assistant custom integration for [zencontrol](https://zenco
 
 * **Easy setup** — find a controller on your subnet automatically at the press of a DALI button
 * **Auto-discovery** — lights, groups, buttons, motion sensors, absolute inputs, profiles, and labelled system variables appear automatically after setup
-* **Rooms and areas** — group entities into sub-devices by label prefix so rooms map cleanly to Home Assistant areas
-* **Live updates** — light levels, colour, scenes, profiles, motion, buttons, and absolute inputs update in Home Assistant as they change on the controller (no polling)
-* **Full colour** — all fixtures fully controllable for dimming, temperature, and colour where supported, with correct conversion from linear (DALI) to perceptual (HA)
-* **Groups** — group control, plus group scene recall via native scene entities
-* **Scenes** — DALI scene recall with fast UI performance via scene caching at the library level
-* **Button events** — short and long press events for controlling automations
-* **Motion sensors** — occupancy detections as binary sensors for lighting and presence automations
+* **Rooms and areas** — group entities into virtual sub-devices so you can map rooms to Home Assistant areas
+* **Live updates** — light levels, colour, scenes, profiles, motion, buttons, and absolute inputs update in Home Assistant as they change on the controller
+* **Full colour** — all fixtures fully controllable for dimming, temperature, and colour (where supported) with correct conversion between linear (DALI) and perceptual (HA) levels
+* **Groups & scenes** — full group control, plus group scene recall via native scene entities
+* **Button events** — trigger automations with short and long press events
+* **Motion sensors** — occupancy detections as binary sensors for presence-based automations
 * **Absolute inputs** — dials, sliders, and other numeric ECD inputs as measurement sensors
-* **Profiles** — view and change the active controller profile from Home Assistant
+* **Profiles** — view and change the active controller profile
 * **System variables** — expose SVs as binary switches or numeric sensors by suffixing SV names with `switch`, `sensor`, or `lux sensor`
-* **Translations** — UI strings in English, German, French, Danish, Swedish, Polish, Hindi, and Simplified Chinese
+* **Translations** — English, German, French, Danish, Swedish, Polish, Hindi, and Simplified Chinese
 
 ## Architecture
 
-This integration is built on top of [`zencontrol-python`](https://github.com/sjwright/zencontrol-python), a complete implementation of the TPI Advanced protocol, transport, command API, and entity model. By using this library, the integration has:
+This integration is built on top of [`zencontrol-python`](https://github.com/sjwright/zencontrol-python), a complete and mature implementation of the TPI Advanced protocol, transport, command API, and entity model. By using this library, the integration has:
 
-* **Reliable networking** — a fully resolved UDP stack with retries and backoff to absorb network challenges
-* **Listener-driven state** — a battle-tested event listener wired to locally cached scene settings to keep synchronisation fast and reliable
-* **Multicast or unicast** — multicast mode is superior when available; we support fallback to unicast if multicast is blocked
-* **Richer discovery** — multicast find-on-LAN, interview of lights/groups/buttons/sensors/absolute inputs/SVs, and many other features are fully implemented
-* **Test-driven reliability** — the protocol stack has been exercised against a hardware simulator to ensure that edge cases and time-sensitive bugs are handled correctly
+* **Reliable networking** — a fully resolved UDP stack implementation of the TPI Advanced wire protocol, plus a battle-tested event listener
+* **Defies controller limitations** - various strategies are employed to work around known limitations of the controller hardware (e.g. a local scene setting cache to maintain sync, as the controller is often slow to notify of scene-derived colour changes)
+* **Multicast or unicast** — multicast mode is superior when available; fallback to unicast is supported in network environments where multicast is unsupported
+* **Richer discovery** — controller discovery through multicast; extended interview of lights/groups/buttons/sensors/inputs/SVs, and many other features fully implemented
+* **Test-driven reliability** — an extensive test suite is combined with a [`hardware simulator`](https://github.com/sjwright/zencontrol-simulator) to ensure that edge cases and time-sensitive bugs are handled correctly
+* **Extensive real-world testing** — actively used in production for over a year, and has been instrumental in closing numerous bugs in the zencontroller firmware
 
 ## Requirements
 
 - Home Assistant **2026.3** or later (Python **3.14+**)
 - A zencontrol application controller with a **TPI Advanced** license
-- Network reachability to the controller (host/port); MAC address is used for identification
-- [`zencontrol-python`](https://github.com/sjwright/zencontrol-python)
+- Network reachability to the controller (host/port)
 
 ## How to install
 
 ### Install via HACS (custom repository)
 
-1. HACS → Integrations → ⋮ → Custom repositories
-2. Repository: `sjwright/zencontrol-homeassistant`, Category: Integration
-3. Download **Zencontrol**, then restart Home Assistant
-4. Settings → Devices & services → Add integration → **Zencontrol**
+1. In HACS, open the main ⋮ menu, select Custom repositories
+2. Add the custom repository `sjwright/zencontrol-homeassistant` with the category of `Integration`.
+3. Find `Zencontrol` in the list of integrations. From its side menu, select Download.
+4. Restart Home Assistant.
+5. Settings → Devices & services → Add integration → **Zencontrol**
 
 Home Assistant installs `zencontrol-python` from PyPI automatically.
 
 ### Install manually
 
-Copy `custom_components/zencontrol_tpi` into your Home Assistant `custom_components` directory, restart, then add the integration as above.
-
-The folder name / HA domain (`zencontrol_tpi`) is a legacy identifier and must not be renamed, or existing installs will break.
-
-For local development against an editable library checkout:
-
-```bash
-pip install -e /path/to/zencontrol-python
-```
-
-## Install for development
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install homeassistant
-pip install -e ../zencontrol-python
-./run-ha
-```
-
-`./run-ha` starts Home Assistant with `dev-config/` and skips pip-installing `zencontrol-python` so your editable checkout is used. Use `./reset-ha` to wipe the local HA config state.
+1. Copy `custom_components/zencontrol_tpi` into your Home Assistant `custom_components` directory
+2. Restart Home Assistant.
+3. Settings → Devices & services → Add integration → **Zencontrol**
 
 ---
 
-## Tips for a good time
+## Tips for a good experience
 
 There are numerous ways in which DALI generally — and zencontrol specifically — nominally misalign with Home Assistant assumptions. In order to minimise grief, the following advice is offered:
 
@@ -110,6 +92,26 @@ Sometimes you might want a wall button LED to be controlled by Home Assistant, f
 
 * Create a `System Variable` and suffix its name with `switch` (for a two-way binary switch) or `sensor` (for read-only numeric state).
 * In ZC cloud, changing the value of this SV will reflect in HA. You can fire HA automations based on changes to that switch or sensor.
+
+---
+
+### Set up development environment
+
+Check out this repo in a suitable directory, create and activate a venv, install homeassistant within the venv, and it will run an empty instance of Home Assistant locally, accessible from `http://localhost:8123`.
+
+If you check out [`zencontrol-python`](https://github.com/sjwright/zencontrol-python) in a sibling directory, it will use that instead of downloading the release version via pip.
+
+You can also check out [`zencontrol-simulator`](https://github.com/sjwright/zencontrol-simulator) in a sibling directory. See its documentation for how to run. You can use the simulator to test the Home Assistant integration support without physical hardware, or combined with physical hardware to test multiple controller support.
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install homeassistant
+pip install -e ../zencontrol-python
+./run-ha
+```
+
+Use `./reset-ha` to wipe the local HA config state.
 
 ## License
 
