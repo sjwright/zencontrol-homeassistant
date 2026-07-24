@@ -16,6 +16,22 @@ DATA_PENDING_MANIFEST: Final = "pending_manifest"
 
 DEFAULT_PORT: Final = 5108
 
+# Controller boot can take 1–10 minutes after power-on / reboot. Setup and
+# config-flow priming poll is_controller_ready() until this deadline.
+CONTROLLER_READY_POLL_INTERVAL: Final = 10  # seconds between polls
+CONTROLLER_READY_QUERY_TIMEOUT: Final = 10.0
+CONTROLLER_READY_WAIT_MAX: Final = 600.0  # 10 minutes
+
+# Diagnostic controller runtime status (HA has no native "rebooting" device state).
+CONTROLLER_STATUS_ONLINE: Final = "online"
+CONTROLLER_STATUS_STARTING: Final = "starting"
+CONTROLLER_STATUS_UNREACHABLE: Final = "unreachable"
+CONTROLLER_STATUS_OPTIONS: Final = (
+    CONTROLLER_STATUS_ONLINE,
+    CONTROLLER_STATUS_STARTING,
+    CONTROLLER_STATUS_UNREACHABLE,
+)
+
 PLATFORMS: Final = [
     Platform.LIGHT,
     Platform.BINARY_SENSOR,

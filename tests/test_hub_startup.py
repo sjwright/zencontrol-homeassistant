@@ -27,16 +27,22 @@ def _hub_for_start(*, entry_tasks: set[asyncio.Task[Any]] | None = None) -> ZenH
     hub.hass = hass
     hub.entry = entry
     hub.runtime = MagicMock()
+    hub.runtime.started = False
     hub.runtime.async_ensure_started = AsyncMock()
+    hub.runtime.async_configure_controller_events = AsyncMock()
+    hub.controller = MagicMock()
     hub._stopping = False
-    hub._controller_online = False
+    hub._controller_status = "unreachable"
+    hub._status_entity = None
     hub._discovery_complete = False
     hub._discovery_notified = False
+    hub._setup_complete = False
     hub._discovery_callbacks = []
     hub.sync_device_assignments = MagicMock()
     hub._wait_for_controller = AsyncMock()
     hub._discover_entities = AsyncMock()
     hub._refresh_light_states = AsyncMock()
+    hub.set_controller_status = MagicMock()
     return hub
 
 
@@ -53,7 +59,7 @@ async def test_async_start_ignores_unrelated_hass_hang() -> None:
 
     await asyncio.wait_for(hub.async_start(), timeout=1.0)
 
-    assert hub._controller_online is True
+    hub.set_controller_status.assert_called_with("online")
     assert hub._discovery_notified is True
     hub.sync_device_assignments.assert_called()
 

@@ -46,6 +46,7 @@ def _make_hub(
     hub.groups = []
     hub.buttons = []
     hub.motion_sensors = []
+    hub.absolute_inputs = []
     hub.sv_switches = []
     hub.sv_sensors = []
     hub.profiles = []
@@ -53,6 +54,7 @@ def _make_hub(
     hub._group_entities = {}
     hub._button_entities = {}
     hub._motion_sensor_entities = {}
+    hub._absolute_input_entities = {}
     hub._sv_sensor_entities = {}
     hub._sv_switch_entities = {}
     hub._profile_entities = {}

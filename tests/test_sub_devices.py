@@ -97,6 +97,7 @@ def test_group_membership_overrides_light_name() -> None:
         groups=[group],
         buttons=[],
         motion_sensors=[],
+        absolute_inputs=[],
         sysvars=[],
     )
     assert assignments["group:house:1"] == "emily"
@@ -128,6 +129,7 @@ def test_ungrouped_light_uses_name() -> None:
         groups=[],
         buttons=[],
         motion_sensors=[],
+        absolute_inputs=[],
         sysvars=[],
     )
     assert assignments["light:house:5"] == "kitchen"

@@ -168,6 +168,16 @@
       "group_scene": {
         "name": "{group} scene"
       }
+    },
+    "sensor": {
+      "controller_status": {
+        "name": "Status",
+        "state": {
+          "online": "Online",
+          "starting": "Starting",
+          "unreachable": "Unreachable"
+        }
+      }
     }
   }
 }

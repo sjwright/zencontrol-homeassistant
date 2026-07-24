@@ -10,6 +10,7 @@ from homeassistant.components.light import (
     ATTR_RGB_COLOR,
     ATTR_RGBW_COLOR,
     ATTR_RGBWW_COLOR,
+    ATTR_XY_COLOR,
     ColorMode,
     LightEntity,
 )
@@ -51,6 +52,10 @@ async def async_setup_entry(
 # Shared helpers
 # ---------------------------------------------------------------------------
 
+# TPI/DALI CIE XY uses 0–0xFFFE; Home Assistant uses 0.0–1.0 floats.
+_XY_MAX = 0xFFFE
+
+
 def _build_supported_modes(features: dict[str, bool]) -> set[ColorMode]:
     modes: set[ColorMode] = set()
     if features.get("RGBWW"):
@@ -61,6 +66,8 @@ def _build_supported_modes(features: dict[str, bool]) -> set[ColorMode]:
         modes.add(ColorMode.RGB)
     if features.get("temperature"):
         modes.add(ColorMode.COLOR_TEMP)
+    if features.get("XY"):
+        modes.add(ColorMode.XY)
     # BRIGHTNESS must not coexist with any richer mode — those already imply
     # brightness control. Only add it when the light supports dimming but
     # nothing else.
@@ -81,6 +88,8 @@ def _current_color_mode(
                 for mode in (ColorMode.RGBWW, ColorMode.RGBW, ColorMode.RGB):
                     if mode in supported:
                         return mode
+            case ZenColourType.XY if ColorMode.XY in supported:
+                return ColorMode.XY
             case _:
                 pass
     for mode in (
@@ -88,6 +97,7 @@ def _current_color_mode(
         ColorMode.RGBW,
         ColorMode.RGB,
         ColorMode.COLOR_TEMP,
+        ColorMode.XY,
         ColorMode.BRIGHTNESS,
     ):
         if mode in supported:
@@ -133,6 +143,18 @@ def _rgbww_color(colour: Any | None) -> tuple[int, int, int, int, int] | None:
             return None
 
 
+def _xy_color(colour: Any | None) -> tuple[float, float] | None:
+    match colour:
+        case object(type=ZenColourType.XY) if colour.x is not None and colour.y is not None:
+            # Clamp to HA's 0.0–1.0 range (wire values can be 0xFFFF / no-change)
+            return (
+                min(1.0, max(0.0, colour.x / _XY_MAX)),
+                min(1.0, max(0.0, colour.y / _XY_MAX)),
+            )
+        case _:
+            return None
+
+
 def _colour_from_turn_on_kwargs(kwargs: dict[str, Any]) -> ZenColour | None:
     """Build a ZenColour from HA turn_on colour kwargs, if any."""
     match (
@@ -140,15 +162,22 @@ def _colour_from_turn_on_kwargs(kwargs: dict[str, Any]) -> ZenColour | None:
         kwargs.get(ATTR_RGB_COLOR),
         kwargs.get(ATTR_RGBW_COLOR),
         kwargs.get(ATTR_RGBWW_COLOR),
+        kwargs.get(ATTR_XY_COLOR),
     ):
-        case (kelvin, None, None, None) if kelvin is not None:
+        case (kelvin, None, None, None, None) if kelvin is not None:
             return ZenColour(type=ZenColourType.TC, kelvin=kelvin)
-        case (None, (r, g, b), None, None):
+        case (None, (r, g, b), None, None, None):
             return ZenColour(type=ZenColourType.RGBWAF, r=r, g=g, b=b, w=0, a=0, f=0)
-        case (None, None, (r, g, b, w), None):
+        case (None, None, (r, g, b, w), None, None):
             return ZenColour(type=ZenColourType.RGBWAF, r=r, g=g, b=b, w=w, a=0, f=0)
-        case (None, None, None, (r, g, b, w, a)):
+        case (None, None, None, (r, g, b, w, a), None):
             return ZenColour(type=ZenColourType.RGBWAF, r=r, g=g, b=b, w=w, a=a, f=0)
+        case (None, None, None, None, (x, y)):
+            return ZenColour(
+                type=ZenColourType.XY,
+                x=max(0, min(_XY_MAX, round(x * _XY_MAX))),
+                y=max(0, min(_XY_MAX, round(y * _XY_MAX))),
+            )
         case _:
             return None
 
@@ -158,19 +187,23 @@ async def _async_set_level_or_colour(
     *,
     brightness: int | None,
     colour: ZenColour | None,
-    current_level: int | None,
 ) -> None:
-    """Apply brightness/colour to a ZenLight or ZenGroup, or just turn on."""
+    """Apply brightness/colour to a ZenLight or ZenGroup, or just turn on.
+
+    Colour-only commands use level 255 (0xFF) — TPI "no arc change" — matching
+    the library default and Lumen's colour path. Re-sending the current arc (or
+    254) would incorrectly force level 0 when the light is off.
+    """
     if brightness == 0:
         await target.off(fade=True)
         return
 
     arc = brightness_to_arc(brightness) if brightness is not None else None
-    if arc is not None or colour is not None:
-        # Preserve current level when only colour is changing
-        if arc is None:
-            arc = current_level if current_level is not None else 254
-        await target.set(level=arc, colour=colour, fade=True)
+    if colour is not None:
+        # 255 = mask / no change when paired with a colour command
+        await target.set(level=arc if arc is not None else 255, colour=colour, fade=True)
+    elif arc is not None:
+        await target.set(level=arc, fade=True)
     else:
         await target.on(fade=True)
 
@@ -222,6 +255,9 @@ class ZenLightEntity(ZenControllerEntity, LightEntity):
         self._attr_rgbww_color = (
             _rgbww_color(colour) if ColorMode.RGBWW in self._supported_modes else None
         )
+        self._attr_xy_color = (
+            _xy_color(colour) if ColorMode.XY in self._supported_modes else None
+        )
 
     def update_state(self) -> None:
         """Called by ZenHub when light level/colour changes."""
@@ -234,7 +270,6 @@ class ZenLightEntity(ZenControllerEntity, LightEntity):
                 self._light,
                 brightness=kwargs.get(ATTR_BRIGHTNESS),
                 colour=_colour_from_turn_on_kwargs(kwargs),
-                current_level=self._light.level,
             )
         except HomeAssistantError:
             raise
@@ -326,6 +361,9 @@ class ZenGroupEntity(ZenControllerEntity, LightEntity):
         self._attr_rgbww_color = (
             _rgbww_color(colour) if ColorMode.RGBWW in self._supported_modes else None
         )
+        self._attr_xy_color = (
+            _xy_color(colour) if ColorMode.XY in self._supported_modes else None
+        )
 
     def update_state(self) -> None:
         """Called by ZenHub when group level/colour/scene changes."""
@@ -338,7 +376,6 @@ class ZenGroupEntity(ZenControllerEntity, LightEntity):
                 self._group,
                 brightness=kwargs.get(ATTR_BRIGHTNESS),
                 colour=_colour_from_turn_on_kwargs(kwargs),
-                current_level=self._group.level,
             )
         except HomeAssistantError:
             raise

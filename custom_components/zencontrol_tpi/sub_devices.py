@@ -205,6 +205,15 @@ def match_label_for_motion(sensor: Any) -> str:
     return (label or "").strip()
 
 
+def match_label_for_absolute_input(absolute_input: Any) -> str:
+    """Same preference as the absolute-input sensor display name."""
+    instance_label = getattr(absolute_input, "instance_label", None)
+    label = getattr(absolute_input, "label", None)
+    if instance_label and instance_label != label:
+        return str(instance_label).strip()
+    return (label or "").strip()
+
+
 def match_label_for_sysvar(sv: Any) -> str:
     """Label used for system variable matching."""
     return (getattr(sv, "label", None) or "").strip()
@@ -234,6 +243,13 @@ def motion_assignment_key(sensor: Any) -> str:
     return f"motion:{ctrl.name}:{addr}:{inst}"
 
 
+def absolute_input_assignment_key(absolute_input: Any) -> str:
+    ctrl = absolute_input.instance.address.controller
+    addr = absolute_input.instance.address.number
+    inst = absolute_input.instance.number
+    return f"absolute:{ctrl.name}:{addr}:{inst}"
+
+
 def sysvar_assignment_key(sv: Any) -> str:
     return f"sv:{sv.controller.name}:{sv.id}"
 
@@ -245,6 +261,7 @@ def build_assignments(
     groups: list[Any],
     buttons: list[Any],
     motion_sensors: list[Any],
+    absolute_inputs: list[Any],
     sysvars: list[Any],
 ) -> dict[str, str]:
     """Compute assignment key → sub-device id.
@@ -308,6 +325,15 @@ def build_assignments(
         matched = match_sub_device(match_label_for_motion(sensor), devices)
         if matched is not None:
             assignments[motion_assignment_key(sensor)] = matched.id
+
+    for absolute_input in absolute_inputs:
+        ctrl_name = absolute_input.instance.address.controller.name
+        devices = controller_sub_devices.get(ctrl_name) or []
+        matched = match_sub_device(
+            match_label_for_absolute_input(absolute_input), devices
+        )
+        if matched is not None:
+            assignments[absolute_input_assignment_key(absolute_input)] = matched.id
 
     for sv in sysvars:
         ctrl_name = sv.controller.name

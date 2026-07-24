@@ -117,7 +117,7 @@ async def test_runtime_second_attach_keeps_client() -> None:
             _ctrl_cfg(name="10001", mac="AA:BB:CC:DD:EE:01"),
         )
         await runtime.async_ensure_started()
-        await runtime.async_attach(
+        ctrl_b = await runtime.async_attach(
             _hub("e2"),
             _ctrl_cfg(
                 host="10.0.0.2",
@@ -126,7 +126,10 @@ async def test_runtime_second_attach_keeps_client() -> None:
                 label="B",
             ),
         )
-        fake_zen.configure_controller_events.assert_awaited()
+        # Attach must not enable events before the hub has waited for ready.
+        fake_zen.configure_controller_events.assert_not_awaited()
+        await runtime.async_configure_controller_events(ctrl_b)
+        fake_zen.configure_controller_events.assert_awaited_once_with(ctrl_b)
 
         await runtime.async_detach("e1")
         fake_zen.aclose.assert_not_awaited()

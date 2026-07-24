@@ -10,6 +10,8 @@ from homeassistant.components.light import (
     ATTR_RGB_COLOR,
     ATTR_RGBW_COLOR,
     ATTR_RGBWW_COLOR,
+    ATTR_XY_COLOR,
+    ColorMode,
 )
 from zencontrol import ZenColourType  # type: ignore[import-untyped]
 
@@ -26,7 +28,13 @@ from custom_components.zencontrol_tpi.const import (
     arc_to_brightness,
     brightness_to_arc,
 )
-from custom_components.zencontrol_tpi.light import _colour_from_turn_on_kwargs
+from custom_components.zencontrol_tpi.light import (
+    _XY_MAX,
+    _async_set_level_or_colour,
+    _build_supported_modes,
+    _colour_from_turn_on_kwargs,
+    _xy_color,
+)
 from custom_components.zencontrol_tpi.manifest_store import build_manifest
 from custom_components.zencontrol_tpi.rate_limiter import RateLimiter
 from custom_components.zencontrol_tpi.sysvar import classify_sysvar
@@ -63,6 +71,7 @@ def test_build_manifest_dedupes_sysvars() -> None:
         groups=[],
         buttons=[],
         motion_sensors=[],
+        absolute_inputs=[],
         sv_switches=[sv],
         sv_sensors=[sv],
         profiles=[],
@@ -135,3 +144,40 @@ def test_colour_from_turn_on_kwargs() -> None:
     rgbww = _colour_from_turn_on_kwargs({ATTR_RGBWW_COLOR: (1, 2, 3, 4, 5)})
     assert rgbww is not None
     assert (rgbww.r, rgbww.g, rgbww.b, rgbww.w, rgbww.a) == (1, 2, 3, 4, 5)
+
+    xy = _colour_from_turn_on_kwargs({ATTR_XY_COLOR: (0.25, 0.5)})
+    assert xy is not None
+    assert xy.type == ZenColourType.XY
+    assert xy.x == round(0.25 * _XY_MAX)
+    assert xy.y == round(0.5 * _XY_MAX)
+    assert _xy_color(xy) == pytest.approx((0.25, 0.5), abs=1e-5)
+
+
+def test_build_supported_modes_includes_xy() -> None:
+    """XY feature flag maps to ColorMode.XY."""
+    modes = _build_supported_modes({"brightness": True, "XY": True})
+    assert modes == {ColorMode.XY}
+
+
+@pytest.mark.asyncio
+async def test_colour_only_uses_no_change_arc_level() -> None:
+    """Colour-only turn_on must send level 255 (TPI no-arc-change), not 0/254."""
+    calls: list[dict[str, object]] = []
+
+    class _Target:
+        async def set(self, **kwargs: object) -> None:
+            calls.append(kwargs)
+
+        async def on(self, **kwargs: object) -> None:
+            raise AssertionError("on() should not be used for colour-only")
+
+        async def off(self, **kwargs: object) -> None:
+            raise AssertionError("off() should not be used for colour-only")
+
+    colour = _colour_from_turn_on_kwargs({ATTR_XY_COLOR: (0.3, 0.4)})
+    assert colour is not None
+    await _async_set_level_or_colour(_Target(), brightness=None, colour=colour)
+    assert len(calls) == 1
+    assert calls[0]["level"] == 255
+    assert calls[0]["colour"] is colour
+    assert calls[0]["fade"] is True

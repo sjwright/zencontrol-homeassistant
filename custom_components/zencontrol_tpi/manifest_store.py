@@ -9,6 +9,7 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 from zencontrol import (  # type: ignore[import-untyped]
+    ZenAbsoluteInput,
     ZenAddress,
     ZenAddressType,
     ZenButton,
@@ -35,7 +36,7 @@ STORE_VERSION = 1
 
 # Schema version embedded into the manifest payload we store.
 # Bump this when the structure of `manifest["interview"]` changes.
-MANIFEST_VERSION = 2
+MANIFEST_VERSION = 4
 
 
 class DiscoveryManifestStore:
@@ -134,6 +135,15 @@ def build_manifest(hub: Any) -> dict[str, Any]:
         }
         for s in hub.motion_sensors
     ]
+    absolute_inputs = [
+        {
+            "controller": a.instance.address.controller.name,
+            "address": a.instance.address.number,
+            "instance": a.instance.number,
+            "interview": _interview_blob(a),
+        }
+        for a in hub.absolute_inputs
+    ]
     sysvars: list[dict[str, Any]] = []
     seen_sv: set[tuple[str, int]] = set()
     for sv in (*hub.sv_switches, *hub.sv_sensors):
@@ -166,6 +176,7 @@ def build_manifest(hub: Any) -> dict[str, Any]:
         "groups": groups,
         "buttons": buttons,
         "motion_sensors": motion_sensors,
+        "absolute_inputs": absolute_inputs,
         "sysvars": sysvars,
         "profiles": profiles,
     }
@@ -242,6 +253,22 @@ async def load_entities_from_manifest(hub: Any, manifest: dict[str, Any]) -> boo
             needs_save = True
         hub.motion_sensors.append(sensor)
 
+    hub.absolute_inputs = []
+    for item in manifest.get("absolute_inputs", []):
+        ctrl = _ctrl(item["controller"])
+        addr = ZenAddress(
+            controller=ctrl, type=ZenAddressType.ECD, number=item["address"]
+        )
+        instance = ZenInstance(
+            address=addr,
+            type=ZenInstanceType.ABSOLUTE_INPUT,
+            number=item["instance"],
+        )
+        absolute_input = ZenAbsoluteInput(protocol, instance)
+        if await _hydrate_or_interview(absolute_input, item.get("interview")):
+            needs_save = True
+        hub.absolute_inputs.append(absolute_input)
+
     hub.sv_switches = []
     hub.sv_sensors = []
     for item in manifest.get("sysvars", []):
@@ -273,6 +300,9 @@ async def load_entities_from_manifest(hub: Any, manifest: dict[str, Any]) -> boo
     )
     hub.motion_sensors.sort(
         key=lambda s: (s.instance.address.number, s.instance.number)
+    )
+    hub.absolute_inputs.sort(
+        key=lambda a: (a.instance.address.number, a.instance.number)
     )
     hub.profiles.sort(key=lambda p: (p.controller.name, p.number))
     return needs_save

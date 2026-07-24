@@ -16,6 +16,12 @@ from homeassistant.helpers import entity_registry as er
 
 from .const import (
     CONF_NAME,
+    CONTROLLER_READY_POLL_INTERVAL,
+    CONTROLLER_READY_QUERY_TIMEOUT,
+    CONTROLLER_READY_WAIT_MAX,
+    CONTROLLER_STATUS_ONLINE,
+    CONTROLLER_STATUS_STARTING,
+    CONTROLLER_STATUS_UNREACHABLE,
     DATA_PENDING_MANIFEST,
     DOMAIN,
     controller_from_entry_data,
@@ -34,6 +40,7 @@ from .rate_limiter import RateLimiter
 from .runtime import SharedZenRuntime
 from .sub_devices import (
     SubDeviceDef,
+    absolute_input_assignment_key,
     build_assignments,
     button_assignment_key,
     group_assignment_key,
@@ -48,9 +55,6 @@ _LOGGER = logging.getLogger(__name__)
 
 type DiscoveryCallback = Callable[[], Coroutine[Any, Any, None]]
 
-_STARTUP_RETRY_INTERVAL = 10  # seconds between is_controller_ready polls
-_READY_QUERY_TIMEOUT = 10.0
-_READY_WAIT_MAX = 300.0  # give up waiting for controller boot after 5 minutes
 # Platform async_add_entities schedules work via ConfigEntry.async_create_task.
 # Bound how long startup will wait for those tasks (not all of hass).
 _ENTITY_ADD_TIMEOUT = 60.0
@@ -90,7 +94,7 @@ class ZenHub:
         self._force_full_discovery = force_full_discovery
         self._manifest_store = DiscoveryManifestStore(hass, entry.entry_id)
         self._rate_limiter = RateLimiter(max_concurrent=5, delay_between_batches=0.1)
-        self._controller_online = False
+        self._controller_status: str = CONTROLLER_STATUS_UNREACHABLE
         self._stopping = False
         self._attached = False
 
@@ -102,6 +106,7 @@ class ZenHub:
         self.groups: list[Any] = []
         self.buttons: list[Any] = []
         self.motion_sensors: list[Any] = []
+        self.absolute_inputs: list[Any] = []
         self.sv_switches: list[Any] = []
         self.sv_sensors: list[Any] = []
         self.profiles: list[Any] = []
@@ -109,15 +114,19 @@ class ZenHub:
         self._discovery_callbacks: list[DiscoveryCallback] = []
         self._discovery_complete = False
         self._discovery_notified = False
+        # True only after a successful async_start (events configured).
+        self._setup_complete = False
 
         self._light_entities: dict[Any, Any] = {}
         self._group_entities: dict[Any, Any] = {}
         self._button_entities: dict[Any, Any] = {}
         self._motion_sensor_entities: dict[Any, Any] = {}
+        self._absolute_input_entities: dict[Any, Any] = {}
         self._sv_sensor_entities: dict[Any, Any] = {}
         self._sv_switch_entities: dict[Any, Any] = {}
         self._profile_entities: dict[Any, Any] = {}
         self._scene_entities: dict[Any, Any] = {}
+        self._status_entity: Any | None = None
 
         self._sub_devices_by_controller: dict[str, list[SubDeviceDef]] = {}
         self._sub_device_assignments: dict[str, str] = {}
@@ -128,24 +137,56 @@ class ZenHub:
         return self.runtime.zen
 
     @property
+    def controller_status(self) -> str:
+        """Return online / starting / unreachable for this controller."""
+        return self._controller_status
+
+    @property
     def available(self) -> bool:
         """Return True when the listener is up and this controller is online."""
-        return self.runtime.listener_up and self._controller_online
+        return (
+            self.runtime.listener_up
+            and self._controller_status == CONTROLLER_STATUS_ONLINE
+        )
 
     def is_controller_available(self, zen_ctrl: Any | None = None) -> bool:
-        """Return availability for this hub's controller."""
+        """Return availability for this hub's controller.
+
+        Entities are unavailable while the controller reports not-ready
+        (``starting``) as well as when it is unreachable.
+        """
         if not self.runtime.listener_up:
             return False
         if zen_ctrl is None:
-            return self._controller_online
+            return self._controller_status == CONTROLLER_STATUS_ONLINE
         if zen_ctrl is self.controller:
-            return self._controller_online
+            return self._controller_status == CONTROLLER_STATUS_ONLINE
         if (
             self.controller is not None
             and getattr(zen_ctrl, "name", None) == self.controller.name
         ):
-            return self._controller_online
+            return self._controller_status == CONTROLLER_STATUS_ONLINE
         return False
+
+    def set_controller_status(self, status: str) -> None:
+        """Update controller runtime status and push entity availability."""
+        if status == self._controller_status:
+            return
+        previous = self._controller_status
+        self._controller_status = status
+        _LOGGER.info(
+            "Controller %s status %s → %s",
+            getattr(self.controller, "label", self.entry.entry_id),
+            previous,
+            status,
+        )
+        if self._status_entity is not None and self._status_entity.entity_id:
+            self._status_entity.update_status(status)
+        self._write_entity_states()
+
+    def register_status_entity(self, entity: Any) -> None:
+        """Register the diagnostic controller-status sensor."""
+        self._status_entity = entity
 
     def device_info_for(
         self,
@@ -270,6 +311,7 @@ class ZenHub:
             groups=self.groups,
             buttons=self.buttons,
             motion_sensors=self.motion_sensors,
+            absolute_inputs=self.absolute_inputs,
             sysvars=sysvars,
         )
 
@@ -339,6 +381,14 @@ class ZenHub:
                     motion_assignment_key(zen_sensor),
                 )
             )
+        for zen_input, entity in self._absolute_input_entities.items():
+            targets.append(
+                (
+                    entity,
+                    zen_input.instance.address.controller,
+                    absolute_input_assignment_key(zen_input),
+                )
+            )
         for zen_sv, entity in self._sv_sensor_entities.items():
             targets.append(
                 (entity, zen_sv.controller, sysvar_assignment_key(zen_sv))
@@ -368,6 +418,9 @@ class ZenHub:
 
     def register_motion_sensor_entity(self, zen_sensor: Any, entity: Any) -> None:
         self._motion_sensor_entities[zen_sensor] = entity
+
+    def register_absolute_input_entity(self, zen_input: Any, entity: Any) -> None:
+        self._absolute_input_entities[zen_input] = entity
 
     def register_sv_sensor_entity(self, zen_sv: Any, entity: Any) -> None:
         self._sv_sensor_entities[zen_sv] = entity
@@ -406,7 +459,7 @@ class ZenHub:
         self.controller = await self.runtime.async_attach(self, ctrl_cfg)
         self.controllers = [self.controller]
         self._attached = True
-        self._controller_online = False
+        self.set_controller_status(CONTROLLER_STATUS_UNREACHABLE)
 
         self.entry.async_on_unload(
             self.hass.bus.async_listen_once(
@@ -425,19 +478,30 @@ class ZenHub:
             await self._discover_entities()
             self.sync_device_assignments()
             await self._refresh_light_states()
+            # Events must not be enabled until the controller is ready. If the
+            # shared listener is already up (another entry), configure now;
+            # otherwise start_event_monitoring configures all controllers.
+            already_started = self.runtime.started
             await self.runtime.async_ensure_started()
-            self._controller_online = True
+            if already_started:
+                await self.runtime.async_configure_controller_events(
+                    self.controller
+                )
+            # Platforms may register during notify; only then mark online so
+            # keepalive/on_connect cannot race entities into "available" early.
             await self._notify_discovery_complete()
+            self._setup_complete = True
+            self.set_controller_status(CONTROLLER_STATUS_ONLINE)
             self.sync_device_assignments()
         except ConfigEntryNotReady:
-            self._controller_online = False
+            # Keep starting/unreachable status set by _wait_for_controller.
             await self._async_notify_discovery_best_effort()
             raise
         except asyncio.CancelledError:
             _LOGGER.debug("ZenHub startup task cancelled")
             raise
         except Exception as err:
-            self._controller_online = False
+            self.set_controller_status(CONTROLLER_STATUS_UNREACHABLE)
             await self._async_notify_discovery_best_effort()
             raise ConfigEntryNotReady(
                 f"zencontrol setup failed: {err}"
@@ -505,43 +569,58 @@ class ZenHub:
             self.sync_device_assignments()
 
     async def _wait_for_controller(self) -> None:
-        """Poll until this controller is ready, then interview."""
+        """Poll until this controller is ready, then interview.
+
+        Never proceeds to discovery/events while ``is_controller_ready()`` is
+        false. Controllers commonly take 1–10 minutes after reboot. While
+        waiting, entities are unavailable and the status sensor shows
+        ``starting`` / ``unreachable``.
+        """
         ctrl = self.controller
         assert ctrl is not None
         _LOGGER.info("Waiting for controller %s to be ready…", ctrl.label)
-        deadline = asyncio.get_running_loop().time() + _READY_WAIT_MAX
+        self.set_controller_status(CONTROLLER_STATUS_STARTING)
+        deadline = (
+            asyncio.get_running_loop().time() + CONTROLLER_READY_WAIT_MAX
+        )
         while True:
             try:
                 ready = await asyncio.wait_for(
                     ctrl.is_controller_ready(),
-                    timeout=_READY_QUERY_TIMEOUT,
+                    timeout=CONTROLLER_READY_QUERY_TIMEOUT,
                 )
             except TimeoutError:
                 ready = None
 
             if ready is None:
+                self.set_controller_status(CONTROLLER_STATUS_UNREACHABLE)
                 raise ConfigEntryNotReady(
                     f"Cannot reach controller {ctrl.label} ({ctrl.host})"
                 )
-            if ready:
+            if ready is True:
                 break
+            self.set_controller_status(CONTROLLER_STATUS_STARTING)
             if asyncio.get_running_loop().time() >= deadline:
                 raise ConfigEntryNotReady(
                     f"Controller {ctrl.label} ({ctrl.host}) still starting "
-                    f"after {_READY_WAIT_MAX:.0f}s"
+                    f"after {CONTROLLER_READY_WAIT_MAX:.0f}s"
                 )
             _LOGGER.info(
                 "Controller %s still starting up, retrying in %ds…",
                 ctrl.label,
-                _STARTUP_RETRY_INTERVAL,
+                CONTROLLER_READY_POLL_INTERVAL,
             )
-            await asyncio.sleep(_STARTUP_RETRY_INTERVAL)
+            await asyncio.sleep(CONTROLLER_READY_POLL_INTERVAL)
 
         await ctrl.interview()
         ctrl.connected = True
-        self._controller_online = True
+        # Stay "starting" until async_start finishes listener/event setup.
+        # Marking online here made the status sensor lie (and briefly marked
+        # entities available) before the shared listener was up.
         _LOGGER.info(
-            "Controller %s ready (version %s)", ctrl.label, ctrl.version
+            "Controller %s ready (version %s); finishing setup…",
+            ctrl.label,
+            ctrl.version,
         )
 
     async def _discover_entities(self) -> None:
@@ -602,11 +681,13 @@ class ZenHub:
 
         _LOGGER.info(
             "Discovery complete: %d lights, %d groups, %d buttons, "
-            "%d motion sensors, %d sv_switches, %d sv_sensors, %d profiles",
+            "%d motion sensors, %d absolute inputs, %d sv_switches, "
+            "%d sv_sensors, %d profiles",
             len(self.lights),
             len(self.groups),
             len(self.buttons),
             len(self.motion_sensors),
+            len(self.absolute_inputs),
             len(self.sv_switches),
             len(self.sv_sensors),
             len(self.profiles),
@@ -621,6 +702,7 @@ class ZenHub:
         raw_groups = await zen.get_groups(controller=self.controller)
         raw_buttons = await zen.get_buttons(controller=self.controller)
         raw_sensors = await zen.get_motion_sensors(controller=self.controller)
+        raw_absolute = await zen.get_absolute_inputs(controller=self.controller)
         raw_svars = await zen.get_system_variables(controller=self.controller)
         raw_profiles = await zen.get_profiles(controller=self.controller)
 
@@ -633,6 +715,10 @@ class ZenHub:
         self.motion_sensors = sorted(
             raw_sensors,
             key=lambda s: (s.instance.address.number, s.instance.number),
+        )
+        self.absolute_inputs = sorted(
+            raw_absolute,
+            key=lambda a: (a.instance.address.number, a.instance.number),
         )
         self.profiles = sorted(
             raw_profiles, key=lambda p: (p.controller.name, p.number)
@@ -720,7 +806,8 @@ class ZenHub:
         if self._stopping:
             return
         self._stopping = True
-        self._controller_online = False
+        self._setup_complete = False
+        self.set_controller_status(CONTROLLER_STATUS_UNREACHABLE)
         if not self._attached:
             return
         self._attached = False
@@ -731,20 +818,52 @@ class ZenHub:
     # ------------------------------------------------------------------
 
     async def handle_listener_connect(self) -> None:
-        """Shared listener came up."""
+        """Shared listener came up — probe ready; do not assume online."""
         if self.controller is not None:
             self.controller.connected = True
-        self._controller_online = True
-        if self._discovery_complete and not self._stopping:
-            await self._refresh_light_states()
-        self._write_entity_states()
+            try:
+                ready = await asyncio.wait_for(
+                    self.controller.is_controller_ready(),
+                    timeout=CONTROLLER_READY_QUERY_TIMEOUT,
+                )
+            except TimeoutError:
+                ready = None
+            if ready is True:
+                # async_start owns the first online transition so entities stay
+                # unavailable until discovery + event configure finish.
+                if self._setup_complete:
+                    self.set_controller_status(CONTROLLER_STATUS_ONLINE)
+                    if not self._stopping:
+                        await self._refresh_light_states()
+                else:
+                    self.set_controller_status(CONTROLLER_STATUS_STARTING)
+            elif ready is False:
+                self.set_controller_status(CONTROLLER_STATUS_STARTING)
+            else:
+                self.set_controller_status(CONTROLLER_STATUS_UNREACHABLE)
+        else:
+            self.set_controller_status(CONTROLLER_STATUS_UNREACHABLE)
 
     def handle_listener_disconnect(self) -> None:
         """Shared listener went down."""
         if self.controller is not None:
             self.controller.connected = False
-        self._controller_online = False
-        self._write_entity_states()
+        self.set_controller_status(CONTROLLER_STATUS_UNREACHABLE)
+
+    async def handle_controller_status(self, status: str) -> None:
+        """Keepalive / library reported online, starting, or unreachable."""
+        # Ignore premature "online" until successful async_start finishes.
+        if status == CONTROLLER_STATUS_ONLINE and not self._setup_complete:
+            return
+        was_online = self._controller_status == CONTROLLER_STATUS_ONLINE
+        self.set_controller_status(status)
+        if (
+            status == CONTROLLER_STATUS_ONLINE
+            and not was_online
+            and self._setup_complete
+            and not self._stopping
+        ):
+            await self._refresh_light_states()
 
     def _write_entity_states(self) -> None:
         """Push current state (including availability) for all registered entities."""
@@ -753,6 +872,7 @@ class ZenHub:
             *self._group_entities.values(),
             *self._button_entities.values(),
             *self._motion_sensor_entities.values(),
+            *self._absolute_input_entities.values(),
             *self._sv_sensor_entities.values(),
             *self._sv_switch_entities.values(),
             *self._profile_entities.values(),
@@ -782,6 +902,10 @@ class ZenHub:
     def handle_motion_event(self, sensor: Any, occupied: bool) -> None:
         if (entity := self._motion_sensor_entities.get(sensor)) is not None:
             entity.update_occupied(occupied)
+
+    def handle_absolute_input_change(self, absolute_input: Any, value: int) -> None:
+        if (entity := self._absolute_input_entities.get(absolute_input)) is not None:
+            entity.update_value(value)
 
     def handle_sv_change(
         self,

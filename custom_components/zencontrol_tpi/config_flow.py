@@ -45,6 +45,9 @@ from .const import (
     CONF_SUB_DEVICES,
     CONF_UNICAST,
     CONFIG_VERSION,
+    CONTROLLER_READY_POLL_INTERVAL,
+    CONTROLLER_READY_QUERY_TIMEOUT,
+    CONTROLLER_READY_WAIT_MAX,
     DATA_PENDING_MANIFEST,
     DEFAULT_PORT,
     DOMAIN,
@@ -348,7 +351,11 @@ async def _async_prime_discovery(
     *,
     unicast: bool = False,
 ) -> None:
-    """Wait for the controller, discover entities, and stash a pending manifest."""
+    """Wait for the controller, discover entities, and stash a pending manifest.
+
+    Does not proceed until ``is_controller_ready()`` is True (up to
+    ``CONTROLLER_READY_WAIT_MAX`` — controllers can take 1–10 minutes after reboot).
+    """
     zen = zencontrol.ZenControl(unicast=unicast)
     try:
         zen.add_controller(
@@ -361,21 +368,29 @@ async def _async_prime_discovery(
         )
 
         for ctrl in zen.controllers:
-            deadline = asyncio.get_running_loop().time() + 60.0
+            deadline = (
+                asyncio.get_running_loop().time() + CONTROLLER_READY_WAIT_MAX
+            )
             while True:
                 try:
                     ready = await asyncio.wait_for(
-                        ctrl.is_controller_ready(), timeout=5.0
+                        ctrl.is_controller_ready(),
+                        timeout=CONTROLLER_READY_QUERY_TIMEOUT,
                     )
                 except TimeoutError:
                     ready = None
-                if ready:
+                if ready is True:
                     break
-                if ready is None or asyncio.get_running_loop().time() >= deadline:
+                if ready is None:
                     raise RuntimeError(
-                        f"Controller {ctrl.label} ({ctrl.host}) not ready"
+                        f"Cannot reach controller {ctrl.label} ({ctrl.host})"
                     )
-                await asyncio.sleep(2.0)
+                if asyncio.get_running_loop().time() >= deadline:
+                    raise RuntimeError(
+                        f"Controller {ctrl.label} ({ctrl.host}) still starting "
+                        f"after {CONTROLLER_READY_WAIT_MAX:.0f}s"
+                    )
+                await asyncio.sleep(CONTROLLER_READY_POLL_INTERVAL)
             await ctrl.interview()
 
         class _HubSnapshot:
@@ -383,6 +398,7 @@ async def _async_prime_discovery(
             groups: list[Any]
             buttons: list[Any]
             motion_sensors: list[Any]
+            absolute_inputs: list[Any]
             sv_switches: list[Any]
             sv_sensors: list[Any]
             profiles: list[Any]
@@ -401,6 +417,10 @@ async def _async_prime_discovery(
         snap.motion_sensors = sorted(
             await zen.get_motion_sensors(),
             key=lambda s: (s.instance.address.number, s.instance.number),
+        )
+        snap.absolute_inputs = sorted(
+            await zen.get_absolute_inputs(),
+            key=lambda a: (a.instance.address.number, a.instance.number),
         )
         snap.profiles = sorted(
             await zen.get_profiles(),

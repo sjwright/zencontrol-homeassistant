@@ -62,14 +62,21 @@ class SharedZenRuntime:
         self.zen.button_press = self._on_button_press
         self.zen.button_long_press = self._on_button_long_press
         self.zen.motion_event = self._on_motion_event
+        self.zen.absolute_input_change = self._on_absolute_input_change
         self.zen.system_variable_change = self._on_sv_change
         self.zen.profile_change = self._on_profile_change
         self.zen.controller_discovered = self._on_controller_discovered
+        self.zen.controller_status_change = self._on_controller_status
 
     @property
     def listener_up(self) -> bool:
         """Return True when the shared event listener is connected."""
         return self._listener_up
+
+    @property
+    def started(self) -> bool:
+        """Return True when the shared ZenControl client has been started."""
+        return self._started
 
     @classmethod
     def async_get_or_create(
@@ -141,25 +148,8 @@ class SharedZenRuntime:
             self._hubs_by_mac[mac_id] = hub
             self._controllers_by_entry[entry_id] = ctrl
 
-            if self._started:
-                try:
-                    await self.zen.configure_controller_events(ctrl)
-                except Exception as err:
-                    # Roll back so a failed attach does not leave a half-wired controller.
-                    self._hubs_by_entry.pop(entry_id, None)
-                    self._hubs_by_mac.pop(mac_id, None)
-                    self._controllers_by_entry.pop(entry_id, None)
-                    try:
-                        await self.zen.remove_controller(ctrl)
-                    except Exception:
-                        _LOGGER.debug(
-                            "Rollback remove_controller failed for %s",
-                            mac,
-                            exc_info=True,
-                        )
-                    raise HomeAssistantError(
-                        f"Failed to enable TPI events for {ctrl.label}"
-                    ) from err
+            # Do not configure TPI events here — the controller may still be
+            # booting. ZenHub enables events only after is_controller_ready().
 
             _LOGGER.info(
                 "Attached controller %s (%s) to shared runtime (%d entries)",
@@ -168,6 +158,21 @@ class SharedZenRuntime:
                 len(self._hubs_by_entry),
             )
             return ctrl
+
+    async def async_configure_controller_events(self, ctrl: Any) -> None:
+        """Enable TPI events for a controller that is already ready.
+
+        No-op when the shared listener is not running yet; ``async_ensure_started``
+        configures every registered controller when it first binds the listener.
+        """
+        if not self._started or ctrl is None:
+            return
+        try:
+            await self.zen.configure_controller_events(ctrl)
+        except Exception as err:
+            raise HomeAssistantError(
+                f"Failed to enable TPI events for {getattr(ctrl, 'label', ctrl)}"
+            ) from err
 
     async def async_detach(self, entry_id: str) -> None:
         """Unregister a hub; close the client when no entries remain."""
@@ -239,9 +244,11 @@ class SharedZenRuntime:
         zen.button_press = None
         zen.button_long_press = None
         zen.motion_event = None
+        zen.absolute_input_change = None
         zen.system_variable_change = None
         zen.profile_change = None
         zen.controller_discovered = None
+        zen.controller_status_change = None
 
         domain_data = self.hass.data.get(DOMAIN)
         if isinstance(domain_data, dict) and domain_data.get(DATA_RUNTIME) is self:
@@ -264,6 +271,11 @@ class SharedZenRuntime:
         self._listener_up = False
         for hub in list(self._hubs_by_entry.values()):
             hub.handle_listener_disconnect()
+
+    async def _on_controller_status(self, ctrl: Any, status: str) -> None:
+        hub = self.hub_for_controller(ctrl)
+        if hub is not None:
+            await hub.handle_controller_status(status)
 
     async def _on_light_change(
         self,
@@ -302,6 +314,13 @@ class SharedZenRuntime:
         hub = self.hub_for_controller(sensor.instance.address.controller)
         if hub is not None:
             hub.handle_motion_event(sensor, occupied)
+
+    async def _on_absolute_input_change(
+        self, absolute_input: Any, value: int
+    ) -> None:
+        hub = self.hub_for_controller(absolute_input.instance.address.controller)
+        if hub is not None:
+            hub.handle_absolute_input_change(absolute_input, value)
 
     async def _on_sv_change(
         self,
