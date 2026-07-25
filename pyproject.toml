@@ -2,6 +2,7 @@
 asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = ["."]
+norecursedirs = [".*", "__pycache__", "homeassistant-dev-config"]
 
 [tool.pyright]
 venvPath = "."

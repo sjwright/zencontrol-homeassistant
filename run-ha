@@ -5,7 +5,7 @@ set -euo pipefail
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 VENV_DIR="$PROJECT_DIR/.venv"
 HASS_BIN="$VENV_DIR/bin/hass"
-CONFIG_DIR="$PROJECT_DIR/dev-config"
+CONFIG_DIR="$PROJECT_DIR/tests/homeassistant-dev-config"
 RESET=0
 
 usage() {
