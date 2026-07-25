@@ -25,7 +25,7 @@ async def async_setup_entry(
     hub = entry.runtime_data
 
     async def on_discovery() -> None:
-        entities = [ZenButtonEntity(hub, btn) for btn in hub.buttons]
+        entities = [ZenButtonEntity(hub, button) for button in hub.buttons]
         if entities:
             async_add_entities(entities)
 
@@ -47,9 +47,7 @@ class ZenButtonEntity(ZenControllerEntity, EventEntity):
 
         self._attr_unique_id = f"{ctrl.name}_ecd{addr}_btn{inst}"
         self._suggested_object_id = zen_button.instance.entity_id_string()
-        self._attr_device_info = hub.device_info_for(
-            ctrl, assignment_key=button_assignment_key(zen_button)
-        )
+        self._attr_device_info = hub.device_info_for(ctrl, assignment_key=button_assignment_key(zen_button))
         self._attr_name = instance_display_label(zen_button) or f"Button {addr}"
 
         hub.register_button_entity(zen_button, self)

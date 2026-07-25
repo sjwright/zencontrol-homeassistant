@@ -14,7 +14,6 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.zencontrol_tpi.config_flow import (
     CONF_DISCOVERED,
-    CONF_PREFIXES,
 )
 from custom_components.zencontrol_tpi.const import (
     CONF_CONTROLLERS,
@@ -27,6 +26,7 @@ from custom_components.zencontrol_tpi.const import (
     DOMAIN,
     normalize_mac_id,
 )
+from custom_components.zencontrol_tpi.options_flow import CONF_PREFIXES
 
 pytestmark = pytest.mark.usefixtures(
     "enable_custom_integrations",
@@ -391,8 +391,8 @@ async def test_finish_prime_failure_aborts(
     assert result["reason"] == "cannot_connect"
 
 
-async def test_reconfigure_unicast(hass: HomeAssistant) -> None:
-    """Reconfigure can flip the domain-wide unicast flag."""
+async def test_reconfigure_does_not_offer_unicast(hass: HomeAssistant) -> None:
+    """Reconfigure opens controller settings without exposing unicast."""
     entry = MockConfigEntry(
         domain=DOMAIN,
         unique_id=MAC_ID,
@@ -403,19 +403,8 @@ async def test_reconfigure_unicast(hass: HomeAssistant) -> None:
 
     result = await entry.start_reconfigure_flow(hass)
     assert result["type"] is FlowResultType.FORM
-    assert result["step_id"] == "reconfigure"
-
-    result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {"target": "unicast"}
-    )
-    assert result["step_id"] == "unicast_settings"
-
-    result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {CONF_UNICAST: True}
-    )
-    assert result["type"] is FlowResultType.ABORT
-    assert result["reason"] == "reconfigure_successful"
-    assert entry.data[CONF_UNICAST] is True
+    assert result["step_id"] == "reconfigure_controller"
+    assert CONF_UNICAST not in result["data_schema"].schema
 
 
 async def test_reconfigure_controller(hass: HomeAssistant) -> None:
@@ -430,9 +419,6 @@ async def test_reconfigure_controller(hass: HomeAssistant) -> None:
     entry.add_to_hass(hass)
 
     result = await entry.start_reconfigure_flow(hass)
-    result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {"target": "controller"}
-    )
     assert result["step_id"] == "reconfigure_controller"
 
     result = await hass.config_entries.flow.async_configure(

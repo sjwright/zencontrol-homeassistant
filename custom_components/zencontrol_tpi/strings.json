@@ -44,13 +44,6 @@
         "title": "Confirm zencontrol controller",
         "description": "Found **{label}** at `{host}` (MAC `{mac}`). Do you want to add it?"
       },
-      "reconfigure": {
-        "title": "Reconfigure zencontrol",
-        "description": "Edit this controller's connection settings, or change the domain-wide unicast flag (takes effect when the shared runtime is recreated).",
-        "data": {
-          "target": "What to reconfigure"
-        }
-      },
       "reconfigure_controller": {
         "title": "Reconfigure controller",
         "description": "Update connection settings for this zencontrol application controller.",
@@ -62,13 +55,6 @@
         },
         "data_description": {
           "mac": "Leave blank and submit to look up from the host IP (same subnet only). Confirm the value, then submit again."
-        }
-      },
-      "unicast_settings": {
-        "title": "Unicast settings",
-        "description": "Unicast is domain-wide and used when the shared ZenControl runtime is created. Updating this entry stores the preference but does not hot-swap a running runtime.",
-        "data": {
-          "unicast": "Use unicast events (not recommended - only use if broadcast packets are unsupported by your network topology)"
         }
       }
     },

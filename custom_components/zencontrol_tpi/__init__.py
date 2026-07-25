@@ -18,9 +18,9 @@ from .const import (
     CONFIG_VERSION,
     DOMAIN,
     PLATFORMS,
-    controller_from_entry_data,
     normalize_mac_id,
 )
+from .entry_helpers import mac_is_configured
 from .hub import (
     ZencontrolTpiConfigEntry,
     ZenHub,
@@ -35,18 +35,12 @@ _LOGGER = logging.getLogger(__name__)
 __all__ = ["ZencontrolTpiConfigEntry"]
 
 
-async def async_setup_entry(
-    hass: HomeAssistant, entry: ZencontrolTpiConfigEntry
-) -> bool:
+async def async_setup_entry(hass: HomeAssistant, entry: ZencontrolTpiConfigEntry) -> bool:
     """Set up zencontrol-tpi from a config entry."""
     force_full_discovery = pop_force_full_discovery(entry.entry_id)
 
-    runtime = SharedZenRuntime.async_get_or_create(
-        hass, unicast=entry_unicast(entry.data)
-    )
-    hub = ZenHub(
-        hass, entry, runtime, force_full_discovery=force_full_discovery
-    )
+    runtime = SharedZenRuntime.async_get_or_create(hass, unicast=entry_unicast(entry.data))
+    hub = ZenHub(hass, entry, runtime, force_full_discovery=force_full_discovery)
     entry.runtime_data = hub
 
     platforms_forwarded = False
@@ -71,9 +65,7 @@ async def async_setup_entry(
     return True
 
 
-async def async_unload_entry(
-    hass: HomeAssistant, entry: ZencontrolTpiConfigEntry
-) -> bool:
+async def async_unload_entry(hass: HomeAssistant, entry: ZencontrolTpiConfigEntry) -> bool:
     """Unload a zencontrol-tpi config entry."""
     if not hass.is_stopping:
         mark_force_full_discovery(entry.entry_id)
@@ -84,24 +76,9 @@ async def async_unload_entry(
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
 
-async def async_remove_entry(
-    hass: HomeAssistant, entry: ZencontrolTpiConfigEntry
-) -> None:
+async def async_remove_entry(hass: HomeAssistant, entry: ZencontrolTpiConfigEntry) -> None:
     """Delete persisted discovery manifest when the config entry is removed."""
     await DiscoveryManifestStore(hass, entry.entry_id).async_remove()
-
-
-def _mac_configured(hass: HomeAssistant, mac_id: str, *, skip_entry_id: str) -> bool:
-    """Return True if any other entry already has this controller MAC in data."""
-    for entry in hass.config_entries.async_entries(DOMAIN):
-        if entry.entry_id == skip_entry_id:
-            continue
-        ctrl = controller_from_entry_data(entry.data)
-        if ctrl and normalize_mac_id(str(ctrl.get(CONF_MAC, ""))) == mac_id:
-            return True
-        if entry.unique_id == mac_id:
-            return True
-    return False
 
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -143,14 +120,10 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     for ctrl in extras:
         mac_id = normalize_mac_id(str(ctrl.get(CONF_MAC, "")))
         if not mac_id:
-            _LOGGER.warning(
-                "Skipping migration of controller without MAC: %s", ctrl
-            )
+            _LOGGER.warning("Skipping migration of controller without MAC: %s", ctrl)
             continue
-        if _mac_configured(hass, mac_id, skip_entry_id=entry.entry_id):
-            _LOGGER.info(
-                "Controller %s already has an entry; skipping import", mac_id
-            )
+        if mac_is_configured(hass, mac_id, ignore_entry_id=entry.entry_id):
+            _LOGGER.info("Controller %s already has an entry; skipping import", mac_id)
             continue
 
         await hass.config_entries.flow.async_init(
@@ -159,9 +132,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             data={
                 CONF_CONTROLLERS: [ctrl],
                 CONF_UNICAST: unicast,
-                "title": str(
-                    ctrl.get(CONF_LABEL) or ctrl.get("name") or "zencontrol"
-                ),
+                "title": str(ctrl.get(CONF_LABEL) or ctrl.get("name") or "zencontrol"),
                 "migrate_from_entry_id": entry.entry_id,
             },
         )
@@ -174,9 +145,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 
-def entry_data_for_controller(
-    ctrl: dict[str, Any], *, unicast: bool = False
-) -> dict[str, Any]:
+def entry_data_for_controller(ctrl: dict[str, Any], *, unicast: bool = False) -> dict[str, Any]:
     """Build persisted entry data for a single controller."""
     return {
         CONF_CONTROLLERS: [ctrl],

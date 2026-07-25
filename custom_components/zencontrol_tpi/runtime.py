@@ -30,10 +30,10 @@ from .const import (
     CONF_UNICAST,
     DEFAULT_PORT,
     DOMAIN,
-    controller_from_entry_data,
     normalize_mac,
     normalize_mac_id,
 )
+from .entry_helpers import mac_is_configured
 
 if TYPE_CHECKING:
     from .hub import ZenHub
@@ -339,10 +339,8 @@ class SharedZenRuntime:
         mac_n = normalize_mac(str(mac))
         mac_id = normalize_mac_id(mac_n)
 
-        for entry in self.hass.config_entries.async_entries(DOMAIN):
-            ctrl = controller_from_entry_data(entry.data)
-            if ctrl and normalize_mac_id(str(ctrl.get(CONF_MAC, ""))) == mac_id:
-                return
+        if mac_is_configured(self.hass, mac_id):
+            return
         if mac_id in self._hubs_by_mac:
             return
 

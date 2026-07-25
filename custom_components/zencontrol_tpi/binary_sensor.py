@@ -26,7 +26,7 @@ async def async_setup_entry(
     hub = entry.runtime_data
 
     async def on_discovery() -> None:
-        entities = [ZenMotionSensorEntity(hub, s) for s in hub.motion_sensors]
+        entities = [ZenMotionSensorEntity(hub, sensor) for sensor in hub.motion_sensors]
         if entities:
             async_add_entities(entities)
 
@@ -47,9 +47,7 @@ class ZenMotionSensorEntity(ZenControllerEntity, BinarySensorEntity):
 
         self._attr_unique_id = f"{ctrl.name}_ecd{addr}_occ{inst}"
         self._suggested_object_id = zen_sensor.instance.entity_id_string()
-        self._attr_device_info = hub.device_info_for(
-            ctrl, assignment_key=motion_assignment_key(zen_sensor)
-        )
+        self._attr_device_info = hub.device_info_for(ctrl, assignment_key=motion_assignment_key(zen_sensor))
         self._attr_name = instance_display_label(zen_sensor) or f"Motion {addr}"
 
         # Occupied state; pushed by ZenHub via update_occupied(). Reading

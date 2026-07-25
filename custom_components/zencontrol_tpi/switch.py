@@ -26,9 +26,7 @@ async def async_setup_entry(
     hub = entry.runtime_data
 
     async def on_discovery() -> None:
-        entities = [
-            ZenSystemVariableSwitchEntity(hub, sv) for sv in hub.sv_switches
-        ]
+        entities = [ZenSystemVariableSwitchEntity(hub, system_variable) for system_variable in hub.sv_switches]
         if entities:
             async_add_entities(entities)
 
@@ -45,9 +43,7 @@ class ZenSystemVariableSwitchEntity(ZenControllerEntity, SwitchEntity):
 
         self._attr_unique_id = f"{ctrl.name}_sv{zen_sv.id}_switch"
         self._suggested_object_id = f"sv{zen_sv.id}"
-        self._attr_device_info = hub.device_info_for(
-            ctrl, assignment_key=sysvar_assignment_key(zen_sv)
-        )
+        self._attr_device_info = hub.device_info_for(ctrl, assignment_key=sysvar_assignment_key(zen_sv))
         self._attr_name = zen_sv.label or f"System Variable {zen_sv.id}"
         self._attr_is_on = (zen_sv.value or 0) != 0
 

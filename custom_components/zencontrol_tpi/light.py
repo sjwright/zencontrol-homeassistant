@@ -38,12 +38,8 @@ async def async_setup_entry(
     hub = entry.runtime_data
 
     async def on_discovery() -> None:
-        entities: list[LightEntity] = [
-            ZenLightEntity(hub, light) for light in hub.lights
-        ]
-        entities.extend(
-            ZenGroupEntity(hub, group) for group in hub.groups if group.lights
-        )
+        entities: list[LightEntity] = [ZenLightEntity(hub, light) for light in hub.lights]
+        entities.extend(ZenGroupEntity(hub, group) for group in hub.groups if group.lights)
         if entities:
             async_add_entities(entities)
 
@@ -78,9 +74,7 @@ def _build_supported_modes(features: dict[str, bool]) -> set[ColorMode]:
     return modes or {ColorMode.ONOFF}
 
 
-def _current_color_mode(
-    supported: set[ColorMode], colour: ZenColour | None
-) -> ColorMode:
+def _current_color_mode(supported: set[ColorMode], colour: ZenColour | None) -> ColorMode:
     """Determine the active color mode from the current colour object."""
     if colour is not None:
         match colour.type:
@@ -147,9 +141,7 @@ def _rgbww_color(colour: ZenColour | None) -> tuple[int, int, int, int, int] | N
 
 def _xy_color(colour: ZenColour | None) -> tuple[float, float] | None:
     match colour:
-        case ZenColour(type=ZenColourType.XY) if (
-            colour.x is not None and colour.y is not None
-        ):
+        case ZenColour(type=ZenColourType.XY) if colour.x is not None and colour.y is not None:
             # Clamp to HA's 0.0–1.0 range (wire values can be 0xFFFF / no-change)
             return (
                 min(1.0, max(0.0, colour.x / _XY_MAX)),
@@ -237,9 +229,7 @@ async def _async_set_level_or_colour(
     arc = brightness_to_arc(brightness) if brightness is not None else None
     if colour is not None:
         # 255 = mask / no change when paired with a colour command
-        await target.set(
-            level=arc if arc is not None else 255, colour=colour, fade=True
-        )
+        await target.set(level=arc if arc is not None else 255, colour=colour, fade=True)
     elif arc is not None:
         if transition is not None:
             await target.dali_custom_fade(arc, transition)
@@ -253,6 +243,7 @@ async def _async_set_level_or_colour(
 # ZenLightEntity
 # ---------------------------------------------------------------------------
 
+
 class ZenLightEntity(ZenControllerEntity, LightEntity):
     """HA entity wrapping a single DALI control gear (ZenLight)."""
 
@@ -263,22 +254,16 @@ class ZenLightEntity(ZenControllerEntity, LightEntity):
 
         self._attr_unique_id = f"{ctrl.name}_ecg_{zen_light.address.number}"
         self._suggested_object_id = zen_light.address.entity_id_string()
-        self._attr_device_info = hub.device_info_for(
-            ctrl, assignment_key=light_assignment_key(zen_light)
-        )
-        self._attr_name = (
-            zen_light.sub_label
-            or zen_light.label
-            or f"Light {zen_light.address.number}"
-        )
+        self._attr_device_info = hub.device_info_for(ctrl, assignment_key=light_assignment_key(zen_light))
+        self._attr_name = zen_light.sub_label or zen_light.label or f"Light {zen_light.address.number}"
 
         self._supported_modes = _build_supported_modes(zen_light.features)
         self._attr_supported_color_modes = self._supported_modes
         self._attr_supported_features = _supported_features(self._supported_modes)
 
-        if (min_k := zen_light.properties.get("min_kelvin")):
+        if min_k := zen_light.properties.get("min_kelvin"):
             self._attr_min_color_temp_kelvin = min_k
-        if (max_k := zen_light.properties.get("max_kelvin")):
+        if max_k := zen_light.properties.get("max_kelvin"):
             self._attr_max_color_temp_kelvin = max_k
 
         self._apply_state()
@@ -289,21 +274,13 @@ class ZenLightEntity(ZenControllerEntity, LightEntity):
         level = self._light.level
         colour = self._light.colour
         self._attr_is_on = None if level is None else level > 0
-        self._attr_brightness = (
-            None if level is None else arc_to_brightness(level)
-        )
+        self._attr_brightness = None if level is None else arc_to_brightness(level)
         self._attr_color_mode = _current_color_mode(self._supported_modes, colour)
         self._attr_color_temp_kelvin = _color_temp_kelvin(colour)
         self._attr_rgb_color = _rgb_color(colour)
-        self._attr_rgbw_color = (
-            _rgbw_color(colour) if ColorMode.RGBW in self._supported_modes else None
-        )
-        self._attr_rgbww_color = (
-            _rgbww_color(colour) if ColorMode.RGBWW in self._supported_modes else None
-        )
-        self._attr_xy_color = (
-            _xy_color(colour) if ColorMode.XY in self._supported_modes else None
-        )
+        self._attr_rgbw_color = _rgbw_color(colour) if ColorMode.RGBW in self._supported_modes else None
+        self._attr_rgbww_color = _rgbww_color(colour) if ColorMode.RGBWW in self._supported_modes else None
+        self._attr_xy_color = _xy_color(colour) if ColorMode.XY in self._supported_modes else None
 
     def update_state(self) -> None:
         """Called by ZenHub when light level/colour changes."""
@@ -336,6 +313,7 @@ class ZenLightEntity(ZenControllerEntity, LightEntity):
 # ZenGroupEntity
 # ---------------------------------------------------------------------------
 
+
 class ZenGroupEntity(ZenControllerEntity, LightEntity):
     """HA entity wrapping a DALI group (ZenGroup)."""
 
@@ -346,9 +324,7 @@ class ZenGroupEntity(ZenControllerEntity, LightEntity):
 
         self._attr_unique_id = f"{ctrl.name}_group_{zen_group.address.number}"
         self._suggested_object_id = zen_group.address.entity_id_string()
-        self._attr_device_info = hub.device_info_for(
-            ctrl, assignment_key=group_assignment_key(zen_group)
-        )
+        self._attr_device_info = hub.device_info_for(ctrl, assignment_key=group_assignment_key(zen_group))
         self._attr_name = zen_group.label or f"Group {zen_group.address.number}"
 
         # Derive color modes from member lights
@@ -397,21 +373,13 @@ class ZenGroupEntity(ZenControllerEntity, LightEntity):
             self._attr_is_on = None
         else:
             self._attr_is_on = (level or 0) > 0
-        self._attr_brightness = (
-            None if level is None else arc_to_brightness(level)
-        )
+        self._attr_brightness = None if level is None else arc_to_brightness(level)
         self._attr_color_mode = _current_color_mode(self._supported_modes, colour)
         self._attr_color_temp_kelvin = _color_temp_kelvin(colour)
         self._attr_rgb_color = _rgb_color(colour)
-        self._attr_rgbw_color = (
-            _rgbw_color(colour) if ColorMode.RGBW in self._supported_modes else None
-        )
-        self._attr_rgbww_color = (
-            _rgbww_color(colour) if ColorMode.RGBWW in self._supported_modes else None
-        )
-        self._attr_xy_color = (
-            _xy_color(colour) if ColorMode.XY in self._supported_modes else None
-        )
+        self._attr_rgbw_color = _rgbw_color(colour) if ColorMode.RGBW in self._supported_modes else None
+        self._attr_rgbww_color = _rgbww_color(colour) if ColorMode.RGBWW in self._supported_modes else None
+        self._attr_xy_color = _xy_color(colour) if ColorMode.XY in self._supported_modes else None
 
     def update_state(self) -> None:
         """Called by ZenHub when group level/colour/scene changes."""

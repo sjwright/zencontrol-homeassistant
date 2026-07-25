@@ -50,7 +50,7 @@ class Interviewable(Protocol):
     async def interview(self) -> bool: ...
 
 
-class DiscoveredEntities(Protocol):
+class ManifestEntitySource(Protocol):
     """Entity lists accepted by build_manifest (ZenHub or discovery result)."""
 
     lights: list[ZenLight]
@@ -121,7 +121,7 @@ async def _hydrate_or_interview(obj: Interviewable, interview: str | dict[str, A
     return True
 
 
-def build_manifest(source: DiscoveredEntities) -> dict[str, Any]:
+def build_manifest(source: ManifestEntitySource) -> dict[str, Any]:
     """Serialize discovered entities after full discovery."""
     hub = source
     lights = [

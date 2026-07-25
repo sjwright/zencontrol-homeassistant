@@ -60,15 +60,9 @@ class ZenGroupSceneEntity(ZenControllerEntity, Scene):
         self._group = zen_group
         self._scene_number = scene_number
 
-        self._attr_unique_id = (
-            f"{ctrl.name}_group_{zen_group.address.number}_scene_{scene_number}"
-        )
-        self._suggested_object_id = (
-            f"{zen_group.address.entity_id_string()}_scene{scene_number}"
-        )
-        self._attr_device_info = hub.device_info_for(
-            ctrl, assignment_key=group_assignment_key(zen_group)
-        )
+        self._attr_unique_id = f"{ctrl.name}_group_{zen_group.address.number}_scene_{scene_number}"
+        self._suggested_object_id = f"{zen_group.address.entity_id_string()}_scene{scene_number}"
+        self._attr_device_info = hub.device_info_for(ctrl, assignment_key=group_assignment_key(zen_group))
         group_label = zen_group.label or f"Group {zen_group.address.number}"
         self._attr_translation_placeholders = {
             "group": group_label,
