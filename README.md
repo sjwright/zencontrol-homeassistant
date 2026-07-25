@@ -1,107 +1,109 @@
 # Zencontrol Home Assistant
 
-A comprehensive Home Assistant custom integration for [zencontrol](https://zencontrol.com) application controllers over TPI Advanced.
+A Home Assistant custom integration for [zencontrol](https://zencontrol.com) application controllers over TPI Advanced.
 
 ## Features
 
-* **Easy setup** — find a controller on your subnet automatically at the press of a DALI button
-* **Auto-discovery** — lights, groups, buttons, motion sensors, absolute inputs, profiles, and labelled system variables appear automatically after setup
-* **Rooms and areas** — group entities into virtual sub-devices so you can map rooms to Home Assistant areas
-* **Live updates** — light levels, colour, scenes, profiles, motion, buttons, and absolute inputs update in Home Assistant as they change on the controller
-* **Full colour** — all fixtures fully controllable for dimming, temperature, and colour (where supported) with correct conversion between linear (DALI) and perceptual (HA) levels
-* **Groups & scenes** — full group control, plus group scene recall via native scene entities
-* **Button events** — trigger automations with short and long press events
-* **Motion sensors** — occupancy detections as binary sensors for presence-based automations
-* **Absolute inputs** — dials, sliders, and other numeric ECD inputs as measurement sensors
-* **Profiles** — view and change the active controller profile
-* **System variables** — expose SVs as binary switches or numeric sensors by suffixing SV names with `switch`, `sensor`, or `lux sensor`
+* **Local control** — exclusively LAN-based communications; no zencontrol Cloud dependency for day-to-day use
+* **Easy setup** — discover a controller on your subnet at the press of a DALI button
+* **Stable entity IDs** — unique IDs based on controller identity and DALI addressing, so replacing faulty DALI devices won't break your automations
+* **Runtime discovery** — additional controllers found later can be confirmed and added with ease
+* **Full device support** — lights, groups, buttons, motion sensors, profiles, and labelled system variables all appear after setup
+* **Rooms and areas** — divide a large DALI bus into virtual sub-devices, so your DALI lights can be divided among multiple Home Assistant areas
+* **Live updates** — levels, colour, scenes, profiles, motion, buttons, and absolute inputs stay in sync as the controller changes
+* **Full colour control** — dimming, colour temperature, and colour where the fixture supports it, with correct conversion between linear DALI levels and perceptual Home Assistant brightness
+* **Custom fade times** — transition times in Home Assistant automations are transformed into DALI fade times
+* **Scene control** — complete support for recalling group scenes, plus a per-group select entity so you can build automations which respond to current scene state, and to state changes
+* **All device events** — short and long press button events, occupancy sensors, dials, sliders, and other ECD inputs
+* **Profiles** — view and change the active controller profile, and use profile changes to trigger automations
+* **System variables** — expose zen SVs as switches or sensors by suffixing their label with `switch`, `sensor`, or `lux sensor`
+* **Controller status** — diagnostic online / starting / unreachable state per controller
 * **Translations** — English, German, French, Danish, Swedish, Polish, Hindi, and Simplified Chinese
 
 ## Architecture
 
-This integration is built on top of [`zencontrol-python`](https://github.com/sjwright/zencontrol-python), a complete and mature implementation of the TPI Advanced protocol, transport, command API, and entity model. By using this library, the integration has:
+This integration builds on [`zencontrol-python`](https://github.com/sjwright/zencontrol-python), a complete TPI Advanced stack covering the wire protocol, transport, command API, and entity model. This mature foundation gives you:
 
-* **Reliable networking** — a fully resolved UDP stack implementation of the TPI Advanced wire protocol, plus a battle-tested event listener
-* **Defies controller limitations** - various strategies are employed to work around known limitations of the controller hardware (e.g. a local scene setting cache to maintain sync, as the controller is often slow to notify of scene-derived colour changes)
-* **Multicast or unicast** — multicast mode is superior when available; fallback to unicast is supported in network environments where multicast is unsupported
-* **Richer discovery** — controller discovery through multicast; extended interview of lights/groups/buttons/sensors/inputs/SVs, and many other features fully implemented
-* **Test-driven reliability** — an extensive test suite is combined with a [`hardware simulator`](https://github.com/sjwright/zencontrol-simulator) to ensure that edge cases and time-sensitive bugs are handled correctly
-* **Extensive real-world testing** — actively used in production for over a year, and has been instrumental in closing numerous bugs in the zencontroller firmware
+* **Reliable networking** — a solid UDP implementation of the TPI Advanced wire protocol, plus a battle-tested event listener
+* **Controller workarounds** — strategies for known hardware limits (for example, a local scene cache, because the controller is often slow to report scene-derived colour changes)
+* **Multicast or unicast** — multicast when the network allows it; unicast fallback when it does not
+* **Rich discovery** — multicast controller discovery, plus a full interview of lights, groups, buttons, sensors, inputs, and system variables
+* **Test-driven reliability** — a large test suite, backed by a [`hardware simulator`](https://github.com/sjwright/zencontrol-simulator), covering edge cases and timing-sensitive behaviour
+* **Real-world reliability** — in production for over a year, and has been used to find and resolve many firmware bugs in earlier versions of zencontrol firmware
 
 ## Requirements
 
 - Home Assistant **2026.3** or later (Python **3.14+**)
 - A zencontrol application controller with a **TPI Advanced** license
-- Network reachability to the controller (host/port)
+- Network reachability to the controller
 
 ## How to install
 
 ### Install via HACS (custom repository)
 
-1. In HACS, open the main ⋮ menu, select Custom repositories
-2. Add the custom repository `sjwright/zencontrol-homeassistant` with the category of `Integration`.
-3. Find `Zencontrol` in the list of integrations. From its side menu, select Download.
+1. In HACS, open the main ⋮ menu and choose **Custom repositories**.
+2. Add `sjwright/zencontrol-homeassistant` with category **Integration**.
+3. Find **Zencontrol** in the integration list, and choose **Download**.
 4. Restart Home Assistant.
-5. Settings → Devices & services → Add integration → **Zencontrol**
-
-Home Assistant installs `zencontrol-python` from PyPI automatically.
+5. Go to **Settings → Devices & services → Add integration → Zencontrol**.
 
 ### Install manually
 
-1. Copy `custom_components/zencontrol_tpi` into your Home Assistant `custom_components` directory
+1. Copy `custom_components/zencontrol_tpi` into your Home Assistant `custom_components` directory.
 2. Restart Home Assistant.
-3. Settings → Devices & services → Add integration → **Zencontrol**
+3. Go to **Settings → Devices & services → Add integration → Zencontrol**.
 
 ---
 
 ## Tips for a good experience
 
-There are numerous ways in which DALI generally — and zencontrol specifically — nominally misalign with Home Assistant assumptions. In order to minimise grief, the following advice is offered:
+DALI and zencontrol do not always match Home Assistant’s assumptions. These tips reduce friction.
 
-### 1. Prefix devices in zencontrol cloud
+### 1. Prefix devices in zencontrol Cloud
 
-This integration supports splitting a physical controller into any number of virtual sub-devices based on string prefixes. Separating the lights/switches/sensors in a room into a virtual sub-device allows you to assign them an area in Home Assistant.
+This integration can split one physical controller into virtual sub-devices based on device label prefixes. Splitting lights, switches, and sensors onto a sub-device lets you assign them to a Home Assistant room/area.
 
-You can configure sub-devices from the integration screen (click on "zencontrol" from the integrations list or from the device info). Click the gear icon next to each controller (which HA describes as a "hub") and you will be stepped through the process.
+Configure sub-devices from the integration page (click on **Zencontrol** from the integrations list, or from the device info page). Click the gear icon next to each controller (Home Assistant calls this a “hub”) and follow the steps.
 
-* In ZC cloud, device labels are referred to as _locations._ Under `Device Location`, ensure all lights, switches, and sensors in that room begin with the room name, e.g. `Kitchen 1`, `Kitchen Pendant`.
-* In addition (or alternatively), if you have a DALI group named `Kitchen`, all lights in that group will be treated as though their name is prefixed with `Kitchen`.
-* Sometimes your ZC rooms won't perfectly align with HA areas. When adding sub-devices within the integration, you can combine multiple prefixes into one sub-device (e.g. `Kitchen` and `Living` in an open-plan home). 
-* Be aware that within ZC cloud, `Floor` is a cloud-only property and not sent to the controller. You cannot use this value for arranging or disambiguating in HA.
+* In zencontrol Cloud, device labels are called _locations_. Under **Device Location**, edit locations so devices in the same room are prefixed with the same string — for example `Kitchen 1`, `Kitchen Pendant`.
+* In addition (or alternatively), if you have a DALI group named `Kitchen`, member lights of that group are treated as if their names start with `Kitchen`. (Groups are matched first, so avoid matching groups which span multiple rooms.)
+*  When adding sub-devices, you can combine several prefixes into one sub-device by supplying a comma-delimited list of prefixes. This is useful when DALI rooms don't map 1:1 with Home Assistant rooms, for example `Kitchen` and `Living` in an open-plan home.
+* Be aware: in zencontrol Cloud, **Floor** is a cloud-only concept and is not sent to the controller, so it cannot be read by this integration.
 
-### 2. Assign labels to all instances too
+### 2. Label every instance
 
-All buttons and sensors will be labelled in Home Assistant based on their instance label.
+Buttons and sensors appear in Home Assistant using their instance labels.
 
-* In ZC cloud, under `Instance types`, within `Push button`, `Absolute input`, `Touchscreen`, `Occupancy sensor`, and `Light sensor`, assign labels to everything. It can be a small effort, but it's worth it. Handy tip: you can copy one label cell and paste onto multiple label cells. Edit to add suffixes after.
-* As with devices, buttons and sensors will be assigned into virtual sub-devices based on the prefix of their instance label. Label all buttons in a kitchen with room prefixes `Kitchen B1`, `Kitchen Pantry` etc. These don't need to be distinct from light names (locations), so if you have one light named `Laundry` and one push button named `Laundry`, things will work perfectly.
+* In zencontrol Cloud, under **Instance types**, label everything under **Push button**, **Absolute input**, **Touchscreen**, **Occupancy sensor**, and **Light sensor**. It takes a little time, but it's worth it. Tip: the grid editor lets you copy one label cell and paste across multiple others. From there you can edit suffixes.
+* As with devices, buttons and sensors are assigned to virtual sub-devices by instance-label prefix. Use names like `Kitchen B1` or `Kitchen Pantry`.
+* Names only need to be distinct within their own context. It's perfectly fine (and works well) to have one light named `Laundry` and a button named `Laundry` with an single instance named `Laundry`.
 
-### 3. Workarounds for zencontrol limitations
+### 3. Workarounds for zencontrol limits
 
-* Multi-channel ECGs (e.g. zencontrol 4-CH PWM dimmer) cannot have unique names assigned to each channel in ZC cloud. This integration works around this limitation by supporting comma-delimited names, ordered by DALI address number. Assigning it the location `Garage 1,Garage 2,Garden 1,Garden 2` would result in the four channels receiving unique labels.
-* Light sensor values cannot be read directly via the API. You can work around this by creating a matching `System Variable` for each light sensor and assigning the sensor's _Primary target_ to that SV. If you suffix the SV name with `lux sensor`, this integration will treat the SV as a lux sensor.
+* Multi-channel ECGs (for example a zencontrol 4-CH PWM dimmer) can only be assigned one label (location) for all four channels. You can't assign a unique label per channel. As a workaround, this integration accepts comma-separated locations, ordered by logical DALI address. `Garage 1,Garage 2,Garden 1,Garden 2` will be split and disambiguated within this integration.
+* Light sensor values cannot be read directly over the API. As a workaround, create a matching **System Variable** for each sensor and set the sensor’s _Primary target_ to that SV. If you suffix the SV name with `lux sensor`, the integration treats it as a lux sensor.
 
-### 4. Recipe: control the illumination of individual buttons
+### 4. Recipe: control individual button LEDs
 
-Sometimes you might want a wall button LED to be controlled by Home Assistant, for example to notify on the state of a garage door, or whether an air conditioner is running.
+You may want a wall-button LED driven by Home Assistant — for example to show garage-door or air-conditioner state. While there are API commands for doing this directly, the following is a more robust and reliable technique.
 
-* Create a `System Variable` and suffix its name with `switch`. This will show up in HA as a simple switch.
-* In ZC cloud, under `Instance types` > `Push button`, set the `LED behaviour` to `System Variable N equals 1`, where N is the variable number.
+* Create a **System Variable** whose name ends with `switch`. It will appear in Home Assistant as a switch.
+* In zencontrol Cloud, under **Instance types → Push button**, set **LED behaviour** to `System Variable N equals 1`, where N is the variable number.
 
-### 5. Recipe: trigger HA automations from ZC sequences
+### 5. Recipe: trigger Home Assistant automations from zencontrol sequences
 
-* Create a `System Variable` and suffix its name with `switch` (for a two-way binary switch) or `sensor` (for read-only numeric state).
-* In ZC cloud, changing the value of this SV will reflect in HA. You can fire HA automations based on changes to that switch or sensor.
+* Create a **System Variable** whose name ends with `switch` (two-way binary) or `sensor` (read-only numeric).
+* When zencontrol Cloud changes that SV, Home Assistant updates. Automations can trigger on changes to this switch or sensor.
 
 ---
 
-### Set up development environment
+### Set up a development environment
 
-Check out this repo in a suitable directory, create and activate a venv, install homeassistant within the venv, and it will run an empty instance of Home Assistant locally, accessible from `http://localhost:8123`.
+Clone this repo, create a venv, install Home Assistant, and run a local instance at `http://localhost:8123`.
 
-If you check out [`zencontrol-python`](https://github.com/sjwright/zencontrol-python) in a sibling directory, it will use that instead of downloading the release version via pip.
+If [`zencontrol-python`](https://github.com/sjwright/zencontrol-python) is checked out as a sibling directory, the local editable install is used instead of the PyPI release.
 
-You can also check out [`zencontrol-simulator`](https://github.com/sjwright/zencontrol-simulator) in a sibling directory. See its documentation for how to run. You can use the simulator to test the Home Assistant integration support without physical hardware, or combined with physical hardware to test multiple controller support.
+You can also check out [`zencontrol-simulator`](https://github.com/sjwright/zencontrol-simulator) as a sibling directory. See its docs for how to run it. Use the simulator alone, or alongside real hardware to test multi-controller setups.
 
 ```bash
 python -m venv .venv
@@ -111,7 +113,7 @@ pip install -e ../zencontrol-python
 ./run-ha
 ```
 
-Use `./run-ha --reset` to wipe the local HA config state and start fresh.
+Use `./run-ha --reset` to wipe local Home Assistant config state and start fresh.
 
 ## License
 
