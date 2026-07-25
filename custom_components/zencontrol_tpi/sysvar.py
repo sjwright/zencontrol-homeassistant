@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from zencontrol import ZenSystemVariable  # type: ignore[import-untyped]
+from zencontrol import ZenSystemVariable
 
 
 def classify_sysvar(label: str | None) -> tuple[bool, bool]:

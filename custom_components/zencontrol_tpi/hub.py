@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import Callable, Coroutine
-from typing import Any
+from collections.abc import Callable, Container, Coroutine
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
@@ -13,6 +13,20 @@ from homeassistant.core import Event, HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.entity import Entity
+from zencontrol import (
+    ZenAbsoluteInput,
+    ZenButton,
+    ZenControl,
+    ZenController,
+    ZenGroup,
+    ZenLight,
+    ZenMotionSensor,
+    ZenProfile,
+    ZenSystemVariable,
+)
+from zencontrol.api import ZenController as ZenControllerBase
 
 from .const import (
     CONF_NAME,
@@ -50,6 +64,19 @@ from .sub_devices import (
     sysvar_assignment_key,
 )
 from .sysvar import classify_sysvar_entity
+
+if TYPE_CHECKING:
+    from .binary_sensor import ZenMotionSensorEntity
+    from .event import ZenButtonEntity
+    from .light import ZenGroupEntity, ZenLightEntity
+    from .scene import ZenGroupSceneEntity
+    from .select import ZenGroupSceneSelectEntity, ZenProfileSelectEntity
+    from .sensor import (
+        ZenAbsoluteInputSensorEntity,
+        ZenControllerStatusSensor,
+        ZenSystemVariableSensorEntity,
+    )
+    from .switch import ZenSystemVariableSwitchEntity
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -98,18 +125,18 @@ class ZenHub:
         self._stopping = False
         self._attached = False
 
-        self.controller: Any | None = None
+        self.controller: ZenController | None = None
         # Compatibility alias used by platforms/tests that iterate controllers.
-        self.controllers: list[Any] = []
+        self.controllers: list[ZenController] = []
 
-        self.lights: list[Any] = []
-        self.groups: list[Any] = []
-        self.buttons: list[Any] = []
-        self.motion_sensors: list[Any] = []
-        self.absolute_inputs: list[Any] = []
-        self.sv_switches: list[Any] = []
-        self.sv_sensors: list[Any] = []
-        self.profiles: list[Any] = []
+        self.lights: list[ZenLight] = []
+        self.groups: list[ZenGroup] = []
+        self.buttons: list[ZenButton] = []
+        self.motion_sensors: list[ZenMotionSensor] = []
+        self.absolute_inputs: list[ZenAbsoluteInput] = []
+        self.sv_switches: list[ZenSystemVariable] = []
+        self.sv_sensors: list[ZenSystemVariable] = []
+        self.profiles: list[ZenProfile] = []
 
         self._discovery_callbacks: list[DiscoveryCallback] = []
         self._discovery_complete = False
@@ -117,23 +144,32 @@ class ZenHub:
         # True only after a successful async_start (events configured).
         self._setup_complete = False
 
-        self._light_entities: dict[Any, Any] = {}
-        self._group_entities: dict[Any, Any] = {}
-        self._button_entities: dict[Any, Any] = {}
-        self._motion_sensor_entities: dict[Any, Any] = {}
-        self._absolute_input_entities: dict[Any, Any] = {}
-        self._sv_sensor_entities: dict[Any, Any] = {}
-        self._sv_switch_entities: dict[Any, Any] = {}
-        self._profile_entities: dict[Any, Any] = {}
-        self._scene_select_entities: dict[Any, Any] = {}
-        self._scene_entities: dict[tuple[Any, int], Any] = {}
-        self._status_entity: Any | None = None
+        self._light_entities: dict[ZenLight, ZenLightEntity] = {}
+        self._group_entities: dict[ZenGroup, ZenGroupEntity] = {}
+        self._button_entities: dict[ZenButton, ZenButtonEntity] = {}
+        self._motion_sensor_entities: dict[
+            ZenMotionSensor, ZenMotionSensorEntity
+        ] = {}
+        self._absolute_input_entities: dict[
+            ZenAbsoluteInput, ZenAbsoluteInputSensorEntity
+        ] = {}
+        self._sv_sensor_entities: dict[
+            ZenSystemVariable, ZenSystemVariableSensorEntity
+        ] = {}
+        self._sv_switch_entities: dict[
+            ZenSystemVariable, ZenSystemVariableSwitchEntity
+        ] = {}
+        # Keyed by controller name, since one select covers all its profiles.
+        self._profile_entities: dict[str, ZenProfileSelectEntity] = {}
+        self._scene_select_entities: dict[ZenGroup, ZenGroupSceneSelectEntity] = {}
+        self._scene_entities: dict[tuple[ZenGroup, int], ZenGroupSceneEntity] = {}
+        self._status_entity: ZenControllerStatusSensor | None = None
 
         self._sub_devices_by_controller: dict[str, list[SubDeviceDef]] = {}
         self._sub_device_assignments: dict[str, str] = {}
 
     @property
-    def zen(self) -> Any:
+    def zen(self) -> ZenControl:
         """Shared ZenControl client."""
         return self.runtime.zen
 
@@ -150,7 +186,9 @@ class ZenHub:
             and self._controller_status == CONTROLLER_STATUS_ONLINE
         )
 
-    def is_controller_available(self, zen_ctrl: Any | None = None) -> bool:
+    def is_controller_available(
+        self, zen_ctrl: ZenControllerBase | None = None
+    ) -> bool:
         """Return availability for this hub's controller.
 
         Entities are unavailable while the controller reports not-ready
@@ -162,10 +200,7 @@ class ZenHub:
             return self._controller_status == CONTROLLER_STATUS_ONLINE
         if zen_ctrl is self.controller:
             return self._controller_status == CONTROLLER_STATUS_ONLINE
-        if (
-            self.controller is not None
-            and getattr(zen_ctrl, "name", None) == self.controller.name
-        ):
+        if self.controller is not None and zen_ctrl.name == self.controller.name:
             return self._controller_status == CONTROLLER_STATUS_ONLINE
         return False
 
@@ -177,7 +212,7 @@ class ZenHub:
         self._controller_status = status
         _LOGGER.info(
             "Controller %s status %s → %s",
-            getattr(self.controller, "label", self.entry.entry_id),
+            self.controller.label if self.controller else self.entry.entry_id,
             previous,
             status,
         )
@@ -185,16 +220,16 @@ class ZenHub:
             self._status_entity.update_status(status)
         self._write_entity_states()
 
-    def register_status_entity(self, entity: Any) -> None:
+    def register_status_entity(self, entity: ZenControllerStatusSensor) -> None:
         """Register the diagnostic controller-status sensor."""
         self._status_entity = entity
 
     def device_info_for(
         self,
-        zen_ctrl: Any,
+        zen_ctrl: ZenControllerBase,
         *,
         assignment_key: str | None = None,
-    ) -> Any:
+    ) -> DeviceInfo:
         """Return parent or sub-device DeviceInfo for an assignment key."""
         sub_id = (
             self._sub_device_assignments.get(assignment_key) if assignment_key else None
@@ -240,8 +275,9 @@ class ZenHub:
         updated = 0
         for entity, zen_ctrl, key in self._iter_device_assignment_targets():
             info = self.device_info_for(zen_ctrl, assignment_key=key)
-            entity._attr_device_info = info
-            entity_id = getattr(entity, "entity_id", None)
+            entity._attr_device_info = info  # noqa: SLF001
+            # entity_id is unset until HA has added the entity.
+            entity_id = entity.entity_id
             if not entity_id:
                 continue
 
@@ -281,12 +317,12 @@ class ZenHub:
     def _ensure_registry_device(
         self,
         device_registry: dr.DeviceRegistry,
-        info: Any,
-    ) -> Any:
+        info: DeviceInfo,
+    ) -> dr.DeviceEntry:
         """Create or update a registry device from DeviceInfo."""
         return device_registry.async_get_or_create(
             config_entry_id=self.entry.entry_id,
-            identifiers=info["identifiers"],
+            identifiers=info.get("identifiers"),
             manufacturer=info.get("manufacturer"),
             model=info.get("model"),
             name=info.get("name"),
@@ -351,9 +387,9 @@ class ZenHub:
 
     def _iter_device_assignment_targets(
         self,
-    ) -> list[tuple[Any, Any, str | None]]:
+    ) -> list[tuple[Entity, ZenControllerBase, str | None]]:
         """Return (entity, controller, assignment_key) for every hub entity."""
-        targets: list[tuple[Any, Any, str | None]] = []
+        targets: list[tuple[Entity, ZenControllerBase, str | None]] = []
         for zen_light, entity in self._light_entities.items():
             targets.append(
                 (entity, zen_light.address.controller, light_assignment_key(zen_light))
@@ -412,35 +448,53 @@ class ZenHub:
     # Entity registration
     # ------------------------------------------------------------------
 
-    def register_light_entity(self, zen_light: Any, entity: Any) -> None:
+    def register_light_entity(
+        self, zen_light: ZenLight, entity: ZenLightEntity
+    ) -> None:
         self._light_entities[zen_light] = entity
 
-    def register_group_entity(self, zen_group: Any, entity: Any) -> None:
+    def register_group_entity(
+        self, zen_group: ZenGroup, entity: ZenGroupEntity
+    ) -> None:
         self._group_entities[zen_group] = entity
 
-    def register_button_entity(self, zen_button: Any, entity: Any) -> None:
+    def register_button_entity(
+        self, zen_button: ZenButton, entity: ZenButtonEntity
+    ) -> None:
         self._button_entities[zen_button] = entity
 
-    def register_motion_sensor_entity(self, zen_sensor: Any, entity: Any) -> None:
+    def register_motion_sensor_entity(
+        self, zen_sensor: ZenMotionSensor, entity: ZenMotionSensorEntity
+    ) -> None:
         self._motion_sensor_entities[zen_sensor] = entity
 
-    def register_absolute_input_entity(self, zen_input: Any, entity: Any) -> None:
+    def register_absolute_input_entity(
+        self, zen_input: ZenAbsoluteInput, entity: ZenAbsoluteInputSensorEntity
+    ) -> None:
         self._absolute_input_entities[zen_input] = entity
 
-    def register_sv_sensor_entity(self, zen_sv: Any, entity: Any) -> None:
+    def register_sv_sensor_entity(
+        self, zen_sv: ZenSystemVariable, entity: ZenSystemVariableSensorEntity
+    ) -> None:
         self._sv_sensor_entities[zen_sv] = entity
 
-    def register_sv_switch_entity(self, zen_sv: Any, entity: Any) -> None:
+    def register_sv_switch_entity(
+        self, zen_sv: ZenSystemVariable, entity: ZenSystemVariableSwitchEntity
+    ) -> None:
         self._sv_switch_entities[zen_sv] = entity
 
-    def register_profile_entity(self, zen_controller: Any, entity: Any) -> None:
+    def register_profile_entity(
+        self, zen_controller: ZenControllerBase, entity: ZenProfileSelectEntity
+    ) -> None:
         self._profile_entities[zen_controller.name] = entity
 
-    def register_scene_select_entity(self, zen_group: Any, entity: Any) -> None:
+    def register_scene_select_entity(
+        self, zen_group: ZenGroup, entity: ZenGroupSceneSelectEntity
+    ) -> None:
         self._scene_select_entities[zen_group] = entity
 
     def register_scene_entity(
-        self, zen_group: Any, scene_number: int, entity: Any
+        self, zen_group: ZenGroup, scene_number: int, entity: ZenGroupSceneEntity
     ) -> None:
         self._scene_entities[(zen_group, scene_number)] = entity
 
@@ -517,7 +571,7 @@ class ZenHub:
                 f"zencontrol setup failed: {err}"
             ) from err
 
-    def _entry_tracked_tasks(self) -> set[asyncio.Task[Any]]:
+    def _entry_tracked_tasks(self) -> set[asyncio.Future[Any]]:
         """Return tasks created via ``ConfigEntry.async_create_task``.
 
         EntityPlatform uses that API when integrations call the sync
@@ -527,7 +581,7 @@ class ZenHub:
 
     async def _async_await_new_entry_tasks(
         self,
-        before: set[asyncio.Task[Any]],
+        before: Container[asyncio.Future[Any]],
         *,
         what: str,
     ) -> None:
@@ -892,35 +946,39 @@ class ZenHub:
             if entity.entity_id:
                 entity.async_write_ha_state()
 
-    def handle_light_change(self, light: Any) -> None:
+    def handle_light_change(self, light: ZenLight) -> None:
         if (entity := self._light_entities.get(light)) is not None:
             entity.update_state()
 
-    def handle_group_change(self, group: Any) -> None:
+    def handle_group_change(self, group: ZenGroup) -> None:
         if (group_entity := self._group_entities.get(group)) is not None:
             group_entity.update_state()
         if (scene_select := self._scene_select_entities.get(group)) is not None:
             scene_select.update_current_option()
 
-    def handle_button_press(self, button: Any) -> None:
+    def handle_button_press(self, button: ZenButton) -> None:
         if (entity := self._button_entities.get(button)) is not None:
             entity.trigger_event("short_press")
 
-    def handle_button_long_press(self, button: Any) -> None:
+    def handle_button_long_press(self, button: ZenButton) -> None:
         if (entity := self._button_entities.get(button)) is not None:
             entity.trigger_event("long_press")
 
-    def handle_motion_event(self, sensor: Any, occupied: bool) -> None:
+    def handle_motion_event(
+        self, sensor: ZenMotionSensor, occupied: bool
+    ) -> None:
         if (entity := self._motion_sensor_entities.get(sensor)) is not None:
             entity.update_occupied(occupied)
 
-    def handle_absolute_input_change(self, absolute_input: Any, value: int) -> None:
+    def handle_absolute_input_change(
+        self, absolute_input: ZenAbsoluteInput, value: int
+    ) -> None:
         if (entity := self._absolute_input_entities.get(absolute_input)) is not None:
             entity.update_value(value)
 
     def handle_sv_change(
         self,
-        system_variable: Any,
+        system_variable: ZenSystemVariable,
         value: int,
         *,
         by_me: bool,
@@ -932,7 +990,7 @@ class ZenHub:
         if (switch_entity := self._sv_switch_entities.get(system_variable)) is not None:
             switch_entity.update_value(value)
 
-    def handle_profile_change(self, profile: Any) -> None:
+    def handle_profile_change(self, profile: ZenProfile) -> None:
         if (entity := self._profile_entities.get(profile.controller.name)) is not None:
             entity.update_current_option()
 

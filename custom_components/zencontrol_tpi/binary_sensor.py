@@ -2,18 +2,17 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
     BinarySensorEntity,
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from zencontrol import ZenMotionSensor
 
 from .entity import ZenControllerEntity
 from .hub import ZencontrolTpiConfigEntry, ZenHub
-from .sub_devices import motion_assignment_key
+from .sub_devices import instance_display_label, motion_assignment_key
 
 PARALLEL_UPDATES = 0
 
@@ -39,7 +38,7 @@ class ZenMotionSensorEntity(ZenControllerEntity, BinarySensorEntity):
 
     _attr_device_class = BinarySensorDeviceClass.MOTION
 
-    def __init__(self, hub: ZenHub, zen_sensor: Any) -> None:
+    def __init__(self, hub: ZenHub, zen_sensor: ZenMotionSensor) -> None:
         ctrl = zen_sensor.instance.address.controller
         super().__init__(hub, ctrl)
         self._sensor = zen_sensor
@@ -51,15 +50,11 @@ class ZenMotionSensorEntity(ZenControllerEntity, BinarySensorEntity):
         self._attr_device_info = hub.device_info_for(
             ctrl, assignment_key=motion_assignment_key(zen_sensor)
         )
-        self._attr_name = (
-            zen_sensor.instance_label
-            if zen_sensor.instance_label
-            and zen_sensor.instance_label != zen_sensor.label
-            else zen_sensor.label or f"Motion {addr}"
-        )
+        self._attr_name = instance_display_label(zen_sensor) or f"Motion {addr}"
 
-        # Occupied state; pushed by ZenHub via update_occupied().
-        # Reading occupied directly is safe now that the library guards last_detect is None.
+        # Occupied state; pushed by ZenHub via update_occupied(). Reading
+        # occupied directly is safe now that the library guards last_detect
+        # is None.
         self._attr_is_on = zen_sensor.occupied
 
         hub.register_motion_sensor_entity(zen_sensor, self)

@@ -2,16 +2,17 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import ClassVar
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
     SensorStateClass,
 )
-from homeassistant.const import EntityCategory, LIGHT_LUX
+from homeassistant.const import LIGHT_LUX, EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from zencontrol import ZenAbsoluteInput, ZenSystemVariable
 
 from .const import (
     CONTROLLER_STATUS_OPTIONS,
@@ -19,7 +20,11 @@ from .const import (
 )
 from .entity import ZenControllerEntity, controller_device_info
 from .hub import ZencontrolTpiConfigEntry, ZenHub
-from .sub_devices import absolute_input_assignment_key, sysvar_assignment_key
+from .sub_devices import (
+    absolute_input_assignment_key,
+    instance_display_label,
+    sysvar_assignment_key,
+)
 
 PARALLEL_UPDATES = 0
 
@@ -56,13 +61,13 @@ class ZenControllerStatusSensor(ZenControllerEntity, SensorEntity):
     _attr_translation_key = "controller_status"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_device_class = SensorDeviceClass.ENUM
-    _attr_options = list(CONTROLLER_STATUS_OPTIONS)
+    _attr_options: ClassVar[list[str]] = list(CONTROLLER_STATUS_OPTIONS)
     _attr_has_entity_name = True
 
     def __init__(self, hub: ZenHub) -> None:
         ctrl = hub.controller
         super().__init__(hub, ctrl)
-        name = getattr(ctrl, "name", None) or hub.entry.entry_id
+        name = ctrl.name if ctrl is not None else hub.entry.entry_id
         self._attr_unique_id = f"{name}_controller_status"
         self._suggested_object_id = "status"
         if ctrl is not None:
@@ -91,7 +96,7 @@ class ZenSystemVariableSensorEntity(ZenControllerEntity, SensorEntity):
 
     _attr_state_class = SensorStateClass.MEASUREMENT
 
-    def __init__(self, hub: ZenHub, zen_sv: Any) -> None:
+    def __init__(self, hub: ZenHub, zen_sv: ZenSystemVariable) -> None:
         ctrl = zen_sv.controller
         super().__init__(hub, ctrl)
         self._sv = zen_sv
@@ -121,7 +126,7 @@ class ZenAbsoluteInputSensorEntity(ZenControllerEntity, SensorEntity):
 
     _attr_state_class = SensorStateClass.MEASUREMENT
 
-    def __init__(self, hub: ZenHub, zen_input: Any) -> None:
+    def __init__(self, hub: ZenHub, zen_input: ZenAbsoluteInput) -> None:
         ctrl = zen_input.instance.address.controller
         super().__init__(hub, ctrl)
         self._input = zen_input
@@ -134,10 +139,7 @@ class ZenAbsoluteInputSensorEntity(ZenControllerEntity, SensorEntity):
             ctrl, assignment_key=absolute_input_assignment_key(zen_input)
         )
         self._attr_name = (
-            zen_input.instance_label
-            if zen_input.instance_label
-            and zen_input.instance_label != zen_input.label
-            else zen_input.label or f"Absolute Input {addr}"
+            instance_display_label(zen_input) or f"Absolute Input {addr}"
         )
         # Controllers push value-change events only; None until first event.
         self._attr_native_value = zen_input.value

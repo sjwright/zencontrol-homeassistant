@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -130,6 +128,7 @@ async def test_async_start_enables_events_only_after_ready_when_runtime_up() -> 
     hub.runtime.async_configure_controller_events.assert_awaited_once_with(
         hub.controller
     )
+    assert hub.controller_status == CONTROLLER_STATUS_ONLINE
 
 
 @pytest.mark.asyncio
@@ -142,3 +141,4 @@ async def test_async_start_skips_late_configure_on_first_start() -> None:
 
     hub.runtime.async_ensure_started.assert_awaited_once()
     hub.runtime.async_configure_controller_events.assert_not_awaited()
+    assert hub.controller_status == CONTROLLER_STATUS_ONLINE

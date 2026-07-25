@@ -15,7 +15,7 @@ from homeassistant.components.light import (
     ColorMode,
     LightEntityFeature,
 )
-from zencontrol import ZenColourType  # type: ignore[import-untyped]
+from zencontrol import ZenColourType
 
 from custom_components.zencontrol_tpi.config_flow import (
     build_controller_dict,

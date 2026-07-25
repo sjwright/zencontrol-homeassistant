@@ -2,27 +2,34 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING
 
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import Entity
 
-from .const import DOMAIN
+# ZenAddress.controller is typed as the API-layer controller, which the
+# interface-layer zencontrol.ZenController subclasses. Identity and DeviceInfo
+# only need the API-layer fields, so accept the wider type here.
+from zencontrol.api import ZenController as ZenControllerBase
+
+from .const import DOMAIN, normalize_mac
+
+if TYPE_CHECKING:
+    from .hub import ZenHub
 
 
-def controller_identifier(zen_ctrl: Any) -> tuple[str, str]:
+def controller_identifier(zen_ctrl: ZenControllerBase) -> tuple[str, str]:
     """Stable parent-device identifier for a controller.
 
-    Prefer MAC (always present in config). Fall back to controller name only
-    when MAC is missing so legacy/test stubs still resolve.
+    Prefer MAC, which the config flow always records. ZenController.mac is
+    optional, so fall back to the controller name.
     """
-    mac = getattr(zen_ctrl, "mac", None)
-    if mac:
-        return (DOMAIN, str(mac).upper().replace("-", ":"))
+    if zen_ctrl.mac:
+        return (DOMAIN, normalize_mac(str(zen_ctrl.mac)))
     return (DOMAIN, zen_ctrl.name)
 
 
-def controller_device_info(zen_ctrl: Any) -> DeviceInfo:
+def controller_device_info(zen_ctrl: ZenControllerBase) -> DeviceInfo:
     """Build DeviceInfo for a Zen controller (hub / parent device)."""
     return DeviceInfo(
         identifiers={controller_identifier(zen_ctrl)},
@@ -34,7 +41,7 @@ def controller_device_info(zen_ctrl: Any) -> DeviceInfo:
 
 
 def sub_device_device_info(
-    zen_ctrl: Any,
+    zen_ctrl: ZenControllerBase,
     *,
     sub_device_id: str,
     sub_device_name: str,
@@ -57,8 +64,12 @@ class ZenControllerEntity(Entity):
     _attr_has_entity_name = True
     # State is pushed via ZenHub event callbacks; do not poll.
     _attr_should_poll = False
+    # Subclasses set this to request a stable entity object id.
+    _suggested_object_id: str | None = None
 
-    def __init__(self, hub: Any, zen_ctrl: Any | None = None) -> None:
+    def __init__(
+        self, hub: ZenHub, zen_ctrl: ZenControllerBase | None = None
+    ) -> None:
         self._hub = hub
         self._zen_ctrl = zen_ctrl
 
@@ -70,4 +81,4 @@ class ZenControllerEntity(Entity):
     @property
     def suggested_object_id(self) -> str | None:
         """Return a stable suggested object id when provided by subclasses."""
-        return getattr(self, "_suggested_object_id", None)
+        return self._suggested_object_id

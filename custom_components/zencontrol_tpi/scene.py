@@ -8,6 +8,7 @@ from homeassistant.components.scene import Scene
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from zencontrol import ZenGroup
 
 from .entity import ZenControllerEntity
 from .hub import ZencontrolTpiConfigEntry, ZenHub
@@ -50,7 +51,7 @@ class ZenGroupSceneEntity(ZenControllerEntity, Scene):
     def __init__(
         self,
         hub: ZenHub,
-        zen_group: Any,
+        zen_group: ZenGroup,
         scene_number: int,
         scene_label: str,
     ) -> None:

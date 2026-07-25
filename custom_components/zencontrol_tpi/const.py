@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from typing import Any, Final
 
 from homeassistant.const import Platform
@@ -73,14 +74,20 @@ def normalize_mac_id(mac: str) -> str:
     return normalize_mac(mac).replace(":", "")
 
 
-def controller_from_entry_data(data: dict[str, Any]) -> dict[str, Any] | None:
-    """Return the single controller config from entry data."""
+def controller_from_entry_data(
+    data: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    """Return the single controller config from entry data.
+
+    Accepts a Mapping because ``ConfigEntry.data`` is a read-only
+    ``MappingProxyType``.
+    """
     controllers = data.get(CONF_CONTROLLERS)
     if isinstance(controllers, list) and controllers:
         first = controllers[0]
         return first if isinstance(first, dict) else None
     if data.get(CONF_MAC) and data.get("host"):
-        return data
+        return dict(data)
     return None
 
 

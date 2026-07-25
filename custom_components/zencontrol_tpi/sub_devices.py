@@ -17,6 +17,15 @@ import re
 from dataclasses import dataclass
 from typing import Any, Literal
 
+from zencontrol import (
+    ZenAbsoluteInput,
+    ZenButton,
+    ZenGroup,
+    ZenLight,
+    ZenMotionSensor,
+    ZenSystemVariable,
+)
+
 from .const import CONF_SUB_DEVICES
 
 _LOGGER = logging.getLogger(__name__)
@@ -30,6 +39,10 @@ CONF_SUB_DEVICE_AREA_ID = "area_id"
 _SLUG_RE = re.compile(r"[^a-z0-9]+")
 
 type SubDevicePrefixError = Literal["empty_prefixes", "duplicate_prefix"]
+
+# DALI ECD instance entities, which all carry a device label plus an
+# instance label.
+type ZenInstanceEntity = ZenButton | ZenMotionSensor | ZenAbsoluteInput
 
 
 @dataclass(frozen=True, slots=True)
@@ -157,7 +170,9 @@ def prefix_matches(label: str, prefix: str) -> bool:
     return not folded_label[len(folded_prefix)].isalnum()
 
 
-def match_sub_device(label: str, sub_devices: list[SubDeviceDef]) -> SubDeviceDef | None:
+def match_sub_device(
+    label: str, sub_devices: list[SubDeviceDef]
+) -> SubDeviceDef | None:
     """Return the sub-device with the longest matching prefix, or None.
 
     Tie-break when two prefixes share the same length: the first match in
@@ -177,92 +192,92 @@ def match_sub_device(label: str, sub_devices: list[SubDeviceDef]) -> SubDeviceDe
     return best
 
 
-def match_label_for_light(light: Any) -> str:
+def instance_display_label(entity: ZenInstanceEntity) -> str:
+    """Display label for an ECD instance entity.
+
+    Prefer the instance label, which is what users set per button or sensor,
+    and fall back to the device label. Entity display names and sub-device
+    prefix matching must agree, so both use this.
+    """
+    if entity.instance_label and entity.instance_label != entity.label:
+        return entity.instance_label.strip()
+    return (entity.label or "").strip()
+
+
+def match_label_for_light(light: ZenLight) -> str:
     """Label used for light name matching (sub_label preferred)."""
-    return (getattr(light, "sub_label", None) or getattr(light, "label", None) or "").strip()
+    return (light.sub_label or light.label or "").strip()
 
 
-def match_label_for_group(group: Any) -> str:
+def match_label_for_group(group: ZenGroup) -> str:
     """Label used for group matching."""
-    return (getattr(group, "label", None) or "").strip()
+    return (group.label or "").strip()
 
 
-def match_label_for_button(button: Any) -> str:
+def match_label_for_button(button: ZenButton) -> str:
     """Same preference as the event entity display name."""
-    instance_label = getattr(button, "instance_label", None)
-    label = getattr(button, "label", None)
-    if instance_label and instance_label != label:
-        return str(instance_label).strip()
-    return (label or "").strip()
+    return instance_display_label(button)
 
 
-def match_label_for_motion(sensor: Any) -> str:
+def match_label_for_motion(sensor: ZenMotionSensor) -> str:
     """Same preference as the motion entity display name."""
-    instance_label = getattr(sensor, "instance_label", None)
-    label = getattr(sensor, "label", None)
-    if instance_label and instance_label != label:
-        return str(instance_label).strip()
-    return (label or "").strip()
+    return instance_display_label(sensor)
 
 
-def match_label_for_absolute_input(absolute_input: Any) -> str:
+def match_label_for_absolute_input(absolute_input: ZenAbsoluteInput) -> str:
     """Same preference as the absolute-input sensor display name."""
-    instance_label = getattr(absolute_input, "instance_label", None)
-    label = getattr(absolute_input, "label", None)
-    if instance_label and instance_label != label:
-        return str(instance_label).strip()
-    return (label or "").strip()
+    return instance_display_label(absolute_input)
 
 
-def match_label_for_sysvar(sv: Any) -> str:
+def match_label_for_sysvar(sv: ZenSystemVariable) -> str:
     """Label used for system variable matching."""
-    return (getattr(sv, "label", None) or "").strip()
+    return (sv.label or "").strip()
 
 
-def light_assignment_key(light: Any) -> str:
+def light_assignment_key(light: ZenLight) -> str:
     ctrl = light.address.controller
     return f"light:{ctrl.name}:{light.address.number}"
 
 
-def group_assignment_key(group: Any) -> str:
+def group_assignment_key(group: ZenGroup) -> str:
     ctrl = group.address.controller
     return f"group:{ctrl.name}:{group.address.number}"
 
 
-def button_assignment_key(button: Any) -> str:
+def button_assignment_key(button: ZenButton) -> str:
     ctrl = button.instance.address.controller
     addr = button.instance.address.number
     inst = button.instance.number
     return f"button:{ctrl.name}:{addr}:{inst}"
 
 
-def motion_assignment_key(sensor: Any) -> str:
+def motion_assignment_key(sensor: ZenMotionSensor) -> str:
     ctrl = sensor.instance.address.controller
     addr = sensor.instance.address.number
     inst = sensor.instance.number
     return f"motion:{ctrl.name}:{addr}:{inst}"
 
 
-def absolute_input_assignment_key(absolute_input: Any) -> str:
+def absolute_input_assignment_key(absolute_input: ZenAbsoluteInput) -> str:
     ctrl = absolute_input.instance.address.controller
     addr = absolute_input.instance.address.number
     inst = absolute_input.instance.number
     return f"absolute:{ctrl.name}:{addr}:{inst}"
 
 
-def sysvar_assignment_key(sv: Any) -> str:
+def sysvar_assignment_key(sv: ZenSystemVariable) -> str:
     return f"sv:{sv.controller.name}:{sv.id}"
 
 
 def build_assignments(
     *,
     controller_sub_devices: dict[str, list[SubDeviceDef]],
-    lights: list[Any],
-    groups: list[Any],
-    buttons: list[Any],
-    motion_sensors: list[Any],
-    absolute_inputs: list[Any],
-    sysvars: list[Any],
+    lights: list[ZenLight],
+    groups: list[ZenGroup],
+    buttons: list[ZenButton],
+    motion_sensors: list[ZenMotionSensor],
+    absolute_inputs: list[ZenAbsoluteInput],
+    sysvars: list[ZenSystemVariable],
 ) -> dict[str, str]:
     """Compute assignment key → sub-device id.
 
@@ -290,7 +305,7 @@ def build_assignments(
             continue
         gkey = group_assignment_key(group)
         assignments[gkey] = matched.id
-        for light in getattr(group, "lights", None) or []:
+        for light in group.lights:
             lkey = light_assignment_key(light)
             if lkey in lights_claimed:
                 _LOGGER.debug(

@@ -8,6 +8,7 @@ from homeassistant.components.switch import SwitchEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from zencontrol import ZenSystemVariable
 
 from .entity import ZenControllerEntity
 from .hub import ZencontrolTpiConfigEntry, ZenHub
@@ -37,7 +38,7 @@ async def async_setup_entry(
 class ZenSystemVariableSwitchEntity(ZenControllerEntity, SwitchEntity):
     """HA switch entity wrapping a boolean ZenSystemVariable."""
 
-    def __init__(self, hub: ZenHub, zen_sv: Any) -> None:
+    def __init__(self, hub: ZenHub, zen_sv: ZenSystemVariable) -> None:
         ctrl = zen_sv.controller
         super().__init__(hub, ctrl)
         self._sv = zen_sv

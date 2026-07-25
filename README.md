@@ -108,12 +108,23 @@ You can also check out [`zencontrol-simulator`](https://github.com/sjwright/zenc
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install homeassistant
+pip install -r requirements-dev.txt
 pip install -e ../zencontrol-python
 ./run-ha
 ```
 
 Use `./run-ha --reset` to wipe local Home Assistant config state and start fresh.
+
+### Run the checks
+
+The same three checks run in CI, alongside Home Assistant's `hassfest` and HACS
+validation.
+
+```bash
+ruff check .
+pyright custom_components/zencontrol_tpi
+pytest -q
+```
 
 ## License
 

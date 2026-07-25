@@ -4,29 +4,30 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any, Protocol
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
-from zencontrol import (  # type: ignore[import-untyped]
+from zencontrol import (
     ZenAbsoluteInput,
     ZenAddress,
     ZenAddressType,
     ZenButton,
+    ZenController,
     ZenGroup,
     ZenInstance,
     ZenInstanceType,
     ZenLight,
     ZenMotionSensor,
+    ZenProfile,
     ZenSystemVariable,
 )
 
-# ZenProfile in the top-level package is the api.models dataclass (no
-# create()). The interface-layer singleton class must be imported directly.
-from zencontrol.interface.interface import ZenProfile  # type: ignore[import-untyped]
-
 from .const import DOMAIN
 from .sysvar import classify_sysvar
+
+if TYPE_CHECKING:
+    from .hub import ZenHub
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -37,6 +38,32 @@ STORE_VERSION = 1
 # Schema version embedded into the manifest payload we store.
 # Bump this when the structure of `manifest["interview"]` changes.
 MANIFEST_VERSION = 4
+
+
+class Interviewable(Protocol):
+    """A Zen entity that can round-trip its interview state."""
+
+    def interview_serialize(self) -> str: ...
+
+    def interview_hydrate(self, data: str | dict[str, Any]) -> bool: ...
+
+    async def interview(self) -> bool: ...
+
+
+class DiscoveredEntities(Protocol):
+    """One controller's discovered entities, as gathered by bus discovery.
+
+    Satisfied by ZenHub and by the config flow's pre-setup discovery snapshot.
+    """
+
+    lights: list[ZenLight]
+    groups: list[ZenGroup]
+    buttons: list[ZenButton]
+    motion_sensors: list[ZenMotionSensor]
+    absolute_inputs: list[ZenAbsoluteInput]
+    sv_switches: list[ZenSystemVariable]
+    sv_sensors: list[ZenSystemVariable]
+    profiles: list[ZenProfile]
 
 
 class DiscoveryManifestStore:
@@ -81,12 +108,14 @@ class DiscoveryManifestStore:
         await self._store.async_remove()
 
 
-def _interview_blob(obj: Any) -> dict[str, Any]:
+def _interview_blob(obj: Interviewable) -> dict[str, Any]:
     """Return interview_serialize() parsed as a dict for Store JSON."""
     return json.loads(obj.interview_serialize())
 
 
-async def _hydrate_or_interview(obj: Any, interview: Any) -> bool:
+async def _hydrate_or_interview(
+    obj: Interviewable, interview: str | dict[str, Any] | None
+) -> bool:
     """Apply interview_hydrate; fall back to a live interview on failure.
 
     Returns True when we had to run `interview()` (so the manifest is now
@@ -99,8 +128,9 @@ async def _hydrate_or_interview(obj: Any, interview: Any) -> bool:
     return True
 
 
-def build_manifest(hub: Any) -> dict[str, Any]:
-    """Serialize discovered entities from a ZenHub after full discovery."""
+def build_manifest(source: DiscoveredEntities) -> dict[str, Any]:
+    """Serialize discovered entities after full discovery."""
+    hub = source
     lights = [
         {
             "controller": lt.address.controller.name,
@@ -182,7 +212,9 @@ def build_manifest(hub: Any) -> dict[str, Any]:
     }
 
 
-async def load_entities_from_manifest(hub: Any, manifest: dict[str, Any]) -> bool:
+async def load_entities_from_manifest(
+    hub: ZenHub, manifest: dict[str, Any]
+) -> bool:
     """Rebuild hub entity lists from a saved interview manifest.
 
     Lights must be hydrated before groups so ZenLight.interview_hydrate() can
@@ -193,7 +225,7 @@ async def load_entities_from_manifest(hub: Any, manifest: dict[str, Any]) -> boo
     protocol = hub.zen.protocol
     needs_save = False
 
-    def _ctrl(name: str) -> Any:
+    def _ctrl(name: str) -> ZenController:
         if name not in ctrl_by_name:
             raise KeyError(f"Manifest references unknown controller {name!r}")
         return ctrl_by_name[name]

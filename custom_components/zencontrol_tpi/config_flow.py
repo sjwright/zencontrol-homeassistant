@@ -17,7 +17,7 @@ from typing import Any, Literal
 
 import getmac
 import voluptuous as vol
-import zencontrol  # type: ignore[import-untyped]
+import zencontrol
 from homeassistant.config_entries import (
     SOURCE_IMPORT,
     SOURCE_USER,
@@ -32,10 +32,21 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.selector import (
     AreaSelector,
+    SelectOptionDict,
     SelectSelector,
     SelectSelectorConfig,
 )
 from homeassistant.helpers.translation import async_get_translations
+from zencontrol import (
+    DiscoveredController,
+    ZenAbsoluteInput,
+    ZenButton,
+    ZenGroup,
+    ZenLight,
+    ZenMotionSensor,
+    ZenProfile,
+    ZenSystemVariable,
+)
 
 from .const import (
     CONF_CONTROLLERS,
@@ -259,7 +270,9 @@ async def _test_connection(host: str, port: int, mac: str, label: str) -> bool:
             _LOGGER.debug("Failed to close connection-test ZenControl", exc_info=True)
 
 
-def _discovered_to_dict(discovered: Any) -> ControllerConfig:
+def _discovered_to_dict(
+    discovered: DiscoveredController | dict[str, Any],
+) -> ControllerConfig:
     """Normalize a library DiscoveredController (or mapping) to flow data."""
     match discovered:
         case dict() as data:
@@ -272,13 +285,9 @@ def _discovered_to_dict(discovered: Any) -> ControllerConfig:
         case _:
             return {
                 CONF_HOST: str(discovered.host).strip(),
-                CONF_PORT: int(
-                    getattr(discovered, "port", DEFAULT_PORT) or DEFAULT_PORT
-                ),
+                CONF_PORT: int(discovered.port or DEFAULT_PORT),
                 CONF_MAC: normalize_mac(str(discovered.mac)),
-                CONF_LABEL: str(
-                    getattr(discovered, "label", None) or discovered.mac
-                ).strip(),
+                CONF_LABEL: str(discovered.label or discovered.mac).strip(),
             }
 
 
@@ -306,9 +315,11 @@ def _selected_mac(user_input: dict[str, Any]) -> str | None:
 
 async def _async_listen_for_controllers(
     hass: HomeAssistant,
-    timeout: float = DISCOVERY_LISTEN_SECONDS,
+    duration: float = DISCOVERY_LISTEN_SECONDS,
 ) -> list[ControllerConfig]:
     """Listen for multicast and return identified controllers.
+
+    ``duration`` is how long to keep listening, not a deadline for the call.
 
     When the shared runtime already has a listener, reuse it so we do not bind
     a second multicast socket (SO_REUSEPORT can drop events on Linux).
@@ -324,7 +335,7 @@ async def _async_listen_for_controllers(
             )
             for d in runtime.zen.discovered_controllers
         }
-        await asyncio.sleep(timeout)
+        await asyncio.sleep(duration)
         return [
             _discovered_to_dict(item)
             for item in runtime.zen.discovered_controllers
@@ -333,7 +344,7 @@ async def _async_listen_for_controllers(
 
     zen = zencontrol.ZenControl()
     try:
-        found = await zen.discover(timeout=timeout)
+        found = await zen.discover(timeout=duration)
         return [_discovered_to_dict(item) for item in found]
     except Exception:
         _LOGGER.debug("Multicast discovery listen failed", exc_info=True)
@@ -394,14 +405,16 @@ async def _async_prime_discovery(
             await ctrl.interview()
 
         class _HubSnapshot:
-            lights: list[Any]
-            groups: list[Any]
-            buttons: list[Any]
-            motion_sensors: list[Any]
-            absolute_inputs: list[Any]
-            sv_switches: list[Any]
-            sv_sensors: list[Any]
-            profiles: list[Any]
+            """Discovery result shaped like ZenHub for build_manifest()."""
+
+            lights: list[ZenLight]
+            groups: list[ZenGroup]
+            buttons: list[ZenButton]
+            motion_sensors: list[ZenMotionSensor]
+            absolute_inputs: list[ZenAbsoluteInput]
+            sv_switches: list[ZenSystemVariable]
+            sv_sensors: list[ZenSystemVariable]
+            profiles: list[ZenProfile]
 
         snap = _HubSnapshot()
         snap.lights = sorted(
@@ -644,7 +657,9 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
             self._connect_error = None
 
         options = [
-            {"value": item[CONF_MAC], "label": _discovered_option_label(item)}
+            SelectOptionDict(
+                value=item[CONF_MAC], label=_discovered_option_label(item)
+            )
             for item in self._discovered
         ]
         default_mac = self._discovered[0][CONF_MAC] if self._discovered else None
@@ -863,7 +878,9 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
         if self.source == SOURCE_IMPORT or self._controller is None:
             return result
 
-        entry = result["result"]
+        entry = result.get("result")
+        if not isinstance(entry, ConfigEntry):
+            return result
         options_result = await self.hass.config_entries.options.async_init(
             entry.entry_id,
             context={"source": SOURCE_USER},
@@ -1101,6 +1118,9 @@ class ZencontrolTpiOptionsFlow(OptionsFlow):
     # After saving a sub-device, return to this step instead of closing.
     _return_after_save: SaveReturnStep = None
     _suggest_from_setup_handled: bool = False
+    # Defaults to None rather than [] so the class attribute stays immutable;
+    # _set_suggest_queue installs a per-instance list.
+    _suggest_queue: list[str] | None = None
 
     def __getattr__(self, name: str) -> Any:
         """Route dynamic menu steps for sub-devices."""
@@ -1145,8 +1165,9 @@ class ZencontrolTpiOptionsFlow(OptionsFlow):
 
     def _pop_suggest_controller(self) -> str | None:
         """Return the next controller name awaiting a sub-device prompt."""
-        queue: list[str] = getattr(self, "_suggest_queue", None) or []
-        self._suggest_queue = queue
+        queue = self._suggest_queue
+        if queue is None:
+            return None
         while queue:
             name = queue.pop(0)
             if self._controller(name) is not None:
@@ -1202,7 +1223,7 @@ class ZencontrolTpiOptionsFlow(OptionsFlow):
         """Close options after declining or finishing sub-device setup."""
         self._return_after_save = None
         self._ctrl_name = None
-        if getattr(self, "_suggest_queue", None):
+        if self._suggest_queue:
             return await self.async_step_suggest_sub_devices()
         return self.async_create_entry(title="", data={})
 

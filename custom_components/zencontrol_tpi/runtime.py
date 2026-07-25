@@ -4,17 +4,32 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
-import zencontrol  # type: ignore[import-untyped]
+import zencontrol
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
+from zencontrol import (
+    DiscoveredController,
+    ZenAbsoluteInput,
+    ZenButton,
+    ZenColour,
+    ZenController,
+    ZenGroup,
+    ZenLight,
+    ZenMotionSensor,
+    ZenProfile,
+    ZenSystemVariable,
+)
+from zencontrol.api import ZenController as ZenControllerBase
 
 from .const import (
     CONF_LABEL,
     CONF_MAC,
     CONF_NAME,
     CONF_UNICAST,
+    DEFAULT_PORT,
     DOMAIN,
     controller_from_entry_data,
     normalize_mac,
@@ -47,7 +62,7 @@ class SharedZenRuntime:
         self.zen = zencontrol.ZenControl(logger=_LOGGER, unicast=unicast)
         self._hubs_by_entry: dict[str, ZenHub] = {}
         self._hubs_by_mac: dict[str, ZenHub] = {}
-        self._controllers_by_entry: dict[str, Any] = {}
+        self._controllers_by_entry: dict[str, ZenController] = {}
         self._next_controller_id = 1
         self._started = False
         self._listener_up = False
@@ -100,16 +115,16 @@ class SharedZenRuntime:
             )
         return runtime
 
-    def hub_for_controller(self, zen_ctrl: Any) -> ZenHub | None:
-        """Return the hub that owns this controller, if attached."""
-        mac = getattr(zen_ctrl, "mac", None)
-        if mac:
-            return self._hubs_by_mac.get(normalize_mac_id(str(mac)))
-        name = getattr(zen_ctrl, "name", None)
-        if not name:
-            return None
+    def hub_for_controller(self, zen_ctrl: ZenControllerBase) -> ZenHub | None:
+        """Return the hub that owns this controller, if attached.
+
+        Takes the API-layer controller type so callbacks can pass the
+        controller reached through ``ZenAddress.controller``.
+        """
+        if zen_ctrl.mac:
+            return self._hubs_by_mac.get(normalize_mac_id(str(zen_ctrl.mac)))
         for hub in self._hubs_by_entry.values():
-            if hub.controller is not None and hub.controller.name == name:
+            if hub.controller is not None and hub.controller.name == zen_ctrl.name:
                 return hub
         return None
 
@@ -117,7 +132,7 @@ class SharedZenRuntime:
         self,
         hub: ZenHub,
         ctrl_cfg: dict[str, Any],
-    ) -> Any:
+    ) -> ZenController:
         """Register a controller for this hub and return the ZenController."""
         async with self._attach_lock:
             entry_id = hub.entry.entry_id
@@ -140,7 +155,7 @@ class SharedZenRuntime:
                 name=ctrl_cfg[CONF_NAME],
                 label=ctrl_cfg[CONF_LABEL],
                 host=ctrl_cfg["host"],
-                port=int(ctrl_cfg.get("port", 5108)),
+                port=int(ctrl_cfg.get("port", DEFAULT_PORT)),
                 mac=mac,
             )
 
@@ -159,7 +174,9 @@ class SharedZenRuntime:
             )
             return ctrl
 
-    async def async_configure_controller_events(self, ctrl: Any) -> None:
+    async def async_configure_controller_events(
+        self, ctrl: ZenController | None
+    ) -> None:
         """Enable TPI events for a controller that is already ready.
 
         No-op when the shared listener is not running yet; ``async_ensure_started``
@@ -171,7 +188,7 @@ class SharedZenRuntime:
             await self.zen.configure_controller_events(ctrl)
         except Exception as err:
             raise HomeAssistantError(
-                f"Failed to enable TPI events for {getattr(ctrl, 'label', ctrl)}"
+                f"Failed to enable TPI events for {ctrl.label}"
             ) from err
 
     async def async_detach(self, entry_id: str) -> None:
@@ -182,7 +199,7 @@ class SharedZenRuntime:
             if hub is None and ctrl is None:
                 return
 
-            if ctrl is not None and getattr(ctrl, "mac", None):
+            if ctrl is not None and ctrl.mac:
                 self._hubs_by_mac.pop(normalize_mac_id(str(ctrl.mac)), None)
             elif hub is not None and hub.controller is not None and hub.controller.mac:
                 self._hubs_by_mac.pop(
@@ -272,16 +289,18 @@ class SharedZenRuntime:
         for hub in list(self._hubs_by_entry.values()):
             hub.handle_listener_disconnect()
 
-    async def _on_controller_status(self, ctrl: Any, status: str) -> None:
+    async def _on_controller_status(
+        self, ctrl: ZenController, status: str
+    ) -> None:
         hub = self.hub_for_controller(ctrl)
         if hub is not None:
             await hub.handle_controller_status(status)
 
     async def _on_light_change(
         self,
-        light: Any,
+        light: ZenLight,
         level: int | None = None,
-        colour: Any | None = None,
+        colour: ZenColour | None = None,
         scene: int | None = None,
     ) -> None:
         hub = self.hub_for_controller(light.address.controller)
@@ -290,9 +309,9 @@ class SharedZenRuntime:
 
     async def _on_group_change(
         self,
-        group: Any,
+        group: ZenGroup,
         level: int | None = None,
-        colour: Any | None = None,
+        colour: ZenColour | None = None,
         scene: int | None = None,
         discoordinated: bool | None = None,
     ) -> None:
@@ -300,23 +319,25 @@ class SharedZenRuntime:
         if hub is not None:
             hub.handle_group_change(group)
 
-    async def _on_button_press(self, button: Any) -> None:
+    async def _on_button_press(self, button: ZenButton) -> None:
         hub = self.hub_for_controller(button.instance.address.controller)
         if hub is not None:
             hub.handle_button_press(button)
 
-    async def _on_button_long_press(self, button: Any) -> None:
+    async def _on_button_long_press(self, button: ZenButton) -> None:
         hub = self.hub_for_controller(button.instance.address.controller)
         if hub is not None:
             hub.handle_button_long_press(button)
 
-    async def _on_motion_event(self, sensor: Any, occupied: bool) -> None:
+    async def _on_motion_event(
+        self, sensor: ZenMotionSensor, occupied: bool
+    ) -> None:
         hub = self.hub_for_controller(sensor.instance.address.controller)
         if hub is not None:
             hub.handle_motion_event(sensor, occupied)
 
     async def _on_absolute_input_change(
-        self, absolute_input: Any, value: int
+        self, absolute_input: ZenAbsoluteInput, value: int
     ) -> None:
         hub = self.hub_for_controller(absolute_input.instance.address.controller)
         if hub is not None:
@@ -324,7 +345,7 @@ class SharedZenRuntime:
 
     async def _on_sv_change(
         self,
-        system_variable: Any,
+        system_variable: ZenSystemVariable,
         value: int,
         changed: bool,
         by_me: bool,
@@ -333,15 +354,17 @@ class SharedZenRuntime:
         if hub is not None:
             hub.handle_sv_change(system_variable, value, by_me=by_me)
 
-    async def _on_profile_change(self, profile: Any) -> None:
+    async def _on_profile_change(self, profile: ZenProfile) -> None:
         hub = self.hub_for_controller(profile.controller)
         if hub is not None:
             hub.handle_profile_change(profile)
 
-    async def _on_controller_discovered(self, discovered: Any) -> None:
+    async def _on_controller_discovered(
+        self, discovered: DiscoveredController
+    ) -> None:
         """Start a discovery flow for an unknown controller MAC."""
-        mac = getattr(discovered, "mac", None)
-        host = getattr(discovered, "host", None)
+        mac = discovered.mac
+        host = discovered.host
         if not mac or not host:
             return
         mac_n = normalize_mac(str(mac))
@@ -354,8 +377,8 @@ class SharedZenRuntime:
         if mac_id in self._hubs_by_mac:
             return
 
-        label = getattr(discovered, "label", None) or mac_n
-        port = int(getattr(discovered, "port", 5108) or 5108)
+        label = discovered.label or mac_n
+        port = int(discovered.port or DEFAULT_PORT)
         _LOGGER.info(
             "Discovered zencontrol controller %s (%s) label=%r",
             host,
@@ -376,6 +399,6 @@ class SharedZenRuntime:
         )
 
 
-def entry_unicast(data: dict[str, Any]) -> bool:
+def entry_unicast(data: Mapping[str, Any]) -> bool:
     """Return the unicast flag from entry data."""
     return bool(data.get(CONF_UNICAST, False))

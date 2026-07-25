@@ -19,7 +19,7 @@ from homeassistant.components.light import (
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
-from zencontrol import ZenColour, ZenColourType  # type: ignore[import-untyped]
+from zencontrol import ZenColour, ZenColourType, ZenGroup, ZenLight
 
 from .const import arc_to_brightness, brightness_to_arc
 from .entity import ZenControllerEntity
@@ -79,7 +79,7 @@ def _build_supported_modes(features: dict[str, bool]) -> set[ColorMode]:
 
 
 def _current_color_mode(
-    supported: set[ColorMode], colour: Any | None
+    supported: set[ColorMode], colour: ZenColour | None
 ) -> ColorMode:
     """Determine the active color mode from the current colour object."""
     if colour is not None:
@@ -107,33 +107,33 @@ def _current_color_mode(
     return ColorMode.ONOFF
 
 
-def _color_temp_kelvin(colour: Any | None) -> int | None:
+def _color_temp_kelvin(colour: ZenColour | None) -> int | None:
     match colour:
-        case object(type=ZenColourType.TC):
+        case ZenColour(type=ZenColourType.TC):
             return colour.kelvin
         case _:
             return None
 
 
-def _rgb_color(colour: Any | None) -> tuple[int, int, int] | None:
+def _rgb_color(colour: ZenColour | None) -> tuple[int, int, int] | None:
     match colour:
-        case object(type=ZenColourType.RGBWAF):
+        case ZenColour(type=ZenColourType.RGBWAF):
             return (colour.r or 0, colour.g or 0, colour.b or 0)
         case _:
             return None
 
 
-def _rgbw_color(colour: Any | None) -> tuple[int, int, int, int] | None:
+def _rgbw_color(colour: ZenColour | None) -> tuple[int, int, int, int] | None:
     match colour:
-        case object(type=ZenColourType.RGBWAF):
+        case ZenColour(type=ZenColourType.RGBWAF):
             return (colour.r or 0, colour.g or 0, colour.b or 0, colour.w or 0)
         case _:
             return None
 
 
-def _rgbww_color(colour: Any | None) -> tuple[int, int, int, int, int] | None:
+def _rgbww_color(colour: ZenColour | None) -> tuple[int, int, int, int, int] | None:
     match colour:
-        case object(type=ZenColourType.RGBWAF):
+        case ZenColour(type=ZenColourType.RGBWAF):
             return (
                 colour.r or 0,
                 colour.g or 0,
@@ -145,9 +145,11 @@ def _rgbww_color(colour: Any | None) -> tuple[int, int, int, int, int] | None:
             return None
 
 
-def _xy_color(colour: Any | None) -> tuple[float, float] | None:
+def _xy_color(colour: ZenColour | None) -> tuple[float, float] | None:
     match colour:
-        case object(type=ZenColourType.XY) if colour.x is not None and colour.y is not None:
+        case ZenColour(type=ZenColourType.XY) if (
+            colour.x is not None and colour.y is not None
+        ):
             # Clamp to HA's 0.0–1.0 range (wire values can be 0xFFFF / no-change)
             return (
                 min(1.0, max(0.0, colour.x / _XY_MAX)),
@@ -200,10 +202,10 @@ def _transition_seconds(kwargs: dict[str, Any]) -> int | None:
     transition = kwargs.get(ATTR_TRANSITION)
     if transition is None:
         return None
-    return int(round(float(transition)))
+    return round(float(transition))
 
 
-async def _async_turn_off(target: Any, *, transition: int | None) -> None:
+async def _async_turn_off(target: ZenLight, *, transition: int | None) -> None:
     """Turn off with default DALI fade, or an explicit custom fade duration."""
     if transition is not None:
         await target.dali_custom_fade(0, transition)
@@ -212,7 +214,7 @@ async def _async_turn_off(target: Any, *, transition: int | None) -> None:
 
 
 async def _async_set_level_or_colour(
-    target: Any,
+    target: ZenLight,
     *,
     brightness: int | None,
     colour: ZenColour | None,
@@ -235,7 +237,9 @@ async def _async_set_level_or_colour(
     arc = brightness_to_arc(brightness) if brightness is not None else None
     if colour is not None:
         # 255 = mask / no change when paired with a colour command
-        await target.set(level=arc if arc is not None else 255, colour=colour, fade=True)
+        await target.set(
+            level=arc if arc is not None else 255, colour=colour, fade=True
+        )
     elif arc is not None:
         if transition is not None:
             await target.dali_custom_fade(arc, transition)
@@ -252,7 +256,7 @@ async def _async_set_level_or_colour(
 class ZenLightEntity(ZenControllerEntity, LightEntity):
     """HA entity wrapping a single DALI control gear (ZenLight)."""
 
-    def __init__(self, hub: ZenHub, zen_light: Any) -> None:
+    def __init__(self, hub: ZenHub, zen_light: ZenLight) -> None:
         ctrl = zen_light.address.controller
         super().__init__(hub, ctrl)
         self._light = zen_light
@@ -262,7 +266,11 @@ class ZenLightEntity(ZenControllerEntity, LightEntity):
         self._attr_device_info = hub.device_info_for(
             ctrl, assignment_key=light_assignment_key(zen_light)
         )
-        self._attr_name = zen_light.sub_label or zen_light.label or f"Light {zen_light.address.number}"
+        self._attr_name = (
+            zen_light.sub_label
+            or zen_light.label
+            or f"Light {zen_light.address.number}"
+        )
 
         self._supported_modes = _build_supported_modes(zen_light.features)
         self._attr_supported_color_modes = self._supported_modes
@@ -331,7 +339,7 @@ class ZenLightEntity(ZenControllerEntity, LightEntity):
 class ZenGroupEntity(ZenControllerEntity, LightEntity):
     """HA entity wrapping a DALI group (ZenGroup)."""
 
-    def __init__(self, hub: ZenHub, zen_group: Any) -> None:
+    def __init__(self, hub: ZenHub, zen_group: ZenGroup) -> None:
         ctrl = zen_group.address.controller
         super().__init__(hub, ctrl)
         self._group = zen_group
@@ -355,7 +363,7 @@ class ZenGroupEntity(ZenControllerEntity, LightEntity):
         hub.register_group_entity(zen_group, self)
 
     @staticmethod
-    def _build_group_modes(zen_group: Any) -> set[ColorMode]:
+    def _build_group_modes(zen_group: ZenGroup) -> set[ColorMode]:
         modes: set[ColorMode] = set()
         for light in zen_group.lights:
             modes |= _build_supported_modes(light.features)
@@ -365,7 +373,7 @@ class ZenGroupEntity(ZenControllerEntity, LightEntity):
             modes.discard(ColorMode.ONOFF)
         return modes or {ColorMode.BRIGHTNESS}
 
-    def _set_kelvin_range(self, zen_group: Any) -> None:
+    def _set_kelvin_range(self, zen_group: ZenGroup) -> None:
         min_k = max_k = None
         for light in zen_group.lights:
             lmin = light.properties.get("min_kelvin")

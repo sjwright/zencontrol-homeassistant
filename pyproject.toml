@@ -9,6 +9,13 @@ venvPath = "."
 venv = ".venv"
 pythonVersion = "3.14"
 extraPaths = ["../zencontrol-python"]
+# Home Assistant declares Entity.available, native_value and friends as
+# cached_property, but overriding them with a plain @property is the documented
+# integration pattern. HA core checks itself with mypy, which allows it.
+reportIncompatibleVariableOverride = false
+# homeassistant.components.* re-export their public names without an explicit
+# __all__, so pyright treats documented imports like ColorMode as private.
+reportPrivateImportUsage = false
 
 [tool.ruff]
 target-version = "py314"
@@ -23,5 +30,16 @@ select = [
   "I",
   "N",
   "RUF",
+  "SLF",
   "UP"
 ]
+ignore = [
+  # Typographic dashes and symbols in prose and UI labels are deliberate.
+  "RUF001",
+  "RUF002",
+  "RUF003"
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests drive private hub/entity internals directly.
+"tests/**" = ["SLF001"]

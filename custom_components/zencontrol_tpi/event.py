@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
-from typing import Any, ClassVar
+from typing import ClassVar
 
 from homeassistant.components.event import EventDeviceClass, EventEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from zencontrol import ZenButton
 
 from .entity import ZenControllerEntity
 from .hub import ZencontrolTpiConfigEntry, ZenHub
-from .sub_devices import button_assignment_key
+from .sub_devices import button_assignment_key, instance_display_label
 
 PARALLEL_UPDATES = 0
 
@@ -37,7 +38,7 @@ class ZenButtonEntity(ZenControllerEntity, EventEntity):
     _attr_device_class = EventDeviceClass.BUTTON
     _attr_event_types: ClassVar[list[str]] = ["short_press", "long_press"]
 
-    def __init__(self, hub: ZenHub, zen_button: Any) -> None:
+    def __init__(self, hub: ZenHub, zen_button: ZenButton) -> None:
         ctrl = zen_button.instance.address.controller
         super().__init__(hub, ctrl)
         self._button = zen_button
@@ -49,12 +50,7 @@ class ZenButtonEntity(ZenControllerEntity, EventEntity):
         self._attr_device_info = hub.device_info_for(
             ctrl, assignment_key=button_assignment_key(zen_button)
         )
-        self._attr_name = (
-            zen_button.instance_label
-            if zen_button.instance_label
-            and zen_button.instance_label != zen_button.label
-            else zen_button.label or f"Button {addr}"
-        )
+        self._attr_name = instance_display_label(zen_button) or f"Button {addr}"
 
         hub.register_button_entity(zen_button, self)
 
