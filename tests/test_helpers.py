@@ -10,8 +10,10 @@ from homeassistant.components.light import (
     ATTR_RGB_COLOR,
     ATTR_RGBW_COLOR,
     ATTR_RGBWW_COLOR,
+    ATTR_TRANSITION,
     ATTR_XY_COLOR,
     ColorMode,
+    LightEntityFeature,
 )
 from zencontrol import ZenColourType  # type: ignore[import-untyped]
 
@@ -32,8 +34,11 @@ from custom_components.zencontrol_tpi.const import (
 from custom_components.zencontrol_tpi.light import (
     _XY_MAX,
     _async_set_level_or_colour,
+    _async_turn_off,
     _build_supported_modes,
     _colour_from_turn_on_kwargs,
+    _supported_features,
+    _transition_seconds,
     _xy_color,
 )
 from custom_components.zencontrol_tpi.manifest_store import build_manifest
@@ -183,3 +188,122 @@ async def test_colour_only_uses_no_change_arc_level() -> None:
     assert calls[0]["level"] == 255
     assert calls[0]["colour"] is colour
     assert calls[0]["fade"] is True
+
+
+def test_supported_features_transition_for_dimmable_modes() -> None:
+    """Relay-only ONOFF lights do not advertise TRANSITION; dimmable ones do."""
+    assert _supported_features({ColorMode.ONOFF}) == LightEntityFeature(0)
+    assert _supported_features({ColorMode.BRIGHTNESS}) == LightEntityFeature.TRANSITION
+    assert _supported_features({ColorMode.COLOR_TEMP}) == LightEntityFeature.TRANSITION
+    assert (
+        _supported_features({ColorMode.XY, ColorMode.COLOR_TEMP})
+        == LightEntityFeature.TRANSITION
+    )
+    # Mixed relay + dimmable group members still advertise TRANSITION.
+    assert (
+        _supported_features({ColorMode.ONOFF, ColorMode.BRIGHTNESS})
+        == LightEntityFeature.TRANSITION
+    )
+
+
+def test_transition_seconds_from_kwargs() -> None:
+    """Explicit HA transition is rounded to int seconds; unset stays None."""
+    assert _transition_seconds({}) is None
+    assert _transition_seconds({ATTR_TRANSITION: 10}) == 10
+    assert _transition_seconds({ATTR_TRANSITION: 2.9}) == 3
+    assert _transition_seconds({ATTR_TRANSITION: 0.4}) == 0
+    assert _transition_seconds({ATTR_TRANSITION: 0}) == 0
+
+
+class _FadeTarget:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, tuple[object, ...], dict[str, object]]] = []
+
+    async def set(self, **kwargs: object) -> None:
+        self.calls.append(("set", (), kwargs))
+
+    async def on(self, **kwargs: object) -> None:
+        self.calls.append(("on", (), kwargs))
+
+    async def off(self, **kwargs: object) -> None:
+        self.calls.append(("off", (), kwargs))
+
+    async def dali_custom_fade(self, level: int, duration: int) -> None:
+        self.calls.append(("dali_custom_fade", (level, duration), {}))
+
+
+@pytest.mark.asyncio
+async def test_brightness_without_transition_uses_default_fade() -> None:
+    """Unset transition keeps the fixture's configured DALI fade (fade=True)."""
+    target = _FadeTarget()
+    await _async_set_level_or_colour(target, brightness=128, colour=None)
+    assert len(target.calls) == 1
+    assert target.calls[0][0] == "set"
+    assert target.calls[0][2]["fade"] is True
+    assert "level" in target.calls[0][2]
+
+
+@pytest.mark.asyncio
+async def test_brightness_with_transition_uses_custom_fade() -> None:
+    """Explicit transition fades brightness via dali_custom_fade()."""
+    target = _FadeTarget()
+    await _async_set_level_or_colour(
+        target, brightness=128, colour=None, transition=5
+    )
+    assert len(target.calls) == 1
+    name, args, _kwargs = target.calls[0]
+    assert name == "dali_custom_fade"
+    assert args[0] == brightness_to_arc(128)
+    assert args[1] == 5
+
+
+@pytest.mark.asyncio
+async def test_brightness_zero_with_transition_uses_custom_fade() -> None:
+    """Brightness 0 with transition fades to off via dali_custom_fade()."""
+    target = _FadeTarget()
+    await _async_set_level_or_colour(target, brightness=0, colour=None, transition=3)
+    assert target.calls == [("dali_custom_fade", (0, 3), {})]
+
+
+@pytest.mark.asyncio
+async def test_brightness_zero_without_transition_uses_default_fade() -> None:
+    """Brightness 0 without transition keeps the fixture's configured DALI fade."""
+    target = _FadeTarget()
+    await _async_set_level_or_colour(target, brightness=0, colour=None)
+    assert target.calls == [("off", (), {"fade": True})]
+
+
+@pytest.mark.asyncio
+async def test_turn_off_with_transition_uses_custom_fade() -> None:
+    """turn_off with transition uses dali_custom_fade; without keeps fade=True."""
+    with_transition = _FadeTarget()
+    await _async_turn_off(with_transition, transition=4)
+    assert with_transition.calls == [("dali_custom_fade", (0, 4), {})]
+
+    default = _FadeTarget()
+    await _async_turn_off(default, transition=None)
+    assert default.calls == [("off", (), {"fade": True})]
+
+
+@pytest.mark.asyncio
+async def test_colour_path_ignores_transition() -> None:
+    """Colour commands keep default fade; custom fade is brightness-only."""
+    target = _FadeTarget()
+    colour = _colour_from_turn_on_kwargs({ATTR_XY_COLOR: (0.3, 0.4)})
+    assert colour is not None
+    await _async_set_level_or_colour(
+        target, brightness=128, colour=colour, transition=8
+    )
+    assert len(target.calls) == 1
+    assert target.calls[0][0] == "set"
+    assert target.calls[0][2]["fade"] is True
+
+
+@pytest.mark.asyncio
+async def test_turn_on_without_brightness_ignores_transition() -> None:
+    """Plain on (no brightness target) keeps default fade and ignores transition."""
+    target = _FadeTarget()
+    await _async_set_level_or_colour(
+        target, brightness=None, colour=None, transition=9
+    )
+    assert target.calls == [("on", (), {"fade": True})]

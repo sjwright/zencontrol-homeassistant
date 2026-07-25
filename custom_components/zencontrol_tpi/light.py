@@ -10,9 +10,11 @@ from homeassistant.components.light import (
     ATTR_RGB_COLOR,
     ATTR_RGBW_COLOR,
     ATTR_RGBWW_COLOR,
+    ATTR_TRANSITION,
     ATTR_XY_COLOR,
     ColorMode,
     LightEntity,
+    LightEntityFeature,
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
@@ -182,20 +184,52 @@ def _colour_from_turn_on_kwargs(kwargs: dict[str, Any]) -> ZenColour | None:
             return None
 
 
+def _supported_features(modes: set[ColorMode]) -> LightEntityFeature:
+    """Advertise TRANSITION only when the light/group can dim."""
+    if modes - {ColorMode.ONOFF}:
+        return LightEntityFeature.TRANSITION
+    return LightEntityFeature(0)
+
+
+def _transition_seconds(kwargs: dict[str, Any]) -> int | None:
+    """Return an explicit HA transition in whole seconds, or None if unset.
+
+    Home Assistant validates transition as a float (0–6553). TPI custom fade
+    uses integer seconds, so values are rounded.
+    """
+    transition = kwargs.get(ATTR_TRANSITION)
+    if transition is None:
+        return None
+    return int(round(float(transition)))
+
+
+async def _async_turn_off(target: Any, *, transition: int | None) -> None:
+    """Turn off with default DALI fade, or an explicit custom fade duration."""
+    if transition is not None:
+        await target.dali_custom_fade(0, transition)
+    else:
+        await target.off(fade=True)
+
+
 async def _async_set_level_or_colour(
     target: Any,
     *,
     brightness: int | None,
     colour: ZenColour | None,
+    transition: int | None = None,
 ) -> None:
     """Apply brightness/colour to a ZenLight or ZenGroup, or just turn on.
 
     Colour-only commands use level 255 (0xFF) — TPI "no arc change" — matching
     the library default and Lumen's colour path. Re-sending the current arc (or
     254) would incorrectly force level 0 when the light is off.
+
+    Without an explicit transition, use the fixture's configured DALI fade
+    (fade=True). When HA supplies transition, brightness changes use
+    dali_custom_fade() instead. Colour commands keep the default fade.
     """
     if brightness == 0:
-        await target.off(fade=True)
+        await _async_turn_off(target, transition=transition)
         return
 
     arc = brightness_to_arc(brightness) if brightness is not None else None
@@ -203,7 +237,10 @@ async def _async_set_level_or_colour(
         # 255 = mask / no change when paired with a colour command
         await target.set(level=arc if arc is not None else 255, colour=colour, fade=True)
     elif arc is not None:
-        await target.set(level=arc, fade=True)
+        if transition is not None:
+            await target.dali_custom_fade(arc, transition)
+        else:
+            await target.set(level=arc, fade=True)
     else:
         await target.on(fade=True)
 
@@ -229,6 +266,7 @@ class ZenLightEntity(ZenControllerEntity, LightEntity):
 
         self._supported_modes = _build_supported_modes(zen_light.features)
         self._attr_supported_color_modes = self._supported_modes
+        self._attr_supported_features = _supported_features(self._supported_modes)
 
         if (min_k := zen_light.properties.get("min_kelvin")):
             self._attr_min_color_temp_kelvin = min_k
@@ -270,6 +308,7 @@ class ZenLightEntity(ZenControllerEntity, LightEntity):
                 self._light,
                 brightness=kwargs.get(ATTR_BRIGHTNESS),
                 colour=_colour_from_turn_on_kwargs(kwargs),
+                transition=_transition_seconds(kwargs),
             )
         except HomeAssistantError:
             raise
@@ -278,7 +317,7 @@ class ZenLightEntity(ZenControllerEntity, LightEntity):
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         try:
-            await self._light.off(fade=True)
+            await _async_turn_off(self._light, transition=_transition_seconds(kwargs))
         except HomeAssistantError:
             raise
         except Exception as err:
@@ -307,6 +346,7 @@ class ZenGroupEntity(ZenControllerEntity, LightEntity):
         # Derive color modes from member lights
         self._supported_modes = self._build_group_modes(zen_group)
         self._attr_supported_color_modes = self._supported_modes
+        self._attr_supported_features = _supported_features(self._supported_modes)
 
         # Kelvin range from member lights
         self._set_kelvin_range(zen_group)
@@ -376,6 +416,7 @@ class ZenGroupEntity(ZenControllerEntity, LightEntity):
                 self._group,
                 brightness=kwargs.get(ATTR_BRIGHTNESS),
                 colour=_colour_from_turn_on_kwargs(kwargs),
+                transition=_transition_seconds(kwargs),
             )
         except HomeAssistantError:
             raise
@@ -384,7 +425,7 @@ class ZenGroupEntity(ZenControllerEntity, LightEntity):
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         try:
-            await self._group.off(fade=True)
+            await _async_turn_off(self._group, transition=_transition_seconds(kwargs))
         except HomeAssistantError:
             raise
         except Exception as err:
