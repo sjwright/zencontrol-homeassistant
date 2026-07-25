@@ -111,7 +111,7 @@ pip install -e ../zencontrol-python
 ./run-ha
 ```
 
-Use `./reset-ha` to wipe the local HA config state.
+Use `./run-ha --reset` to wipe the local HA config state and start fresh.
 
 ## License
 

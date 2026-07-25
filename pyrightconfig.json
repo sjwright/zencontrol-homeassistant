@@ -1,6 +1,0 @@
-{
-  "venvPath": ".",
-  "venv": ".venv",
-  "pythonVersion": "3.14",
-  "extraPaths": ["../zencontrol-python"]
-}

@@ -5,6 +5,34 @@ set -euo pipefail
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 VENV_DIR="$PROJECT_DIR/.venv"
 HASS_BIN="$VENV_DIR/bin/hass"
+CONFIG_DIR="$PROJECT_DIR/dev-config"
+RESET=0
+
+usage() {
+  echo "Usage: ./run-ha [--reset]" >&2
+  exit 2
+}
+
+for arg in "$@"; do
+  case "$arg" in
+    --reset) RESET=1 ;;
+    -h|--help) usage ;;
+    *)
+      echo "Unknown option: $arg" >&2
+      usage
+      ;;
+  esac
+done
+
+if (( RESET )); then
+  rm -rf "$CONFIG_DIR/.storage"
+  rm -f "$CONFIG_DIR/home-assistant_v2.db"
+  rm -f "$CONFIG_DIR/home-assistant_v2.db-shm"
+  rm -f "$CONFIG_DIR/home-assistant_v2.db-wal"
+  rm -f "$CONFIG_DIR/home-assistant.log"
+  rm -f "$CONFIG_DIR/home-assistant.log.1"
+  echo "Local Home Assistant state has been reset."
+fi
 
 cd "$PROJECT_DIR"
 
@@ -20,6 +48,6 @@ fi
 source "$VENV_DIR/bin/activate"
 
 exec "$HASS_BIN" \
-  --config "$PROJECT_DIR/dev-config" \
+  --config "$CONFIG_DIR" \
   --skip-pip-packages zencontrol-python \
   --debug

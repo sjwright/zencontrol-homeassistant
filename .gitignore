@@ -6,6 +6,7 @@ __pycache__/
 .coverage
 .DS_Store
 .cursor/
+.vscode/
 
 # Home Assistant local runtime
 dev-config/.storage/
