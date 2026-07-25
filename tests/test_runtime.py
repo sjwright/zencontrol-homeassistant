@@ -36,7 +36,6 @@ def _hub(entry_id: str = "entry-1") -> MagicMock:
     hub = MagicMock()
     hub.entry = SimpleNamespace(entry_id=entry_id)
     hub.controller = None
-    hub.controllers = []
     hub.handle_listener_connect = AsyncMock()
     hub.handle_listener_disconnect = MagicMock()
     return hub
@@ -88,12 +87,8 @@ async def test_runtime_second_attach_keeps_client() -> None:
     hass.data = {}
 
     ctrls = {
-        "10001": SimpleNamespace(
-            name="10001", label="A", mac="AA:BB:CC:DD:EE:01", filtering=False
-        ),
-        "10002": SimpleNamespace(
-            name="10002", label="B", mac="AA:BB:CC:DD:EE:02", filtering=False
-        ),
+        "10001": SimpleNamespace(name="10001", label="A", mac="AA:BB:CC:DD:EE:01", filtering=False),
+        "10002": SimpleNamespace(name="10002", label="B", mac="AA:BB:CC:DD:EE:02", filtering=False),
     }
 
     def add_controller(**kwargs: Any) -> Any:

@@ -1,0 +1,91 @@
+"""Tests for shared bus-discovery helpers."""
+
+from __future__ import annotations
+
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+
+from custom_components.zencontrol_tpi.discovery import (
+    ControllerNotReadyError,
+    discover_controller_entities,
+    wait_until_controller_ready,
+)
+
+
+@pytest.mark.asyncio
+async def test_wait_until_controller_ready_interviews() -> None:
+    ctrl = MagicMock()
+    ctrl.label = "House"
+    ctrl.host = "10.0.0.1"
+    ctrl.is_controller_ready = AsyncMock(return_value=True)
+    ctrl.interview = AsyncMock()
+
+    await wait_until_controller_ready(ctrl)
+
+    ctrl.is_controller_ready.assert_awaited_once()
+    ctrl.interview.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_wait_until_controller_ready_unreachable_callback() -> None:
+    ctrl = MagicMock()
+    ctrl.label = "House"
+    ctrl.host = "10.0.0.1"
+    ctrl.is_controller_ready = AsyncMock(return_value=None)
+    ctrl.interview = AsyncMock()
+    seen: list[str] = []
+
+    with pytest.raises(ControllerNotReadyError, match="Cannot reach"):
+        await wait_until_controller_ready(
+            ctrl, on_unreachable=lambda: seen.append("unreachable")
+        )
+
+    assert seen == ["unreachable"]
+    ctrl.interview.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_discover_controller_entities_scopes_and_classifies() -> None:
+    ctrl = SimpleNamespace(name="house")
+    light = SimpleNamespace(address=SimpleNamespace(number=2, controller=ctrl))
+    group = SimpleNamespace(address=SimpleNamespace(number=1, controller=ctrl))
+    button = SimpleNamespace(
+        instance=SimpleNamespace(
+            address=SimpleNamespace(number=4, controller=ctrl), number=0
+        )
+    )
+    motion = SimpleNamespace(
+        instance=SimpleNamespace(
+            address=SimpleNamespace(number=5, controller=ctrl), number=1
+        )
+    )
+    absolute = SimpleNamespace(
+        instance=SimpleNamespace(
+            address=SimpleNamespace(number=6, controller=ctrl), number=2
+        )
+    )
+    profile = SimpleNamespace(controller=ctrl, number=3)
+    sv_lux = SimpleNamespace(id=1, label="Hall Lux Sensor", controller=ctrl)
+    sv_switch = SimpleNamespace(id=2, label="Boost Switch", controller=ctrl)
+    sv_both = SimpleNamespace(id=3, label="Door Switch Sensor", controller=ctrl)
+
+    zen = MagicMock()
+    zen.get_lights = AsyncMock(return_value=[light])
+    zen.get_groups = AsyncMock(return_value=[group])
+    zen.get_buttons = AsyncMock(return_value=[button])
+    zen.get_motion_sensors = AsyncMock(return_value=[motion])
+    zen.get_absolute_inputs = AsyncMock(return_value=[absolute])
+    zen.get_profiles = AsyncMock(return_value=[profile])
+    zen.get_system_variables = AsyncMock(
+        return_value=[sv_lux, sv_switch, sv_both]
+    )
+
+    found = await discover_controller_entities(zen, ctrl)
+
+    zen.get_lights.assert_awaited_once_with(controller=ctrl)
+    assert found.lights == [light]
+    assert found.groups == [group]
+    assert found.sv_sensors == [sv_lux, sv_both]
+    assert found.sv_switches == [sv_switch, sv_both]

@@ -28,8 +28,9 @@ async def async_setup_entry(
     async def on_discovery() -> None:
         entities: list[SelectEntity] = []
 
-        # One profile select per controller
-        for ctrl in hub.controllers:
+        # One profile select for this entry's controller
+        if hub.controller is not None:
+            ctrl = hub.controller
             ctrl_profiles = [p for p in hub.profiles if p.controller is ctrl]
             if ctrl_profiles:
                 entities.append(ZenProfileSelectEntity(hub, ctrl, ctrl_profiles))
@@ -54,14 +55,10 @@ class ZenProfileSelectEntity(ZenControllerEntity, SelectEntity):
     _attr_translation_key = "profile"
     _attr_entity_category = EntityCategory.CONFIG
 
-    def __init__(
-        self, hub: ZenHub, zen_ctrl: ZenController, profiles: list[ZenProfile]
-    ) -> None:
+    def __init__(self, hub: ZenHub, zen_ctrl: ZenController, profiles: list[ZenProfile]) -> None:
         super().__init__(hub, zen_ctrl)
         self._ctrl = zen_ctrl
-        self._profiles: dict[str, ZenProfile] = {
-            p.label: p for p in profiles if p.label
-        }
+        self._profiles: dict[str, ZenProfile] = {p.label: p for p in profiles if p.label}
 
         self._attr_unique_id = f"{zen_ctrl.name}_profile"
         self._suggested_object_id = "profile"
@@ -107,14 +104,10 @@ class ZenGroupSceneSelectEntity(ZenControllerEntity, SelectEntity):
 
         self._attr_unique_id = f"{ctrl.name}_group_{zen_group.address.number}_scene"
         self._suggested_object_id = f"{zen_group.address.entity_id_string()}_scene"
-        self._attr_device_info = hub.device_info_for(
-            ctrl, assignment_key=group_assignment_key(zen_group)
-        )
+        self._attr_device_info = hub.device_info_for(ctrl, assignment_key=group_assignment_key(zen_group))
         # exclude_none drops the empty slots, but the library still types the
         # return as list[str | None].
-        scene_labels = [
-            label for label in zen_group.get_scene_labels(exclude_none=True) if label
-        ]
+        scene_labels = [label for label in zen_group.get_scene_labels(exclude_none=True) if label]
         self._attr_options = [SCENE_OFF, SCENE_NONE, *scene_labels]
         group_label = zen_group.label or f"Group {zen_group.address.number}"
         self._attr_translation_placeholders = {"group": group_label}

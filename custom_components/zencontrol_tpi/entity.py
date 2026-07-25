@@ -6,11 +6,7 @@ from typing import TYPE_CHECKING
 
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import Entity
-
-# ZenAddress.controller is typed as the API-layer controller, which the
-# interface-layer zencontrol.ZenController subclasses. Identity and DeviceInfo
-# only need the API-layer fields, so accept the wider type here.
-from zencontrol.api import ZenController as ZenControllerBase
+from zencontrol import ZenController
 
 from .const import DOMAIN, normalize_mac
 
@@ -18,7 +14,7 @@ if TYPE_CHECKING:
     from .hub import ZenHub
 
 
-def controller_identifier(zen_ctrl: ZenControllerBase) -> tuple[str, str]:
+def controller_identifier(zen_ctrl: ZenController) -> tuple[str, str]:
     """Stable parent-device identifier for a controller.
 
     Prefer MAC, which the config flow always records. ZenController.mac is
@@ -29,7 +25,7 @@ def controller_identifier(zen_ctrl: ZenControllerBase) -> tuple[str, str]:
     return (DOMAIN, zen_ctrl.name)
 
 
-def controller_device_info(zen_ctrl: ZenControllerBase) -> DeviceInfo:
+def controller_device_info(zen_ctrl: ZenController) -> DeviceInfo:
     """Build DeviceInfo for a Zen controller (hub / parent device)."""
     return DeviceInfo(
         identifiers={controller_identifier(zen_ctrl)},
@@ -41,7 +37,7 @@ def controller_device_info(zen_ctrl: ZenControllerBase) -> DeviceInfo:
 
 
 def sub_device_device_info(
-    zen_ctrl: ZenControllerBase,
+    zen_ctrl: ZenController,
     *,
     sub_device_id: str,
     sub_device_name: str,
@@ -67,9 +63,7 @@ class ZenControllerEntity(Entity):
     # Subclasses set this to request a stable entity object id.
     _suggested_object_id: str | None = None
 
-    def __init__(
-        self, hub: ZenHub, zen_ctrl: ZenControllerBase | None = None
-    ) -> None:
+    def __init__(self, hub: ZenHub, zen_ctrl: ZenController | None = None) -> None:
         self._hub = hub
         self._zen_ctrl = zen_ctrl
 

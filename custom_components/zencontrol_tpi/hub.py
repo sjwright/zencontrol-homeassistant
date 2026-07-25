@@ -5,7 +5,8 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Callable, Container, Coroutine
-from typing import TYPE_CHECKING, Any
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any, cast
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
@@ -26,19 +27,21 @@ from zencontrol import (
     ZenProfile,
     ZenSystemVariable,
 )
-from zencontrol.api import ZenController as ZenControllerBase
 
 from .const import (
     CONF_NAME,
-    CONTROLLER_READY_POLL_INTERVAL,
     CONTROLLER_READY_QUERY_TIMEOUT,
-    CONTROLLER_READY_WAIT_MAX,
     CONTROLLER_STATUS_ONLINE,
     CONTROLLER_STATUS_STARTING,
     CONTROLLER_STATUS_UNREACHABLE,
     DATA_PENDING_MANIFEST,
     DOMAIN,
     controller_from_entry_data,
+)
+from .discovery import (
+    ControllerNotReadyError,
+    discover_controller_entities,
+    wait_until_controller_ready,
 )
 from .entity import (
     controller_device_info,
@@ -63,7 +66,6 @@ from .sub_devices import (
     sub_devices_from_controller,
     sysvar_assignment_key,
 )
-from .sysvar import classify_sysvar_entity
 
 if TYPE_CHECKING:
     from .binary_sensor import ZenMotionSensorEntity
@@ -88,6 +90,35 @@ _ENTITY_ADD_TIMEOUT = 60.0
 
 # Entry IDs that should force full bus discovery on the next setup (reload).
 _FORCE_FULL_DISCOVERY: set[str] = set()
+
+
+@dataclass(slots=True)
+class _BoundEntity:
+    """One HA entity registered against this hub, with device-assignment info."""
+
+    entity: Entity
+    controller: ZenController
+    assignment_key: str | None
+
+
+def _scene_select_key(group: ZenGroup) -> str:
+    return f"scene_select:{group.address.controller.name}:{group.address.number}"
+
+
+def _scene_key(group: ZenGroup, scene_number: int) -> str:
+    return f"scene:{group.address.controller.name}:{group.address.number}:{scene_number}"
+
+
+def _profile_key(controller_name: str) -> str:
+    return f"profile:{controller_name}"
+
+
+def _sv_sensor_key(sv: ZenSystemVariable) -> str:
+    return f"sensor:{sysvar_assignment_key(sv)}"
+
+
+def _sv_switch_key(sv: ZenSystemVariable) -> str:
+    return f"switch:{sysvar_assignment_key(sv)}"
 
 
 def pop_force_full_discovery(entry_id: str) -> bool:
@@ -126,8 +157,6 @@ class ZenHub:
         self._attached = False
 
         self.controller: ZenController | None = None
-        # Compatibility alias used by platforms/tests that iterate controllers.
-        self.controllers: list[ZenController] = []
 
         self.lights: list[ZenLight] = []
         self.groups: list[ZenGroup] = []
@@ -144,25 +173,8 @@ class ZenHub:
         # True only after a successful async_start (events configured).
         self._setup_complete = False
 
-        self._light_entities: dict[ZenLight, ZenLightEntity] = {}
-        self._group_entities: dict[ZenGroup, ZenGroupEntity] = {}
-        self._button_entities: dict[ZenButton, ZenButtonEntity] = {}
-        self._motion_sensor_entities: dict[
-            ZenMotionSensor, ZenMotionSensorEntity
-        ] = {}
-        self._absolute_input_entities: dict[
-            ZenAbsoluteInput, ZenAbsoluteInputSensorEntity
-        ] = {}
-        self._sv_sensor_entities: dict[
-            ZenSystemVariable, ZenSystemVariableSensorEntity
-        ] = {}
-        self._sv_switch_entities: dict[
-            ZenSystemVariable, ZenSystemVariableSwitchEntity
-        ] = {}
-        # Keyed by controller name, since one select covers all its profiles.
-        self._profile_entities: dict[str, ZenProfileSelectEntity] = {}
-        self._scene_select_entities: dict[ZenGroup, ZenGroupSceneSelectEntity] = {}
-        self._scene_entities: dict[tuple[ZenGroup, int], ZenGroupSceneEntity] = {}
+        # All platform entities except the diagnostic status sensor.
+        self._entities: dict[str, _BoundEntity] = {}
         self._status_entity: ZenControllerStatusSensor | None = None
 
         self._sub_devices_by_controller: dict[str, list[SubDeviceDef]] = {}
@@ -174,6 +186,16 @@ class ZenHub:
         return self.runtime.zen
 
     @property
+    def controllers(self) -> list[ZenController]:
+        """Compatibility: platforms/tests that iterate controllers."""
+        return [self.controller] if self.controller is not None else []
+
+    @property
+    def stopping(self) -> bool:
+        """True while this hub is detaching from the shared runtime."""
+        return self._stopping
+
+    @property
     def controller_status(self) -> str:
         """Return online / starting / unreachable for this controller."""
         return self._controller_status
@@ -181,14 +203,9 @@ class ZenHub:
     @property
     def available(self) -> bool:
         """Return True when the listener is up and this controller is online."""
-        return (
-            self.runtime.listener_up
-            and self._controller_status == CONTROLLER_STATUS_ONLINE
-        )
+        return self.runtime.listener_up and self._controller_status == CONTROLLER_STATUS_ONLINE
 
-    def is_controller_available(
-        self, zen_ctrl: ZenControllerBase | None = None
-    ) -> bool:
+    def is_controller_available(self, zen_ctrl: ZenController | None = None) -> bool:
         """Return availability for this hub's controller.
 
         Entities are unavailable while the controller reports not-ready
@@ -226,23 +243,19 @@ class ZenHub:
 
     def device_info_for(
         self,
-        zen_ctrl: ZenControllerBase,
+        zen_ctrl: ZenController,
         *,
         assignment_key: str | None = None,
     ) -> DeviceInfo:
         """Return parent or sub-device DeviceInfo for an assignment key."""
-        sub_id = (
-            self._sub_device_assignments.get(assignment_key) if assignment_key else None
-        )
+        sub_id = self._sub_device_assignments.get(assignment_key) if assignment_key else None
         if not sub_id:
             return controller_device_info(zen_ctrl)
         devices = self._sub_devices_by_controller.get(zen_ctrl.name) or []
         device = next((d for d in devices if d.id == sub_id), None)
         if device is None:
             return controller_device_info(zen_ctrl)
-        return sub_device_device_info(
-            zen_ctrl, sub_device_id=device.id, sub_device_name=device.name
-        )
+        return sub_device_device_info(zen_ctrl, sub_device_id=device.id, sub_device_name=device.name)
 
     def sync_device_assignments(self) -> None:
         """Idempotently assign every entity to its controller or sub-device."""
@@ -252,25 +265,19 @@ class ZenHub:
         entity_registry = er.async_get(self.hass)
         expected_identifiers = self._expected_device_identifiers()
 
-        for zen_ctrl in self.controllers:
-            self._ensure_registry_device(
-                device_registry, controller_device_info(zen_ctrl)
-            )
-
-        for zen_ctrl in self.controllers:
-            for device_def in self._sub_devices_by_controller.get(zen_ctrl.name) or []:
+        if self.controller is not None:
+            self._ensure_registry_device(device_registry, controller_device_info(self.controller))
+            for device_def in self._sub_devices_by_controller.get(self.controller.name) or []:
                 device = self._ensure_registry_device(
                     device_registry,
                     sub_device_device_info(
-                        zen_ctrl,
+                        self.controller,
                         sub_device_id=device_def.id,
                         sub_device_name=device_def.name,
                     ),
                 )
                 if device.area_id != device_def.area_id:
-                    device_registry.async_update_device(
-                        device.id, area_id=device_def.area_id
-                    )
+                    device_registry.async_update_device(device.id, area_id=device_def.area_id)
 
         updated = 0
         for entity, zen_ctrl, key in self._iter_device_assignment_targets():
@@ -307,8 +314,7 @@ class ZenHub:
         removed = self._prune_orphaned_devices(device_registry, expected_identifiers)
 
         _LOGGER.info(
-            "Synced device assignments: %d entities updated, %d orphan devices "
-            "removed (%d assignment keys)",
+            "Synced device assignments: %d entities updated, %d orphan devices removed (%d assignment keys)",
             updated,
             removed,
             len(self._sub_device_assignments),
@@ -337,9 +343,7 @@ class ZenHub:
         if ctrl_cfg:
             name = ctrl_cfg.get(CONF_NAME)
             if name:
-                self._sub_devices_by_controller[name] = sub_devices_from_controller(
-                    ctrl_cfg
-                )
+                self._sub_devices_by_controller[name] = sub_devices_from_controller(ctrl_cfg)
 
         sysvars = list({*self.sv_switches, *self.sv_sensors})
         self._sub_device_assignments = build_assignments(
@@ -355,11 +359,12 @@ class ZenHub:
     def _expected_device_identifiers(self) -> set[tuple[str, str]]:
         """Identifiers for controllers and sub-devices that should exist."""
         expected: set[tuple[str, str]] = set()
-        for zen_ctrl in self.controllers:
-            parent = controller_identifier(zen_ctrl)
-            expected.add(parent)
-            for device_def in self._sub_devices_by_controller.get(zen_ctrl.name) or []:
-                expected.add((DOMAIN, f"{parent[1]}:sub:{device_def.id}"))
+        if self.controller is None:
+            return expected
+        parent = controller_identifier(self.controller)
+        expected.add(parent)
+        for device_def in self._sub_devices_by_controller.get(self.controller.name) or []:
+            expected.add((DOMAIN, f"{parent[1]}:sub:{device_def.id}"))
         return expected
 
     def _prune_orphaned_devices(
@@ -372,12 +377,8 @@ class ZenHub:
             return 0
 
         removed = 0
-        for device in dr.async_entries_for_config_entry(
-            device_registry, self.entry.entry_id
-        ):
-            domain_idents = {
-                ident for ident in device.identifiers if ident[0] == DOMAIN
-            }
+        for device in dr.async_entries_for_config_entry(device_registry, self.entry.entry_id):
+            domain_idents = {ident for ident in device.identifiers if ident[0] == DOMAIN}
             if not domain_idents:
                 continue
             if domain_idents.isdisjoint(expected_identifiers):
@@ -387,116 +388,61 @@ class ZenHub:
 
     def _iter_device_assignment_targets(
         self,
-    ) -> list[tuple[Entity, ZenControllerBase, str | None]]:
+    ) -> list[tuple[Entity, ZenController, str | None]]:
         """Return (entity, controller, assignment_key) for every hub entity."""
-        targets: list[tuple[Entity, ZenControllerBase, str | None]] = []
-        for zen_light, entity in self._light_entities.items():
-            targets.append(
-                (entity, zen_light.address.controller, light_assignment_key(zen_light))
-            )
-        for zen_group, entity in self._group_entities.items():
-            targets.append(
-                (entity, zen_group.address.controller, group_assignment_key(zen_group))
-            )
-        for zen_group, entity in self._scene_select_entities.items():
-            targets.append(
-                (entity, zen_group.address.controller, group_assignment_key(zen_group))
-            )
-        for (zen_group, _), entity in self._scene_entities.items():
-            targets.append(
-                (entity, zen_group.address.controller, group_assignment_key(zen_group))
-            )
-        for zen_button, entity in self._button_entities.items():
-            targets.append(
-                (
-                    entity,
-                    zen_button.instance.address.controller,
-                    button_assignment_key(zen_button),
-                )
-            )
-        for zen_sensor, entity in self._motion_sensor_entities.items():
-            targets.append(
-                (
-                    entity,
-                    zen_sensor.instance.address.controller,
-                    motion_assignment_key(zen_sensor),
-                )
-            )
-        for zen_input, entity in self._absolute_input_entities.items():
-            targets.append(
-                (
-                    entity,
-                    zen_input.instance.address.controller,
-                    absolute_input_assignment_key(zen_input),
-                )
-            )
-        for zen_sv, entity in self._sv_sensor_entities.items():
-            targets.append(
-                (entity, zen_sv.controller, sysvar_assignment_key(zen_sv))
-            )
-        for zen_sv, entity in self._sv_switch_entities.items():
-            targets.append(
-                (entity, zen_sv.controller, sysvar_assignment_key(zen_sv))
-            )
-        for ctrl_name, entity in self._profile_entities.items():
-            ctrl = next((c for c in self.controllers if c.name == ctrl_name), None)
-            if ctrl is not None:
-                targets.append((entity, ctrl, None))
-        return targets
+        return [(bound.entity, bound.controller, bound.assignment_key) for bound in self._entities.values()]
 
     # ------------------------------------------------------------------
     # Entity registration
     # ------------------------------------------------------------------
 
-    def register_light_entity(
-        self, zen_light: ZenLight, entity: ZenLightEntity
+    def _bind(
+        self,
+        key: str,
+        entity: Entity,
+        controller: ZenController,
+        assignment_key: str | None,
     ) -> None:
-        self._light_entities[zen_light] = entity
+        self._entities[key] = _BoundEntity(entity, controller, assignment_key)
 
-    def register_group_entity(
-        self, zen_group: ZenGroup, entity: ZenGroupEntity
-    ) -> None:
-        self._group_entities[zen_group] = entity
+    def _entity(self, key: str) -> Entity | None:
+        bound = self._entities.get(key)
+        return bound.entity if bound is not None else None
 
-    def register_button_entity(
-        self, zen_button: ZenButton, entity: ZenButtonEntity
-    ) -> None:
-        self._button_entities[zen_button] = entity
+    def register_light_entity(self, zen_light: ZenLight, entity: ZenLightEntity) -> None:
+        key = light_assignment_key(zen_light)
+        self._bind(key, entity, zen_light.address.controller, key)
 
-    def register_motion_sensor_entity(
-        self, zen_sensor: ZenMotionSensor, entity: ZenMotionSensorEntity
-    ) -> None:
-        self._motion_sensor_entities[zen_sensor] = entity
+    def register_group_entity(self, zen_group: ZenGroup, entity: ZenGroupEntity) -> None:
+        key = group_assignment_key(zen_group)
+        self._bind(key, entity, zen_group.address.controller, key)
 
-    def register_absolute_input_entity(
-        self, zen_input: ZenAbsoluteInput, entity: ZenAbsoluteInputSensorEntity
-    ) -> None:
-        self._absolute_input_entities[zen_input] = entity
+    def register_button_entity(self, zen_button: ZenButton, entity: ZenButtonEntity) -> None:
+        key = button_assignment_key(zen_button)
+        self._bind(key, entity, zen_button.instance.address.controller, key)
 
-    def register_sv_sensor_entity(
-        self, zen_sv: ZenSystemVariable, entity: ZenSystemVariableSensorEntity
-    ) -> None:
-        self._sv_sensor_entities[zen_sv] = entity
+    def register_motion_sensor_entity(self, zen_sensor: ZenMotionSensor, entity: ZenMotionSensorEntity) -> None:
+        key = motion_assignment_key(zen_sensor)
+        self._bind(key, entity, zen_sensor.instance.address.controller, key)
 
-    def register_sv_switch_entity(
-        self, zen_sv: ZenSystemVariable, entity: ZenSystemVariableSwitchEntity
-    ) -> None:
-        self._sv_switch_entities[zen_sv] = entity
+    def register_absolute_input_entity(self, zen_input: ZenAbsoluteInput, entity: ZenAbsoluteInputSensorEntity) -> None:
+        key = absolute_input_assignment_key(zen_input)
+        self._bind(key, entity, zen_input.instance.address.controller, key)
 
-    def register_profile_entity(
-        self, zen_controller: ZenControllerBase, entity: ZenProfileSelectEntity
-    ) -> None:
-        self._profile_entities[zen_controller.name] = entity
+    def register_sv_sensor_entity(self, zen_sv: ZenSystemVariable, entity: ZenSystemVariableSensorEntity) -> None:
+        self._bind(_sv_sensor_key(zen_sv), entity, zen_sv.controller, sysvar_assignment_key(zen_sv))
 
-    def register_scene_select_entity(
-        self, zen_group: ZenGroup, entity: ZenGroupSceneSelectEntity
-    ) -> None:
-        self._scene_select_entities[zen_group] = entity
+    def register_sv_switch_entity(self, zen_sv: ZenSystemVariable, entity: ZenSystemVariableSwitchEntity) -> None:
+        self._bind(_sv_switch_key(zen_sv), entity, zen_sv.controller, sysvar_assignment_key(zen_sv))
 
-    def register_scene_entity(
-        self, zen_group: ZenGroup, scene_number: int, entity: ZenGroupSceneEntity
-    ) -> None:
-        self._scene_entities[(zen_group, scene_number)] = entity
+    def register_profile_entity(self, zen_controller: ZenController, entity: ZenProfileSelectEntity) -> None:
+        self._bind(_profile_key(zen_controller.name), entity, zen_controller, None)
+
+    def register_scene_select_entity(self, zen_group: ZenGroup, entity: ZenGroupSceneSelectEntity) -> None:
+        self._bind(_scene_select_key(zen_group), entity, zen_group.address.controller, group_assignment_key(zen_group))
+
+    def register_scene_entity(self, zen_group: ZenGroup, scene_number: int, entity: ZenGroupSceneEntity) -> None:
+        self._bind(_scene_key(zen_group, scene_number), entity, zen_group.address.controller, group_assignment_key(zen_group))
 
     def register_discovery_callback(self, callback: DiscoveryCallback) -> None:
         """Register a coroutine to call when discovery completes."""
@@ -521,15 +467,10 @@ class ZenHub:
             raise ConfigEntryNotReady("Config entry has no controller")
 
         self.controller = await self.runtime.async_attach(self, ctrl_cfg)
-        self.controllers = [self.controller]
         self._attached = True
         self.set_controller_status(CONTROLLER_STATUS_UNREACHABLE)
 
-        self.entry.async_on_unload(
-            self.hass.bus.async_listen_once(
-                EVENT_HOMEASSISTANT_STOP, self._async_hass_stop
-            )
-        )
+        self.entry.async_on_unload(self.hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, self._async_hass_stop))
 
     async def _async_hass_stop(self, _event: Event) -> None:
         """Close connections as soon as Home Assistant begins shutting down."""
@@ -548,9 +489,7 @@ class ZenHub:
             already_started = self.runtime.started
             await self.runtime.async_ensure_started()
             if already_started:
-                await self.runtime.async_configure_controller_events(
-                    self.controller
-                )
+                await self.runtime.async_configure_controller_events(self.controller)
             # Platforms may register during notify; only then mark online so
             # keepalive/on_connect cannot race entities into "available" early.
             await self._notify_discovery_complete()
@@ -567,9 +506,7 @@ class ZenHub:
         except Exception as err:
             self.set_controller_status(CONTROLLER_STATUS_UNREACHABLE)
             await self._async_notify_discovery_best_effort()
-            raise ConfigEntryNotReady(
-                f"zencontrol setup failed: {err}"
-            ) from err
+            raise ConfigEntryNotReady(f"zencontrol setup failed: {err}") from err
 
     def _entry_tracked_tasks(self) -> set[asyncio.Future[Any]]:
         """Return tasks created via ``ConfigEntry.async_create_task``.
@@ -590,11 +527,7 @@ class ZenHub:
         Unlike ``hass.async_block_till_done()``, this never waits on unrelated
         hass tasks (which deadlocks when CREATE_ENTRY is awaiting setup).
         """
-        pending = [
-            task
-            for task in self._entry_tracked_tasks()
-            if task not in before and not task.done()
-        ]
+        pending = [task for task in self._entry_tracked_tasks() if task not in before and not task.done()]
         if not pending:
             return
 
@@ -604,15 +537,11 @@ class ZenHub:
             what,
             self.entry.entry_id,
         )
-        done, not_done = await asyncio.wait(
-            pending, timeout=_ENTITY_ADD_TIMEOUT
-        )
+        done, not_done = await asyncio.wait(pending, timeout=_ENTITY_ADD_TIMEOUT)
         if not_done:
             for task in not_done:
                 task.cancel()
-            raise ConfigEntryNotReady(
-                f"Timed out after {_ENTITY_ADD_TIMEOUT:.0f}s waiting for {what}"
-            )
+            raise ConfigEntryNotReady(f"Timed out after {_ENTITY_ADD_TIMEOUT:.0f}s waiting for {what}")
         for task in done:
             if task.cancelled():
                 raise asyncio.CancelledError
@@ -620,16 +549,12 @@ class ZenHub:
             if exc is not None:
                 raise ConfigEntryNotReady(f"{what} failed: {exc}") from exc
 
-    async def _async_run_discovery_callback(
-        self, callback: DiscoveryCallback
-    ) -> None:
+    async def _async_run_discovery_callback(self, callback: DiscoveryCallback) -> None:
         """Run one platform callback and await entity-adds it schedules."""
         before = set(self._entry_tracked_tasks())
         await callback()
-        await self._async_await_new_entry_tasks(
-            before, what="platform entity add"
-        )
-        if not self._stopping:
+        await self._async_await_new_entry_tasks(before, what="platform entity add")
+        if not self.stopping:
             self.sync_device_assignments()
 
     async def _wait_for_controller(self) -> None:
@@ -644,39 +569,14 @@ class ZenHub:
         assert ctrl is not None
         _LOGGER.info("Waiting for controller %s to be ready…", ctrl.label)
         self.set_controller_status(CONTROLLER_STATUS_STARTING)
-        deadline = (
-            asyncio.get_running_loop().time() + CONTROLLER_READY_WAIT_MAX
-        )
-        while True:
-            try:
-                ready = await asyncio.wait_for(
-                    ctrl.is_controller_ready(),
-                    timeout=CONTROLLER_READY_QUERY_TIMEOUT,
-                )
-            except TimeoutError:
-                ready = None
-
-            if ready is None:
-                self.set_controller_status(CONTROLLER_STATUS_UNREACHABLE)
-                raise ConfigEntryNotReady(
-                    f"Cannot reach controller {ctrl.label} ({ctrl.host})"
-                )
-            if ready is True:
-                break
-            self.set_controller_status(CONTROLLER_STATUS_STARTING)
-            if asyncio.get_running_loop().time() >= deadline:
-                raise ConfigEntryNotReady(
-                    f"Controller {ctrl.label} ({ctrl.host}) still starting "
-                    f"after {CONTROLLER_READY_WAIT_MAX:.0f}s"
-                )
-            _LOGGER.info(
-                "Controller %s still starting up, retrying in %ds…",
-                ctrl.label,
-                CONTROLLER_READY_POLL_INTERVAL,
+        try:
+            await wait_until_controller_ready(
+                ctrl,
+                on_unreachable=lambda: self.set_controller_status(CONTROLLER_STATUS_UNREACHABLE),
+                on_starting=lambda: self.set_controller_status(CONTROLLER_STATUS_STARTING),
             )
-            await asyncio.sleep(CONTROLLER_READY_POLL_INTERVAL)
-
-        await ctrl.interview()
+        except ControllerNotReadyError as err:
+            raise ConfigEntryNotReady(str(err)) from err
         ctrl.connected = True
         # Stay "starting" until async_start finishes listener/event setup.
         # Marking online here made the status sensor lie (and briefly marked
@@ -696,18 +596,10 @@ class ZenHub:
             pending = None
             domain_data = self.hass.data.get(DOMAIN, {})
             pending_map = domain_data.get(DATA_PENDING_MANIFEST)
-            if isinstance(pending_map, dict):
-                # New shape: mac_id → {"manifest": ...}
-                if self.entry.unique_id in pending_map:
-                    pending = pending_map.pop(self.entry.unique_id)
-                    if not pending_map:
-                        domain_data.pop(DATA_PENDING_MANIFEST, None)
-                # Legacy single-blob shape (unique_id + manifest keys)
-                elif (
-                    pending_map.get("unique_id") == self.entry.unique_id
-                    and isinstance(pending_map.get("manifest"), dict)
-                ):
-                    pending = domain_data.pop(DATA_PENDING_MANIFEST)
+            if isinstance(pending_map, dict) and self.entry.unique_id in pending_map:
+                pending = pending_map.pop(self.entry.unique_id)
+                if not pending_map:
+                    domain_data.pop(DATA_PENDING_MANIFEST, None)
 
             if isinstance(pending, dict) and isinstance(pending.get("manifest"), dict):
                 _LOGGER.info("Loading entities from config-flow discovery manifest")
@@ -723,16 +615,10 @@ class ZenHub:
                 needs_save = await load_entities_from_manifest(self, manifest)
                 if needs_save or from_pending:
                     if needs_save:
-                        _LOGGER.info(
-                            "Cached manifest outdated; re-saving after hydrate failures"
-                        )
-                    await self._manifest_store.async_save(
-                        build_manifest(self) if needs_save else manifest
-                    )
+                        _LOGGER.info("Cached manifest outdated; re-saving after hydrate failures")
+                    await self._manifest_store.async_save(build_manifest(self) if needs_save else manifest)
             except (KeyError, TypeError, ValueError) as err:
-                _LOGGER.warning(
-                    "Cached manifest invalid (%s), running full discovery", err
-                )
+                _LOGGER.warning("Cached manifest invalid (%s), running full discovery", err)
                 manifest = None
 
         if not manifest:
@@ -760,58 +646,21 @@ class ZenHub:
     async def _run_full_discovery(self) -> None:
         """Scan the bus for entity types on this controller only."""
         assert self.controller is not None
-        zen = self.zen
-
-        raw_lights = await zen.get_lights(controller=self.controller)
-        raw_groups = await zen.get_groups(controller=self.controller)
-        raw_buttons = await zen.get_buttons(controller=self.controller)
-        raw_sensors = await zen.get_motion_sensors(controller=self.controller)
-        raw_absolute = await zen.get_absolute_inputs(controller=self.controller)
-        raw_svars = await zen.get_system_variables(controller=self.controller)
-        raw_profiles = await zen.get_profiles(controller=self.controller)
-
-        self.lights = sorted(raw_lights, key=lambda lt: lt.address.number)
-        self.groups = sorted(raw_groups, key=lambda g: g.address.number)
-        self.buttons = sorted(
-            raw_buttons,
-            key=lambda b: (b.instance.address.number, b.instance.number),
-        )
-        self.motion_sensors = sorted(
-            raw_sensors,
-            key=lambda s: (s.instance.address.number, s.instance.number),
-        )
-        self.absolute_inputs = sorted(
-            raw_absolute,
-            key=lambda a: (a.instance.address.number, a.instance.number),
-        )
-        self.profiles = sorted(
-            raw_profiles, key=lambda p: (p.controller.name, p.number)
-        )
-
-        self.sv_switches = []
-        self.sv_sensors = []
-        for sv in sorted(raw_svars, key=lambda s: s.id):
-            as_sensor, as_switch = classify_sysvar_entity(sv)
-            if as_switch:
-                self.sv_switches.append(sv)
-            if as_sensor:
-                self.sv_sensors.append(sv)
+        found = await discover_controller_entities(self.zen, self.controller)
+        self.lights = found.lights
+        self.groups = found.groups
+        self.buttons = found.buttons
+        self.motion_sensors = found.motion_sensors
+        self.absolute_inputs = found.absolute_inputs
+        self.sv_switches = found.sv_switches
+        self.sv_sensors = found.sv_sensors
+        self.profiles = found.profiles
 
     async def _refresh_light_states(self) -> None:
         """Batch refresh runtime state after discovery."""
-        coros: list[Coroutine[Any, Any, Any]] = [
-            light.refresh_state_from_controller()
-            for light in self.lights
-        ]
-        coros.extend(
-            group.refresh_state_from_controller()
-            for group in self.groups
-            if group.lights
-        )
-        coros.extend(
-            sensor.refresh_state_from_controller()
-            for sensor in self.motion_sensors
-        )
+        coros: list[Coroutine[Any, Any, Any]] = [light.refresh_state_from_controller() for light in self.lights]
+        coros.extend(group.refresh_state_from_controller() for group in self.groups if group.lights)
+        coros.extend(sensor.refresh_state_from_controller() for sensor in self.motion_sensors)
         seen_sv: set[tuple[str, int]] = set()
         for sv in (*self.sv_switches, *self.sv_sensors):
             key = (sv.controller.name, sv.id)
@@ -820,12 +669,8 @@ class ZenHub:
             seen_sv.add(key)
             coros.append(sv.refresh_state_from_controller())
         if coros:
-            _LOGGER.debug(
-                "Refreshing state for %d lights/groups/sysvars", len(coros)
-            )
-            results = await self._rate_limiter.execute_batch(
-                coros, return_exceptions=True
-            )
+            _LOGGER.debug("Refreshing state for %d lights/groups/sysvars", len(coros))
+            results = await self._rate_limiter.execute_batch(coros, return_exceptions=True)
             for result in results:
                 if isinstance(result, Exception):
                     _LOGGER.warning("State refresh failed: %s", result)
@@ -861,13 +706,11 @@ class ZenHub:
         before = set(self._entry_tracked_tasks())
         for callback in callbacks:
             await callback()
-        await self._async_await_new_entry_tasks(
-            before, what="platform entity add"
-        )
+        await self._async_await_new_entry_tasks(before, what="platform entity add")
 
     async def async_stop(self) -> None:
         """Detach this entry from the shared runtime."""
-        if self._stopping:
+        if self.stopping:
             return
         self._stopping = True
         self._setup_complete = False
@@ -897,7 +740,7 @@ class ZenHub:
                 # unavailable until discovery + event configure finish.
                 if self._setup_complete:
                     self.set_controller_status(CONTROLLER_STATUS_ONLINE)
-                    if not self._stopping:
+                    if not self.stopping:
                         await self._refresh_light_states()
                 else:
                     self.set_controller_status(CONTROLLER_STATUS_STARTING)
@@ -921,60 +764,47 @@ class ZenHub:
             return
         was_online = self._controller_status == CONTROLLER_STATUS_ONLINE
         self.set_controller_status(status)
-        if (
-            status == CONTROLLER_STATUS_ONLINE
-            and not was_online
-            and self._setup_complete
-            and not self._stopping
-        ):
+        if status == CONTROLLER_STATUS_ONLINE and not was_online and self._setup_complete and not self.stopping:
             await self._refresh_light_states()
 
     def _write_entity_states(self) -> None:
         """Push current state (including availability) for all registered entities."""
-        for entity in (
-            *self._light_entities.values(),
-            *self._group_entities.values(),
-            *self._button_entities.values(),
-            *self._motion_sensor_entities.values(),
-            *self._absolute_input_entities.values(),
-            *self._sv_sensor_entities.values(),
-            *self._sv_switch_entities.values(),
-            *self._profile_entities.values(),
-            *self._scene_select_entities.values(),
-            *self._scene_entities.values(),
-        ):
-            if entity.entity_id:
-                entity.async_write_ha_state()
+        for bound in self._entities.values():
+            if bound.entity.entity_id:
+                bound.entity.async_write_ha_state()
 
     def handle_light_change(self, light: ZenLight) -> None:
-        if (entity := self._light_entities.get(light)) is not None:
-            entity.update_state()
+        entity = self._entity(light_assignment_key(light))
+        if entity is not None:
+            cast(Any, entity).update_state()
 
     def handle_group_change(self, group: ZenGroup) -> None:
-        if (group_entity := self._group_entities.get(group)) is not None:
-            group_entity.update_state()
-        if (scene_select := self._scene_select_entities.get(group)) is not None:
-            scene_select.update_current_option()
+        group_entity = self._entity(group_assignment_key(group))
+        if group_entity is not None:
+            cast(Any, group_entity).update_state()
+        scene_select = self._entity(_scene_select_key(group))
+        if scene_select is not None:
+            cast(Any, scene_select).update_current_option()
 
     def handle_button_press(self, button: ZenButton) -> None:
-        if (entity := self._button_entities.get(button)) is not None:
-            entity.trigger_event("short_press")
+        entity = self._entity(button_assignment_key(button))
+        if entity is not None:
+            cast(Any, entity).trigger_event("short_press")
 
     def handle_button_long_press(self, button: ZenButton) -> None:
-        if (entity := self._button_entities.get(button)) is not None:
-            entity.trigger_event("long_press")
+        entity = self._entity(button_assignment_key(button))
+        if entity is not None:
+            cast(Any, entity).trigger_event("long_press")
 
-    def handle_motion_event(
-        self, sensor: ZenMotionSensor, occupied: bool
-    ) -> None:
-        if (entity := self._motion_sensor_entities.get(sensor)) is not None:
-            entity.update_occupied(occupied)
+    def handle_motion_event(self, sensor: ZenMotionSensor, occupied: bool) -> None:
+        entity = self._entity(motion_assignment_key(sensor))
+        if entity is not None:
+            cast(Any, entity).update_occupied(occupied)
 
-    def handle_absolute_input_change(
-        self, absolute_input: ZenAbsoluteInput, value: int
-    ) -> None:
-        if (entity := self._absolute_input_entities.get(absolute_input)) is not None:
-            entity.update_value(value)
+    def handle_absolute_input_change(self, absolute_input: ZenAbsoluteInput, value: int) -> None:
+        entity = self._entity(absolute_input_assignment_key(absolute_input))
+        if entity is not None:
+            cast(Any, entity).update_value(value)
 
     def handle_sv_change(
         self,
@@ -983,16 +813,19 @@ class ZenHub:
         *,
         by_me: bool,
     ) -> None:
-        if (sensor_entity := self._sv_sensor_entities.get(system_variable)) is not None:
-            sensor_entity.update_value(value)
+        sensor_entity = self._entity(_sv_sensor_key(system_variable))
+        if sensor_entity is not None:
+            cast(Any, sensor_entity).update_value(value)
         if by_me:
             return
-        if (switch_entity := self._sv_switch_entities.get(system_variable)) is not None:
-            switch_entity.update_value(value)
+        switch_entity = self._entity(_sv_switch_key(system_variable))
+        if switch_entity is not None:
+            cast(Any, switch_entity).update_value(value)
 
     def handle_profile_change(self, profile: ZenProfile) -> None:
-        if (entity := self._profile_entities.get(profile.controller.name)) is not None:
-            entity.update_current_option()
+        entity = self._entity(_profile_key(profile.controller.name))
+        if entity is not None:
+            cast(Any, entity).update_current_option()
 
 
 type ZencontrolTpiConfigEntry = ConfigEntry[ZenHub]

@@ -39,12 +39,8 @@ async def async_setup_entry(
     async_add_entities([ZenControllerStatusSensor(hub)])
 
     async def on_discovery() -> None:
-        entities: list[SensorEntity] = [
-            ZenSystemVariableSensorEntity(hub, sv) for sv in hub.sv_sensors
-        ]
-        entities.extend(
-            ZenAbsoluteInputSensorEntity(hub, inp) for inp in hub.absolute_inputs
-        )
+        entities: list[SensorEntity] = [ZenSystemVariableSensorEntity(hub, sv) for sv in hub.sv_sensors]
+        entities.extend(ZenAbsoluteInputSensorEntity(hub, inp) for inp in hub.absolute_inputs)
         if entities:
             async_add_entities(entities)
 
@@ -77,7 +73,7 @@ class ZenControllerStatusSensor(ZenControllerEntity, SensorEntity):
     @property
     def available(self) -> bool:
         """Keep status visible during starting / unreachable."""
-        return not self._hub._stopping  # noqa: SLF001
+        return not self._hub.stopping
 
     @property
     def native_value(self) -> str:
@@ -103,9 +99,7 @@ class ZenSystemVariableSensorEntity(ZenControllerEntity, SensorEntity):
 
         self._attr_unique_id = f"{ctrl.name}_sv{zen_sv.id}_sensor"
         self._suggested_object_id = f"sv{zen_sv.id}"
-        self._attr_device_info = hub.device_info_for(
-            ctrl, assignment_key=sysvar_assignment_key(zen_sv)
-        )
+        self._attr_device_info = hub.device_info_for(ctrl, assignment_key=sysvar_assignment_key(zen_sv))
         self._attr_name = zen_sv.label or f"System Variable {zen_sv.id}"
         lower_label = (zen_sv.label or "").casefold()
         if lower_label.endswith("lux sensor"):
@@ -135,12 +129,8 @@ class ZenAbsoluteInputSensorEntity(ZenControllerEntity, SensorEntity):
 
         self._attr_unique_id = f"{ctrl.name}_ecd{addr}_abs{inst}"
         self._suggested_object_id = zen_input.instance.entity_id_string()
-        self._attr_device_info = hub.device_info_for(
-            ctrl, assignment_key=absolute_input_assignment_key(zen_input)
-        )
-        self._attr_name = (
-            instance_display_label(zen_input) or f"Absolute Input {addr}"
-        )
+        self._attr_device_info = hub.device_info_for(ctrl, assignment_key=absolute_input_assignment_key(zen_input))
+        self._attr_name = instance_display_label(zen_input) or f"Absolute Input {addr}"
         # Controllers push value-change events only; None until first event.
         self._attr_native_value = zen_input.value
 

@@ -51,10 +51,7 @@ class Interviewable(Protocol):
 
 
 class DiscoveredEntities(Protocol):
-    """One controller's discovered entities, as gathered by bus discovery.
-
-    Satisfied by ZenHub and by the config flow's pre-setup discovery snapshot.
-    """
+    """Entity lists accepted by build_manifest (ZenHub or discovery result)."""
 
     lights: list[ZenLight]
     groups: list[ZenGroup]
@@ -89,9 +86,7 @@ class DiscoveryManifestStore:
             # migrate storage between versions but no migration function is
             # implemented. Treat this as "no cached manifest" so we can fall
             # back to full discovery.
-            _LOGGER.warning(
-                "Cached manifest store migration not implemented; ignoring cache"
-            )
+            _LOGGER.warning("Cached manifest store migration not implemented; ignoring cache")
             return None
         if not isinstance(data, dict):
             return None
@@ -113,9 +108,7 @@ def _interview_blob(obj: Interviewable) -> dict[str, Any]:
     return json.loads(obj.interview_serialize())
 
 
-async def _hydrate_or_interview(
-    obj: Interviewable, interview: str | dict[str, Any] | None
-) -> bool:
+async def _hydrate_or_interview(obj: Interviewable, interview: str | dict[str, Any] | None) -> bool:
     """Apply interview_hydrate; fall back to a live interview on failure.
 
     Returns True when we had to run `interview()` (so the manifest is now
@@ -212,16 +205,14 @@ def build_manifest(source: DiscoveredEntities) -> dict[str, Any]:
     }
 
 
-async def load_entities_from_manifest(
-    hub: ZenHub, manifest: dict[str, Any]
-) -> bool:
+async def load_entities_from_manifest(hub: ZenHub, manifest: dict[str, Any]) -> bool:
     """Rebuild hub entity lists from a saved interview manifest.
 
     Lights must be hydrated before groups so ZenLight.interview_hydrate() can
     populate group.lights membership on the group singletons via
     group_membership. Controllers are already interviewed by the hub.
     """
-    ctrl_by_name = {c.name: c for c in hub.controllers}
+    ctrl_by_name = {hub.controller.name: hub.controller} if hub.controller is not None else {}
     protocol = hub.zen.protocol
     needs_save = False
 
@@ -234,9 +225,7 @@ async def load_entities_from_manifest(
     hub.lights = []
     for item in manifest.get("lights", []):
         ctrl = _ctrl(item["controller"])
-        addr = ZenAddress(
-            controller=ctrl, type=ZenAddressType.ECG, number=item["number"]
-        )
+        addr = ZenAddress(controller=ctrl, type=ZenAddressType.ECG, number=item["number"])
         light = ZenLight(protocol, addr)
         if await _hydrate_or_interview(light, item.get("interview")):
             needs_save = True
@@ -245,9 +234,7 @@ async def load_entities_from_manifest(
     hub.groups = []
     for item in manifest.get("groups", []):
         ctrl = _ctrl(item["controller"])
-        addr = ZenAddress(
-            controller=ctrl, type=ZenAddressType.GROUP, number=item["number"]
-        )
+        addr = ZenAddress(controller=ctrl, type=ZenAddressType.GROUP, number=item["number"])
         group = ZenGroup(protocol, addr)
         if await _hydrate_or_interview(group, item.get("interview")):
             needs_save = True
@@ -256,9 +243,7 @@ async def load_entities_from_manifest(
     hub.buttons = []
     for item in manifest.get("buttons", []):
         ctrl = _ctrl(item["controller"])
-        addr = ZenAddress(
-            controller=ctrl, type=ZenAddressType.ECD, number=item["address"]
-        )
+        addr = ZenAddress(controller=ctrl, type=ZenAddressType.ECD, number=item["address"])
         instance = ZenInstance(
             address=addr,
             type=ZenInstanceType.PUSH_BUTTON,
@@ -272,9 +257,7 @@ async def load_entities_from_manifest(
     hub.motion_sensors = []
     for item in manifest.get("motion_sensors", []):
         ctrl = _ctrl(item["controller"])
-        addr = ZenAddress(
-            controller=ctrl, type=ZenAddressType.ECD, number=item["address"]
-        )
+        addr = ZenAddress(controller=ctrl, type=ZenAddressType.ECD, number=item["address"])
         instance = ZenInstance(
             address=addr,
             type=ZenInstanceType.OCCUPANCY_SENSOR,
@@ -288,9 +271,7 @@ async def load_entities_from_manifest(
     hub.absolute_inputs = []
     for item in manifest.get("absolute_inputs", []):
         ctrl = _ctrl(item["controller"])
-        addr = ZenAddress(
-            controller=ctrl, type=ZenAddressType.ECD, number=item["address"]
-        )
+        addr = ZenAddress(controller=ctrl, type=ZenAddressType.ECD, number=item["address"])
         instance = ZenInstance(
             address=addr,
             type=ZenInstanceType.ABSOLUTE_INPUT,
@@ -327,14 +308,8 @@ async def load_entities_from_manifest(
 
     hub.lights.sort(key=lambda lt: lt.address.number)
     hub.groups.sort(key=lambda g: g.address.number)
-    hub.buttons.sort(
-        key=lambda b: (b.instance.address.number, b.instance.number)
-    )
-    hub.motion_sensors.sort(
-        key=lambda s: (s.instance.address.number, s.instance.number)
-    )
-    hub.absolute_inputs.sort(
-        key=lambda a: (a.instance.address.number, a.instance.number)
-    )
+    hub.buttons.sort(key=lambda b: (b.instance.address.number, b.instance.number))
+    hub.motion_sensors.sort(key=lambda s: (s.instance.address.number, s.instance.number))
+    hub.absolute_inputs.sort(key=lambda a: (a.instance.address.number, a.instance.number))
     hub.profiles.sort(key=lambda p: (p.controller.name, p.number))
     return needs_save

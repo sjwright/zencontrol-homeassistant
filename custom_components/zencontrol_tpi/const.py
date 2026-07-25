@@ -86,8 +86,6 @@ def controller_from_entry_data(
     if isinstance(controllers, list) and controllers:
         first = controllers[0]
         return first if isinstance(first, dict) else None
-    if data.get(CONF_MAC) and data.get("host"):
-        return dict(data)
     return None
 
 

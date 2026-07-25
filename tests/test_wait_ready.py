@@ -38,16 +38,7 @@ def _hub_with_controller(ready_sequence: list[bool | None]) -> ZenHub:
     hub._discovery_notified = False
     hub._setup_complete = False
     hub._discovery_callbacks = []
-    hub._light_entities = {}
-    hub._group_entities = {}
-    hub._button_entities = {}
-    hub._motion_sensor_entities = {}
-    hub._absolute_input_entities = {}
-    hub._sv_sensor_entities = {}
-    hub._sv_switch_entities = {}
-    hub._profile_entities = {}
-    hub._scene_select_entities = {}
-    hub._scene_entities = {}
+    hub._entities = {}
     hub.sync_device_assignments = MagicMock()
     hub._discover_entities = AsyncMock()
     hub._refresh_light_states = AsyncMock()
@@ -68,7 +59,6 @@ def _hub_with_controller(ready_sequence: list[bool | None]) -> ZenHub:
     ctrl.is_controller_ready = AsyncMock(side_effect=is_ready)
     ctrl.interview = AsyncMock()
     hub.controller = ctrl
-    hub.controllers = [ctrl]
     return hub
 
 
@@ -76,7 +66,8 @@ def _hub_with_controller(ready_sequence: list[bool | None]) -> ZenHub:
 async def test_wait_polls_until_ready() -> None:
     hub = _hub_with_controller([False, False, True])
     with patch(
-        "custom_components.zencontrol_tpi.hub.CONTROLLER_READY_POLL_INTERVAL", 0
+        "custom_components.zencontrol_tpi.discovery.CONTROLLER_READY_POLL_INTERVAL",
+        0,
     ):
         await hub._wait_for_controller()
     assert hub.controller.is_controller_ready.await_count == 3
@@ -100,7 +91,8 @@ async def test_wait_marks_starting_then_unreachable() -> None:
 async def test_entities_unavailable_while_starting() -> None:
     hub = _hub_with_controller([False, True])
     with patch(
-        "custom_components.zencontrol_tpi.hub.CONTROLLER_READY_POLL_INTERVAL", 0
+        "custom_components.zencontrol_tpi.discovery.CONTROLLER_READY_POLL_INTERVAL",
+        0,
     ):
         # Drive one not-ready poll by interrupting after status flips.
         async def ready_then_stop() -> bool | None:
@@ -125,9 +117,7 @@ async def test_async_start_enables_events_only_after_ready_when_runtime_up() -> 
 
     hub._wait_for_controller.assert_awaited_once()
     hub.runtime.async_ensure_started.assert_awaited_once()
-    hub.runtime.async_configure_controller_events.assert_awaited_once_with(
-        hub.controller
-    )
+    hub.runtime.async_configure_controller_events.assert_awaited_once_with(hub.controller)
     assert hub.controller_status == CONTROLLER_STATUS_ONLINE
 
 

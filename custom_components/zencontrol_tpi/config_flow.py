@@ -37,16 +37,7 @@ from homeassistant.helpers.selector import (
     SelectSelectorConfig,
 )
 from homeassistant.helpers.translation import async_get_translations
-from zencontrol import (
-    DiscoveredController,
-    ZenAbsoluteInput,
-    ZenButton,
-    ZenGroup,
-    ZenLight,
-    ZenMotionSensor,
-    ZenProfile,
-    ZenSystemVariable,
-)
+from zencontrol import DiscoveredController
 
 from .const import (
     CONF_CONTROLLERS,
@@ -56,14 +47,16 @@ from .const import (
     CONF_SUB_DEVICES,
     CONF_UNICAST,
     CONFIG_VERSION,
-    CONTROLLER_READY_POLL_INTERVAL,
-    CONTROLLER_READY_QUERY_TIMEOUT,
-    CONTROLLER_READY_WAIT_MAX,
     DATA_PENDING_MANIFEST,
     DEFAULT_PORT,
     DOMAIN,
     normalize_mac,
     normalize_mac_id,
+)
+from .discovery import (
+    ControllerNotReadyError,
+    discover_controller_entities,
+    wait_until_controller_ready,
 )
 from .manifest_store import build_manifest
 from .sub_devices import (
@@ -74,7 +67,6 @@ from .sub_devices import (
     sub_devices_to_config,
     validate_sub_device_prefixes,
 )
-from .sysvar import classify_sysvar_entity
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -105,9 +97,7 @@ def _controllers_from_all_entries(hass: HomeAssistant) -> list[ControllerConfig]
     return result
 
 
-def unique_controller_name(
-    host: str, mac: str, existing: list[ControllerConfig]
-) -> str:
+def unique_controller_name(host: str, mac: str, existing: list[ControllerConfig]) -> str:
     """Return a name unique among existing controllers (all domain entries)."""
     names = {c.get(CONF_NAME) for c in existing}
     base = _derive_name(host)
@@ -127,9 +117,7 @@ def unique_controller_name(
 
 def entry_title(controller: ControllerConfig) -> str:
     """Human-readable config entry title (label, else name)."""
-    return str(
-        controller.get(CONF_LABEL) or controller.get(CONF_NAME) or "zencontrol"
-    )
+    return str(controller.get(CONF_LABEL) or controller.get(CONF_NAME) or "zencontrol")
 
 
 def build_controller_dict(
@@ -161,17 +149,13 @@ def _controller_schema(
     """Build a controller connection schema."""
     defaults = defaults or {}
     schema: dict[Any, Any] = {
-        vol.Required(
-            CONF_HOST, default=defaults.get(CONF_HOST, vol.UNDEFINED)
-        ): str,
+        vol.Required(CONF_HOST, default=defaults.get(CONF_HOST, vol.UNDEFINED)): str,
         vol.Required(
             CONF_PORT,
             default=defaults.get(CONF_PORT, DEFAULT_PORT),
         ): vol.All(vol.Coerce(int), vol.Range(min=1, max=65535)),
         vol.Optional(CONF_MAC, default=defaults.get(CONF_MAC, "")): str,
-        vol.Required(
-            CONF_LABEL, default=defaults.get(CONF_LABEL, vol.UNDEFINED)
-        ): str,
+        vol.Required(CONF_LABEL, default=defaults.get(CONF_LABEL, vol.UNDEFINED)): str,
     }
     if include_unicast:
         schema[
@@ -236,32 +220,26 @@ async def _async_discover_mac(hass: HomeAssistant, host: str) -> str | None:
 
     params = {"ip": str(ip)} if ip.version == 4 else {"ip6": str(ip)}
     try:
-        mac = await hass.async_add_executor_job(
-            partial(getmac.get_mac_address, **params)
-        )
+        mac = await hass.async_add_executor_job(partial(getmac.get_mac_address, **params))
     except Exception:
         _LOGGER.debug("MAC lookup failed for %s", host, exc_info=True)
         return None
 
-    if not mac or mac.replace(":", "").replace("-", "").strip("0") == "":
+    if not mac or not normalize_mac_id(mac).strip("0"):
         return None
     return normalize_mac(mac)
 
 
 async def _test_connection(host: str, port: int, mac: str, label: str) -> bool:
     """Return True if the controller responds within 5 seconds."""
-    test_name = f"cftest{int(time.monotonic_ns()) % 10 ** 9}"
+    test_name = f"cftest{int(time.monotonic_ns()) % 10**9}"
     zen = zencontrol.ZenControl()
     try:
-        ctrl = zen.add_controller(
-            id=99, name=test_name, label=label, host=host, port=port, mac=mac
-        )
+        ctrl = zen.add_controller(id=99, name=test_name, label=label, host=host, port=port, mac=mac)
         result = await asyncio.wait_for(ctrl.is_controller_ready(), timeout=5.0)
         return result is True
     except Exception:
-        _LOGGER.debug(
-            "Connection test failed for %s:%s", host, port, exc_info=True
-        )
+        _LOGGER.debug("Connection test failed for %s:%s", host, port, exc_info=True)
         return False
     finally:
         try:
@@ -300,16 +278,9 @@ def _discovered_option_label(discovered: ControllerConfig) -> str:
 def _selected_mac(user_input: dict[str, Any]) -> str | None:
     """Normalize a single-select discovered MAC value."""
     match user_input.get(CONF_DISCOVERED):
-        case None:
-            return None
         case str() as raw if raw:
             return normalize_mac(raw)
-        case str():
-            return None
-        case items:
-            for item in items:
-                if item:
-                    return normalize_mac(str(item))
+        case _:
             return None
 
 
@@ -369,7 +340,7 @@ async def _async_prime_discovery(
     """
     zen = zencontrol.ZenControl(unicast=unicast)
     try:
-        zen.add_controller(
+        ctrl = zen.add_controller(
             id=1,
             name=controller[CONF_NAME],
             label=controller[CONF_LABEL],
@@ -377,82 +348,15 @@ async def _async_prime_discovery(
             port=int(controller.get(CONF_PORT, DEFAULT_PORT)),
             mac=controller.get(CONF_MAC),
         )
+        try:
+            await wait_until_controller_ready(ctrl)
+        except ControllerNotReadyError as err:
+            raise RuntimeError(str(err)) from err
 
-        for ctrl in zen.controllers:
-            deadline = (
-                asyncio.get_running_loop().time() + CONTROLLER_READY_WAIT_MAX
-            )
-            while True:
-                try:
-                    ready = await asyncio.wait_for(
-                        ctrl.is_controller_ready(),
-                        timeout=CONTROLLER_READY_QUERY_TIMEOUT,
-                    )
-                except TimeoutError:
-                    ready = None
-                if ready is True:
-                    break
-                if ready is None:
-                    raise RuntimeError(
-                        f"Cannot reach controller {ctrl.label} ({ctrl.host})"
-                    )
-                if asyncio.get_running_loop().time() >= deadline:
-                    raise RuntimeError(
-                        f"Controller {ctrl.label} ({ctrl.host}) still starting "
-                        f"after {CONTROLLER_READY_WAIT_MAX:.0f}s"
-                    )
-                await asyncio.sleep(CONTROLLER_READY_POLL_INTERVAL)
-            await ctrl.interview()
-
-        class _HubSnapshot:
-            """Discovery result shaped like ZenHub for build_manifest()."""
-
-            lights: list[ZenLight]
-            groups: list[ZenGroup]
-            buttons: list[ZenButton]
-            motion_sensors: list[ZenMotionSensor]
-            absolute_inputs: list[ZenAbsoluteInput]
-            sv_switches: list[ZenSystemVariable]
-            sv_sensors: list[ZenSystemVariable]
-            profiles: list[ZenProfile]
-
-        snap = _HubSnapshot()
-        snap.lights = sorted(
-            await zen.get_lights(), key=lambda lt: lt.address.number
-        )
-        snap.groups = sorted(
-            await zen.get_groups(), key=lambda g: g.address.number
-        )
-        snap.buttons = sorted(
-            await zen.get_buttons(),
-            key=lambda b: (b.instance.address.number, b.instance.number),
-        )
-        snap.motion_sensors = sorted(
-            await zen.get_motion_sensors(),
-            key=lambda s: (s.instance.address.number, s.instance.number),
-        )
-        snap.absolute_inputs = sorted(
-            await zen.get_absolute_inputs(),
-            key=lambda a: (a.instance.address.number, a.instance.number),
-        )
-        snap.profiles = sorted(
-            await zen.get_profiles(),
-            key=lambda p: (p.controller.name, p.number),
-        )
-        snap.sv_switches = []
-        snap.sv_sensors = []
-        for sv in sorted(await zen.get_system_variables(), key=lambda s: s.id):
-            as_sensor, as_switch = classify_sysvar_entity(sv)
-            if as_switch:
-                snap.sv_switches.append(sv)
-            if as_sensor:
-                snap.sv_sensors.append(sv)
-
+        snap = await discover_controller_entities(zen, ctrl)
         manifest = build_manifest(snap)
         mac_id = normalize_mac_id(controller[CONF_MAC])
-        hass.data.setdefault(DOMAIN, {}).setdefault(DATA_PENDING_MANIFEST, {})[
-            mac_id
-        ] = {"manifest": manifest}
+        hass.data.setdefault(DOMAIN, {}).setdefault(DATA_PENDING_MANIFEST, {})[mac_id] = {"manifest": manifest}
     finally:
         try:
             await zen.aclose()
@@ -472,18 +376,11 @@ def _async_relink_migrated_devices(
     mac_norm = normalize_mac(mac)
     mac_id = normalize_mac_id(mac)
     sub_prefix = f"{mac_norm}:sub:"
-    for device in list(
-        dr.async_entries_for_config_entry(device_registry, old_entry_id)
-    ):
+    for device in list(dr.async_entries_for_config_entry(device_registry, old_entry_id)):
         domain_idents = [ident for ident in device.identifiers if ident[0] == DOMAIN]
         if not domain_idents:
             continue
-        if not any(
-            ident == mac_norm
-            or ident == mac_id
-            or ident.startswith(sub_prefix)
-            for _, ident in domain_idents
-        ):
+        if not any(ident == mac_norm or ident == mac_id or ident.startswith(sub_prefix) for _, ident in domain_idents):
             continue
         device_registry.async_update_device(
             device.id,
@@ -514,9 +411,7 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
         """Return the options flow for managing sub-devices."""
         return ZencontrolTpiOptionsFlow()
 
-    def _mac_in_other_entries(
-        self, mac: str, *, ignore_entry_id: str | None = None
-    ) -> bool:
+    def _mac_in_other_entries(self, mac: str, *, ignore_entry_id: str | None = None) -> bool:
         """Return True if another config entry already uses this MAC."""
         target = normalize_mac_id(mac)
         for entry in self._async_current_entries():
@@ -537,11 +432,7 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
     async def _async_run_discovery(self) -> list[ControllerConfig]:
         """Listen for multicast and filter already-configured controllers."""
         found = await _async_listen_for_controllers(self.hass)
-        return [
-            item
-            for item in found
-            if not self._mac_in_other_entries(item[CONF_MAC])
-        ]
+        return [item for item in found if not self._mac_in_other_entries(item[CONF_MAC])]
 
     async def async_step_user(
         self,
@@ -592,9 +483,7 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
     ) -> ConfigFlowResult:
         """Listen for multicast controllers with a progress UI."""
         if self._discovery_task is None:
-            self._discovery_task = self.hass.async_create_task(
-                self._async_run_discovery()
-            )
+            self._discovery_task = self.hass.async_create_task(self._async_run_discovery())
 
         if not self._discovery_task.done():
             return self.async_show_progress(
@@ -656,12 +545,7 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
                     errors[CONF_MAC] = self._connect_error
             self._connect_error = None
 
-        options = [
-            SelectOptionDict(
-                value=item[CONF_MAC], label=_discovered_option_label(item)
-            )
-            for item in self._discovered
-        ]
+        options = [SelectOptionDict(value=item[CONF_MAC], label=_discovered_option_label(item)) for item in self._discovered]
         default_mac = self._discovered[0][CONF_MAC] if self._discovered else None
 
         # Only treat this as a form submit when the selector field is present.
@@ -673,17 +557,13 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
                 (
                     item
                     for item in self._discovered
-                    if selected_mac
-                    and normalize_mac_id(item[CONF_MAC])
-                    == normalize_mac_id(selected_mac)
+                    if selected_mac and normalize_mac_id(item[CONF_MAC]) == normalize_mac_id(selected_mac)
                 ),
                 None,
             )
             if selected is None:
                 return await self.async_step_discovery_failed()
-            self._connect_task = self.hass.async_create_task(
-                self._async_connect_discovered(selected)
-            )
+            self._connect_task = self.hass.async_create_task(self._async_connect_discovered(selected))
             # Re-enter so an eagerly completed connect advances immediately,
             # matching the discover/finish progress pattern.
             return await self.async_step_select_discovered()
@@ -696,19 +576,11 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="select_discovered",
-            data_schema=vol.Schema(
-                {
-                    schema_field: SelectSelector(
-                        SelectSelectorConfig(options=options, multiple=False)
-                    )
-                }
-            ),
+            data_schema=vol.Schema({schema_field: SelectSelector(SelectSelectorConfig(options=options, multiple=False))}),
             errors=errors,
         )
 
-    async def _async_connect_discovered(
-        self, selected: ControllerConfig
-    ) -> str | None:
+    async def _async_connect_discovered(self, selected: ControllerConfig) -> str | None:
         """Validate connectivity and store the single controller. Return error key."""
         host = selected[CONF_HOST]
         port = int(selected.get(CONF_PORT, DEFAULT_PORT))
@@ -724,9 +596,7 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
         self._unicast = self._existing_unicast()
         return None
 
-    async def async_step_discovery(
-        self, discovery_info: dict[str, Any]
-    ) -> ConfigFlowResult:
+    async def async_step_discovery(self, discovery_info: dict[str, Any]) -> ConfigFlowResult:
         """Handle a controller discovered while the integration is running."""
         info = _discovered_to_dict(discovery_info)
         mac = info[CONF_MAC]
@@ -774,9 +644,7 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
             },
         )
 
-    async def async_step_import(
-        self, import_data: dict[str, Any]
-    ) -> ConfigFlowResult:
+    async def async_step_import(self, import_data: dict[str, Any]) -> ConfigFlowResult:
         """Import a single controller entry (migration from multi-controller)."""
         controllers = import_data.get(CONF_CONTROLLERS) or []
         if not isinstance(controllers, list) or not controllers:
@@ -914,9 +782,7 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="reconfigure",
-            data_schema=vol.Schema(
-                {vol.Required("target"): vol.In(choices)}
-            ),
+            data_schema=vol.Schema({vol.Required("target"): vol.In(choices)}),
         )
 
     async def async_step_unicast_settings(
@@ -975,9 +841,7 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             mac = (user_input.get(CONF_MAC) or "").strip()
             if not mac:
-                discovered = await _async_discover_mac(
-                    self.hass, user_input[CONF_HOST]
-                )
+                discovered = await _async_discover_mac(self.hass, user_input[CONF_HOST])
                 if discovered:
                     defaults = {**defaults, CONF_MAC: discovered}
                     return self.async_show_form(
@@ -990,9 +854,7 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
                 result = await self._async_validate_fields(user_input, errors)
                 if result is not None:
                     host, port, mac, label = result
-                    if self._mac_in_other_entries(
-                        mac, ignore_entry_id=entry.entry_id
-                    ):
+                    if self._mac_in_other_entries(mac, ignore_entry_id=entry.entry_id):
                         errors[CONF_MAC] = "duplicate_mac"
                     else:
                         # Keep CONF_NAME stable so entity unique_ids survive IP edits.
@@ -1119,9 +981,6 @@ class ZencontrolTpiOptionsFlow(OptionsFlow):
     # After saving a sub-device, return to this step instead of closing.
     _return_after_save: SaveReturnStep = None
     _suggest_from_setup_handled: bool = False
-    # Defaults to None rather than [] so the class attribute stays immutable;
-    # _set_suggest_queue installs a per-instance list.
-    _suggest_queue: list[str] | None = None
 
     def __getattr__(self, name: str) -> Any:
         """Route dynamic menu steps for sub-devices."""
@@ -1136,15 +995,11 @@ class ZencontrolTpiOptionsFlow(OptionsFlow):
 
             return async_step_subdev
 
-        raise AttributeError(
-            f"{type(self).__name__!r} object has no attribute {name!r}"
-        )
+        raise AttributeError(f"{type(self).__name__!r} object has no attribute {name!r}")
 
     async def _options_label(self, key: str, default: str) -> str:
         """Load an options-flow string for the current language."""
-        translations = await async_get_translations(
-            self.hass, self.hass.config.language, "options", {DOMAIN}
-        )
+        translations = await async_get_translations(self.hass, self.hass.config.language, "options", {DOMAIN})
         return translations.get(f"component.{DOMAIN}.{key}", default)
 
     def _controllers(self) -> list[ControllerConfig]:
@@ -1152,32 +1007,16 @@ class ZencontrolTpiOptionsFlow(OptionsFlow):
         return list(self.config_entry.data.get(CONF_CONTROLLERS, []))
 
     def _controller(self, name: str | None = None) -> ControllerConfig | None:
-        """Return the only controller, or the one matching ``name``."""
+        """Return the only controller, optionally requiring a name match."""
         controllers = self._controllers()
         if not controllers:
             return None
-        if name is None:
-            return controllers[0]
-        return next((c for c in controllers if c[CONF_NAME] == name), None)
-
-    def _set_suggest_queue(self, names: list[str]) -> None:
-        """Queue controllers that should each get the sub-device prompt."""
-        self._suggest_queue = [n for n in names if n]
-
-    def _pop_suggest_controller(self) -> str | None:
-        """Return the next controller name awaiting a sub-device prompt."""
-        queue = self._suggest_queue
-        if queue is None:
-            return None
-        while queue:
-            name = queue.pop(0)
-            if self._controller(name) is not None:
-                return name
+        ctrl = controllers[0]
+        if name is None or ctrl[CONF_NAME] == name:
+            return ctrl
         return None
 
-    async def async_step_init(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
+    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Open suggest after setup, else sub-device menu for this controller."""
         init_data = self.init_data if isinstance(self.init_data, dict) else {}
         if not self._suggest_from_setup_handled:
@@ -1186,11 +1025,7 @@ class ZencontrolTpiOptionsFlow(OptionsFlow):
                     pass
                 case str() as name:
                     self._suggest_from_setup_handled = True
-                    self._set_suggest_queue([name])
-                    return await self.async_step_suggest_sub_devices()
-                case names:
-                    self._suggest_from_setup_handled = True
-                    self._set_suggest_queue([str(n) for n in names])
+                    self._ctrl_name = name
                     return await self.async_step_suggest_sub_devices()
 
         ctrl = self._controller()
@@ -1199,15 +1034,12 @@ class ZencontrolTpiOptionsFlow(OptionsFlow):
         self._ctrl_name = ctrl[CONF_NAME]
         return await self.async_step_controller()
 
-    async def async_step_suggest_sub_devices(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
+    async def async_step_suggest_sub_devices(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """After adding a controller, offer to create sub-devices."""
-        if self._ctrl_name is None or self._controller(self._ctrl_name) is None:
-            self._ctrl_name = self._pop_suggest_controller()
-        ctrl = self._controller(self._ctrl_name)
+        ctrl = self._controller(self._ctrl_name) or self._controller()
         if ctrl is None:
             return self.async_create_entry(title="", data={})
+        self._ctrl_name = ctrl[CONF_NAME]
 
         self._return_after_save = "suggest_sub_devices"
         return self.async_show_menu(
@@ -1218,19 +1050,13 @@ class ZencontrolTpiOptionsFlow(OptionsFlow):
             },
         )
 
-    async def async_step_finish_setup(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
+    async def async_step_finish_setup(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Close options after declining or finishing sub-device setup."""
         self._return_after_save = None
         self._ctrl_name = None
-        if self._suggest_queue:
-            return await self.async_step_suggest_sub_devices()
         return self.async_create_entry(title="", data={})
 
-    async def async_step_controller(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
+    async def async_step_controller(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """List this controller's sub-devices plus Add sub-device."""
         ctrl = self._controller(self._ctrl_name) or self._controller()
         if ctrl is None:
@@ -1257,20 +1083,14 @@ class ZencontrolTpiOptionsFlow(OptionsFlow):
             },
         )
 
-    async def async_step_sub_device(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
+    async def async_step_sub_device(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Reconfigure or delete the selected sub-device."""
         ctrl = self._controller(self._ctrl_name)
         if ctrl is None:
             return await self.async_step_init()
 
         device = next(
-            (
-                d
-                for d in sub_devices_from_controller(ctrl)
-                if d.id == self._sub_device_id
-            ),
+            (d for d in sub_devices_from_controller(ctrl) if d.id == self._sub_device_id),
             None,
         )
         if device is None:
@@ -1286,9 +1106,7 @@ class ZencontrolTpiOptionsFlow(OptionsFlow):
             },
         )
 
-    async def async_step_add_sub_device(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
+    async def async_step_add_sub_device(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Add a sub-device from a comma-separated prefix list."""
         errors: dict[str, str] = {}
         ctrl = self._controller(self._ctrl_name)
@@ -1334,9 +1152,7 @@ class ZencontrolTpiOptionsFlow(OptionsFlow):
             },
         )
 
-    async def async_step_reconfigure_sub_device(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
+    async def async_step_reconfigure_sub_device(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Edit prefixes for the selected sub-device (id stays stable)."""
         errors: dict[str, str] = {}
         ctrl = self._controller(self._ctrl_name)
@@ -1351,9 +1167,7 @@ class ZencontrolTpiOptionsFlow(OptionsFlow):
 
         if user_input is not None:
             prefixes = parse_sub_device_prefixes(user_input.get(CONF_PREFIXES, ""))
-            err = validate_sub_device_prefixes(
-                existing, prefixes, replacing_id=device.id
-            )
+            err = validate_sub_device_prefixes(existing, prefixes, replacing_id=device.id)
             if err:
                 errors[CONF_PREFIXES] = err
             else:
@@ -1363,9 +1177,7 @@ class ZencontrolTpiOptionsFlow(OptionsFlow):
                     prefixes=tuple(prefixes),
                     area_id=_area_id_from_input(user_input),
                 )
-                ctrl[CONF_SUB_DEVICES] = sub_devices_to_config(
-                    [updated if d.id == device.id else d for d in existing]
-                )
+                ctrl[CONF_SUB_DEVICES] = sub_devices_to_config([updated if d.id == device.id else d for d in existing])
                 return await self._async_save_sub_devices(controllers)
 
         return self.async_show_form(
@@ -1381,9 +1193,7 @@ class ZencontrolTpiOptionsFlow(OptionsFlow):
             },
         )
 
-    async def async_step_delete_sub_device(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
+    async def async_step_delete_sub_device(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Confirm and delete the selected sub-device."""
         ctrl = self._controller(self._ctrl_name)
         if ctrl is None:

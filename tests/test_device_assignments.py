@@ -28,9 +28,7 @@ class _Light:
         return isinstance(other, _Light) and hash(self) == hash(other)
 
 
-def _make_hub(
-    *, controllers_cfg: list[dict[str, Any]], controllers: list[Any]
-) -> ZenHub:
+def _make_hub(*, controllers_cfg: list[dict[str, Any]], controllers: list[Any]) -> ZenHub:
     hass = MagicMock()
     entry = SimpleNamespace(
         entry_id="entry-1",
@@ -41,7 +39,7 @@ def _make_hub(
         hub = ZenHub.__new__(ZenHub)
     hub.hass = hass
     hub.entry = entry
-    hub.controllers = controllers
+    hub.controller = controllers[0] if controllers else None
     hub.lights = []
     hub.groups = []
     hub.buttons = []
@@ -50,16 +48,7 @@ def _make_hub(
     hub.sv_switches = []
     hub.sv_sensors = []
     hub.profiles = []
-    hub._light_entities = {}
-    hub._group_entities = {}
-    hub._button_entities = {}
-    hub._motion_sensor_entities = {}
-    hub._absolute_input_entities = {}
-    hub._sv_sensor_entities = {}
-    hub._sv_switch_entities = {}
-    hub._profile_entities = {}
-    hub._scene_select_entities = {}
-    hub._scene_entities = {}
+    hub._entities = {}
     hub._sub_devices_by_controller = {}
     hub._sub_device_assignments = {}
     return hub
@@ -138,7 +127,7 @@ def test_sync_device_assignments_moves_entity_and_prunes_orphan() -> None:
     light = _Light(ctrl, 3, "Kitchen spot")
     hub.lights = [light]
     entity = SimpleNamespace(entity_id="light.kitchen_spot", _attr_device_info=None)
-    hub._light_entities = {light: entity}
+    hub.register_light_entity(light, entity)  # type: ignore[arg-type]
 
     created: dict[frozenset[tuple[str, str]], SimpleNamespace] = {}
 
@@ -166,21 +155,15 @@ def test_sync_device_assignments_moves_entity_and_prunes_orphan() -> None:
     device_registry = MagicMock()
     device_registry.async_get_or_create.side_effect = get_or_create
     entity_registry = MagicMock()
-    entity_registry.async_get.return_value = SimpleNamespace(
-        device_id="controller-device"
-    )
+    entity_registry.async_get.return_value = SimpleNamespace(device_id="controller-device")
 
-    with _patched_registries(
-        device_registry, entity_registry, devices=[orphan, kept]
-    ):
+    with _patched_registries(device_registry, entity_registry, devices=[orphan, kept]):
         hub.sync_device_assignments()
 
     kitchen_idents = frozenset({(DOMAIN, "AA:BB:CC:DD:EE:FF:sub:kitchen")})
     kitchen_id = created[kitchen_idents].id
     assert entity._attr_device_info is not None
-    assert entity._attr_device_info["identifiers"] == {
-        (DOMAIN, "AA:BB:CC:DD:EE:FF:sub:kitchen")
-    }
+    assert entity._attr_device_info["identifiers"] == {(DOMAIN, "AA:BB:CC:DD:EE:FF:sub:kitchen")}
     entity_registry.async_update_entity.assert_called_once_with(
         "light.kitchen_spot",
         device_id=kitchen_id,
@@ -198,9 +181,7 @@ def test_sync_device_assignments_moves_entity_and_prunes_orphan() -> None:
 
 
 def test_sync_skips_entities_without_entity_id() -> None:
-    ctrl = SimpleNamespace(
-        name="house", mac="AA:BB:CC:DD:EE:FF", label="House", version=None
-    )
+    ctrl = SimpleNamespace(name="house", mac="AA:BB:CC:DD:EE:FF", label="House", version=None)
     hub = _make_hub(
         controllers_cfg=[{"name": "house", CONF_SUB_DEVICES: []}],
         controllers=[ctrl],
@@ -208,7 +189,7 @@ def test_sync_skips_entities_without_entity_id() -> None:
     light = _Light(ctrl, 1, "Lone")
     hub.lights = [light]
     entity = SimpleNamespace(entity_id=None, _attr_device_info=None)
-    hub._light_entities = {light: entity}
+    hub.register_light_entity(light, entity)  # type: ignore[arg-type]
 
     device_registry = MagicMock()
     device_registry.async_get_or_create.side_effect = lambda **kwargs: SimpleNamespace(
@@ -224,9 +205,7 @@ def test_sync_skips_entities_without_entity_id() -> None:
 
 
 def test_sync_skips_missing_registry_entry() -> None:
-    ctrl = SimpleNamespace(
-        name="house", mac="AA:BB:CC:DD:EE:FF", label="House", version=None
-    )
+    ctrl = SimpleNamespace(name="house", mac="AA:BB:CC:DD:EE:FF", label="House", version=None)
     hub = _make_hub(
         controllers_cfg=[{"name": "house", CONF_SUB_DEVICES: []}],
         controllers=[ctrl],
@@ -234,7 +213,7 @@ def test_sync_skips_missing_registry_entry() -> None:
     light = _Light(ctrl, 1, "Lone")
     hub.lights = [light]
     entity = SimpleNamespace(entity_id="light.lone", _attr_device_info=None)
-    hub._light_entities = {light: entity}
+    hub.register_light_entity(light, entity)  # type: ignore[arg-type]
 
     device_registry = MagicMock()
     device_registry.async_get_or_create.side_effect = lambda **kwargs: SimpleNamespace(
@@ -266,16 +245,12 @@ def test_prune_refuses_empty_expected_set() -> None:
 
 
 def test_sync_continues_when_one_entity_update_fails() -> None:
-    ctrl = SimpleNamespace(
-        name="house", mac="AA:BB:CC:DD:EE:FF", label="House", version=None
-    )
+    ctrl = SimpleNamespace(name="house", mac="AA:BB:CC:DD:EE:FF", label="House", version=None)
     hub = _make_hub(
         controllers_cfg=[
             {
                 "name": "house",
-                CONF_SUB_DEVICES: [
-                    {"id": "kitchen", "name": "Kitchen", "prefixes": ["Kitchen"]}
-                ],
+                CONF_SUB_DEVICES: [{"id": "kitchen", "name": "Kitchen", "prefixes": ["Kitchen"]}],
             }
         ],
         controllers=[ctrl],
@@ -285,7 +260,8 @@ def test_sync_continues_when_one_entity_update_fails() -> None:
     hub.lights = [light_a, light_b]
     entity_a = SimpleNamespace(entity_id="light.a", _attr_device_info=None)
     entity_b = SimpleNamespace(entity_id="light.b", _attr_device_info=None)
-    hub._light_entities = {light_a: entity_a, light_b: entity_b}
+    hub.register_light_entity(light_a, entity_a)  # type: ignore[arg-type]
+    hub.register_light_entity(light_b, entity_b)  # type: ignore[arg-type]
 
     created: dict[frozenset[tuple[str, str]], SimpleNamespace] = {}
 
