@@ -664,7 +664,10 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
         ]
         default_mac = self._discovered[0][CONF_MAC] if self._discovered else None
 
-        if user_input is not None:
+        # Only treat this as a form submit when the selector field is present.
+        # After SHOW_PROGRESS_DONE, HA's configure loop may re-enter this step
+        # with leftover menu navigation input (e.g. {"next_step_id": "discover"}).
+        if user_input is not None and CONF_DISCOVERED in user_input:
             selected_mac = _selected_mac(user_input)
             selected = next(
                 (
@@ -681,11 +684,9 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
             self._connect_task = self.hass.async_create_task(
                 self._async_connect_discovered(selected)
             )
-            return self.async_show_progress(
-                step_id="select_discovered",
-                progress_action="connect_controllers",
-                progress_task=self._connect_task,
-            )
+            # Re-enter so an eagerly completed connect advances immediately,
+            # matching the discover/finish progress pattern.
+            return await self.async_step_select_discovered()
 
         schema_field: Any
         if default_mac is not None:
