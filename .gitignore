@@ -9,13 +9,13 @@ __pycache__/
 .vscode/
 
 # Home Assistant local runtime
-tests/homeassistant-dev-config/.storage/
-tests/homeassistant-dev-config/.cache/
-tests/homeassistant-dev-config/.cloud/
-tests/homeassistant-dev-config/deps/
-tests/homeassistant-dev-config/tts/
-tests/homeassistant-dev-config/blueprints/
-tests/homeassistant-dev-config/home-assistant.log*
-tests/homeassistant-dev-config/home-assistant_v2.db*
-tests/homeassistant-dev-config/.HA_VERSION
-tests/homeassistant-dev-config/.ha_run.lock
+dev/homeassistant-config/.storage/
+dev/homeassistant-config/.cache/
+dev/homeassistant-config/.cloud/
+dev/homeassistant-config/deps/
+dev/homeassistant-config/tts/
+dev/homeassistant-config/blueprints/
+dev/homeassistant-config/home-assistant.log*
+dev/homeassistant-config/home-assistant_v2.db*
+dev/homeassistant-config/.HA_VERSION
+dev/homeassistant-config/.ha_run.lock

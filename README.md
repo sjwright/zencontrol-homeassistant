@@ -108,7 +108,7 @@ You can also check out [`zencontrol-simulator`](https://github.com/sjwright/zenc
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements-dev.txt
+pip install -r dev/requirements.txt
 pip install -e ../zencontrol-python
 ./run-ha
 ```

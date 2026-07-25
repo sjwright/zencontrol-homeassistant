@@ -1,0 +1,19 @@
+# Development and CI dependencies.
+#
+# The integration itself declares its runtime requirements in
+# custom_components/zencontrol_tpi/manifest.json.
+#
+# For local development against a checkout of the library, install it editable
+# after these: pip install -e ../zencontrol-python
+
+homeassistant>=2026.3
+zencontrol-python>=0.1.7
+
+pytest>=8.3
+pytest-asyncio>=0.24
+# Pulls a matching homeassistant test harness (hass fixture, MockConfigEntry).
+pytest-homeassistant-custom-component>=0.13.348
+
+# Pinned so a new release cannot fail CI without an explicit bump.
+ruff==0.16.0
+pyright==1.1.411

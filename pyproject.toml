@@ -2,7 +2,7 @@
 asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = ["."]
-norecursedirs = [".*", "__pycache__", "homeassistant-dev-config"]
+norecursedirs = [".*", "__pycache__", "homeassistant-config"]
 
 [tool.pyright]
 venvPath = "."
@@ -19,7 +19,7 @@ reportPrivateImportUsage = false
 
 [tool.ruff]
 target-version = "py314"
-line-length = 88
+line-length = 130
 
 [tool.ruff.lint]
 select = [
