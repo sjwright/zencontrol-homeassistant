@@ -7,7 +7,7 @@
 # after these: pip install -e ../zencontrol-python
 
 homeassistant>=2026.3
-zencontrol-python>=0.1.7
+zencontrol-python>=1.0.0
 
 pytest>=8.3
 pytest-asyncio>=0.24
