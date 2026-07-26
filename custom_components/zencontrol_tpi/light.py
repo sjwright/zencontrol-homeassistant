@@ -22,7 +22,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from zencontrol import ZenColour, ZenColourType, ZenGroup, ZenLight
 
 from .const import arc_to_brightness, brightness_to_arc
-from .entity import ZenControllerEntity
+from .entity import ZenControllerEntity, as_zen_controller
 from .hub import ZencontrolTpiConfigEntry, ZenHub
 from .sub_devices import group_assignment_key, light_assignment_key
 
@@ -248,7 +248,7 @@ class ZenLightEntity(ZenControllerEntity, LightEntity):
     """HA entity wrapping a single DALI control gear (ZenLight)."""
 
     def __init__(self, hub: ZenHub, zen_light: ZenLight) -> None:
-        ctrl = zen_light.address.controller
+        ctrl = as_zen_controller(zen_light.address.controller)
         super().__init__(hub, ctrl)
         self._light = zen_light
 
@@ -318,7 +318,7 @@ class ZenGroupEntity(ZenControllerEntity, LightEntity):
     """HA entity wrapping a DALI group (ZenGroup)."""
 
     def __init__(self, hub: ZenHub, zen_group: ZenGroup) -> None:
-        ctrl = zen_group.address.controller
+        ctrl = as_zen_controller(zen_group.address.controller)
         super().__init__(hub, ctrl)
         self._group = zen_group
 

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import Entity
@@ -12,6 +12,16 @@ from .const import DOMAIN, normalize_mac
 
 if TYPE_CHECKING:
     from .hub import ZenHub
+
+
+def as_zen_controller(controller: object) -> ZenController:
+    """Narrow ``address.controller`` to the interface ``ZenController``.
+
+    ``ZenAddress.controller`` is typed as ``ControllerRef`` so the API layer
+    does not import the interface. Registered controllers are always the
+    interface subclass at runtime.
+    """
+    return cast(ZenController, controller)
 
 
 def controller_identifier(zen_ctrl: ZenController) -> tuple[str, str]:

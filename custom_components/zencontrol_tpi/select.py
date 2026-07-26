@@ -10,7 +10,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from zencontrol import ZenController, ZenGroup, ZenProfile
 
 from .const import SCENE_NONE, SCENE_OFF
-from .entity import ZenControllerEntity
+from .entity import ZenControllerEntity, as_zen_controller
 from .hub import ZencontrolTpiConfigEntry, ZenHub
 from .sub_devices import group_assignment_key
 
@@ -98,7 +98,7 @@ class ZenGroupSceneSelectEntity(ZenControllerEntity, SelectEntity):
     _attr_translation_key = "group_scene"
 
     def __init__(self, hub: ZenHub, zen_group: ZenGroup) -> None:
-        ctrl = zen_group.address.controller
+        ctrl = as_zen_controller(zen_group.address.controller)
         super().__init__(hub, ctrl)
         self._group = zen_group
 

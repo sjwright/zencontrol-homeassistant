@@ -33,6 +33,7 @@ from .const import (
     normalize_mac,
     normalize_mac_id,
 )
+from .entity import as_zen_controller
 from .entry_helpers import mac_is_configured
 
 if TYPE_CHECKING:
@@ -274,8 +275,10 @@ class SharedZenRuntime:
         for hub in list(self._hubs_by_entry.values()):
             await hub.handle_listener_resync()
 
-    async def _on_controller_status(self, ctrl: ZenController, status: str) -> None:
-        hub = self.hub_for_controller(ctrl)
+    async def _on_controller_status(self, controller: Any, status: str) -> None:
+        # zencontrol-python 1.0.0 typed this Protocol against api.ZenController;
+        # runtime always passes the interface subclass.
+        hub = self.hub_for_controller(as_zen_controller(controller))
         if hub is not None:
             await hub.handle_controller_status(status)
 
@@ -286,7 +289,7 @@ class SharedZenRuntime:
         colour: ZenColour | None = None,
         scene: int | None = None,
     ) -> None:
-        hub = self.hub_for_controller(light.address.controller)
+        hub = self.hub_for_controller(as_zen_controller(light.address.controller))
         if hub is not None:
             hub.handle_light_change(light)
 
@@ -298,37 +301,39 @@ class SharedZenRuntime:
         scene: int | None = None,
         discoordinated: bool | None = None,
     ) -> None:
-        hub = self.hub_for_controller(group.address.controller)
+        hub = self.hub_for_controller(as_zen_controller(group.address.controller))
         if hub is not None:
             hub.handle_group_change(group)
 
     async def _on_button_press(self, button: ZenButton) -> None:
-        hub = self.hub_for_controller(button.instance.address.controller)
+        hub = self.hub_for_controller(as_zen_controller(button.instance.address.controller))
         if hub is not None:
             hub.handle_button_press(button)
 
     async def _on_button_long_press(self, button: ZenButton) -> None:
-        hub = self.hub_for_controller(button.instance.address.controller)
+        hub = self.hub_for_controller(as_zen_controller(button.instance.address.controller))
         if hub is not None:
             hub.handle_button_long_press(button)
 
     async def _on_motion_event(self, sensor: ZenMotionSensor, occupied: bool) -> None:
-        hub = self.hub_for_controller(sensor.instance.address.controller)
+        hub = self.hub_for_controller(as_zen_controller(sensor.instance.address.controller))
         if hub is not None:
             hub.handle_motion_event(sensor, occupied)
 
     async def _on_absolute_input_change(self, absolute_input: ZenAbsoluteInput, value: int) -> None:
-        hub = self.hub_for_controller(absolute_input.instance.address.controller)
+        hub = self.hub_for_controller(as_zen_controller(absolute_input.instance.address.controller))
         if hub is not None:
             hub.handle_absolute_input_change(absolute_input, value)
 
     async def _on_sv_change(
         self,
         system_variable: ZenSystemVariable,
-        value: int,
+        value: int | None,
         changed: bool,
         by_me: bool,
     ) -> None:
+        if value is None:
+            return
         hub = self.hub_for_controller(system_variable.controller)
         if hub is not None:
             hub.handle_sv_change(system_variable, value, by_me=by_me)

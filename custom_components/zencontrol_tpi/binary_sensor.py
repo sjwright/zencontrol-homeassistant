@@ -10,7 +10,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from zencontrol import ZenMotionSensor
 
-from .entity import ZenControllerEntity
+from .entity import ZenControllerEntity, as_zen_controller
 from .hub import ZencontrolTpiConfigEntry, ZenHub
 from .sub_devices import instance_display_label, motion_assignment_key
 
@@ -39,7 +39,7 @@ class ZenMotionSensorEntity(ZenControllerEntity, BinarySensorEntity):
     _attr_device_class = BinarySensorDeviceClass.MOTION
 
     def __init__(self, hub: ZenHub, zen_sensor: ZenMotionSensor) -> None:
-        ctrl = zen_sensor.instance.address.controller
+        ctrl = as_zen_controller(zen_sensor.instance.address.controller)
         super().__init__(hub, ctrl)
         self._sensor = zen_sensor
         addr = zen_sensor.instance.address.number

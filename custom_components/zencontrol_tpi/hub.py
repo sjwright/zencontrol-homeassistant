@@ -44,6 +44,7 @@ from .discovery import (
     wait_until_controller_ready,
 )
 from .entity import (
+    as_zen_controller,
     controller_device_info,
     controller_identifier,
     sub_device_device_info,
@@ -411,23 +412,23 @@ class ZenHub:
 
     def register_light_entity(self, zen_light: ZenLight, entity: ZenLightEntity) -> None:
         key = light_assignment_key(zen_light)
-        self._bind(key, entity, zen_light.address.controller, key)
+        self._bind(key, entity, as_zen_controller(zen_light.address.controller), key)
 
     def register_group_entity(self, zen_group: ZenGroup, entity: ZenGroupEntity) -> None:
         key = group_assignment_key(zen_group)
-        self._bind(key, entity, zen_group.address.controller, key)
+        self._bind(key, entity, as_zen_controller(zen_group.address.controller), key)
 
     def register_button_entity(self, zen_button: ZenButton, entity: ZenButtonEntity) -> None:
         key = button_assignment_key(zen_button)
-        self._bind(key, entity, zen_button.instance.address.controller, key)
+        self._bind(key, entity, as_zen_controller(zen_button.instance.address.controller), key)
 
     def register_motion_sensor_entity(self, zen_sensor: ZenMotionSensor, entity: ZenMotionSensorEntity) -> None:
         key = motion_assignment_key(zen_sensor)
-        self._bind(key, entity, zen_sensor.instance.address.controller, key)
+        self._bind(key, entity, as_zen_controller(zen_sensor.instance.address.controller), key)
 
     def register_absolute_input_entity(self, zen_input: ZenAbsoluteInput, entity: ZenAbsoluteInputSensorEntity) -> None:
         key = absolute_input_assignment_key(zen_input)
-        self._bind(key, entity, zen_input.instance.address.controller, key)
+        self._bind(key, entity, as_zen_controller(zen_input.instance.address.controller), key)
 
     def register_sv_sensor_entity(self, zen_sv: ZenSystemVariable, entity: ZenSystemVariableSensorEntity) -> None:
         self._bind(_sv_sensor_key(zen_sv), entity, zen_sv.controller, sysvar_assignment_key(zen_sv))
@@ -439,10 +440,20 @@ class ZenHub:
         self._bind(_profile_key(zen_controller.name), entity, zen_controller, None)
 
     def register_scene_select_entity(self, zen_group: ZenGroup, entity: ZenGroupSceneSelectEntity) -> None:
-        self._bind(_scene_select_key(zen_group), entity, zen_group.address.controller, group_assignment_key(zen_group))
+        self._bind(
+            _scene_select_key(zen_group),
+            entity,
+            as_zen_controller(zen_group.address.controller),
+            group_assignment_key(zen_group),
+        )
 
     def register_scene_entity(self, zen_group: ZenGroup, scene_number: int, entity: ZenGroupSceneEntity) -> None:
-        self._bind(_scene_key(zen_group, scene_number), entity, zen_group.address.controller, group_assignment_key(zen_group))
+        self._bind(
+            _scene_key(zen_group, scene_number),
+            entity,
+            as_zen_controller(zen_group.address.controller),
+            group_assignment_key(zen_group),
+        )
 
     def register_discovery_callback(self, callback: DiscoveryCallback) -> None:
         """Register a coroutine to call when discovery completes."""

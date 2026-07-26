@@ -18,7 +18,7 @@ from .const import (
     CONTROLLER_STATUS_OPTIONS,
     CONTROLLER_STATUS_UNREACHABLE,
 )
-from .entity import ZenControllerEntity, controller_device_info
+from .entity import ZenControllerEntity, as_zen_controller, controller_device_info
 from .hub import ZencontrolTpiConfigEntry, ZenHub
 from .sub_devices import (
     absolute_input_assignment_key,
@@ -121,7 +121,7 @@ class ZenAbsoluteInputSensorEntity(ZenControllerEntity, SensorEntity):
     _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(self, hub: ZenHub, zen_input: ZenAbsoluteInput) -> None:
-        ctrl = zen_input.instance.address.controller
+        ctrl = as_zen_controller(zen_input.instance.address.controller)
         super().__init__(hub, ctrl)
         self._input = zen_input
         addr = zen_input.instance.address.number

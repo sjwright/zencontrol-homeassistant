@@ -10,7 +10,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from zencontrol import ZenGroup
 
-from .entity import ZenControllerEntity
+from .entity import ZenControllerEntity, as_zen_controller
 from .hub import ZencontrolTpiConfigEntry, ZenHub
 from .sub_devices import group_assignment_key
 
@@ -55,7 +55,7 @@ class ZenGroupSceneEntity(ZenControllerEntity, Scene):
         scene_number: int,
         scene_label: str,
     ) -> None:
-        ctrl = zen_group.address.controller
+        ctrl = as_zen_controller(zen_group.address.controller)
         super().__init__(hub, ctrl)
         self._group = zen_group
         self._scene_number = scene_number

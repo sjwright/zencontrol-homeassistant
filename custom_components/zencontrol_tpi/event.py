@@ -9,7 +9,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from zencontrol import ZenButton
 
-from .entity import ZenControllerEntity
+from .entity import ZenControllerEntity, as_zen_controller
 from .hub import ZencontrolTpiConfigEntry, ZenHub
 from .sub_devices import button_assignment_key, instance_display_label
 
@@ -39,7 +39,7 @@ class ZenButtonEntity(ZenControllerEntity, EventEntity):
     _attr_event_types: ClassVar[list[str]] = ["short_press", "long_press"]
 
     def __init__(self, hub: ZenHub, zen_button: ZenButton) -> None:
-        ctrl = zen_button.instance.address.controller
+        ctrl = as_zen_controller(zen_button.instance.address.controller)
         super().__init__(hub, ctrl)
         self._button = zen_button
         addr = zen_button.instance.address.number
