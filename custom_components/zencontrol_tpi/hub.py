@@ -485,7 +485,7 @@ class ZenHub:
             await self._refresh_light_states()
             # Events must not be enabled until the controller is ready. If the
             # shared listener is already up (another entry), configure now;
-            # otherwise start_event_monitoring configures all controllers.
+            # otherwise zen.start() configures all controllers on first attach.
             already_started = self.runtime.started
             await self.runtime.async_ensure_started()
             if already_started:
@@ -756,6 +756,14 @@ class ZenHub:
         if self.controller is not None:
             self.controller.connected = False
         self.set_controller_status(CONTROLLER_STATUS_UNREACHABLE)
+
+    async def handle_listener_resync(self) -> None:
+        """Shared listener restored after a recoverable gap — refresh entity state."""
+        if not self._setup_complete or self.stopping:
+            return
+        if self._controller_status != CONTROLLER_STATUS_ONLINE:
+            return
+        await self._refresh_light_states()
 
     async def handle_controller_status(self, status: str) -> None:
         """Keepalive / library reported online, starting, or unreachable."""

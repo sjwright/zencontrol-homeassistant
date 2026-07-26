@@ -1,6 +1,7 @@
 {
   "title": "zencontrol",
   "config": {
+    "flow_title": "{name}",
     "step": {
       "user": {
         "title": "Set up zencontrol",
@@ -41,8 +42,8 @@
         }
       },
       "confirm_discovery": {
-        "title": "Confirm zencontrol controller",
-        "description": "Found **{label}** at `{host}` (MAC `{mac}`). Do you want to add it?"
+        "title": "Discovered a zencontrol controller",
+        "description": "Found **{label}** with an IP address `{host}` and MAC address `{mac}`. Add it to Home Assistant?"
       },
       "reconfigure_controller": {
         "title": "Reconfigure controller",

@@ -69,18 +69,19 @@ class SharedZenRuntime:
         self._start_lock = asyncio.Lock()
         self._attach_lock = asyncio.Lock()
 
-        self.zen.on_connect = self._on_connect
-        self.zen.on_disconnect = self._on_disconnect
-        self.zen.light_change = self._on_light_change
-        self.zen.group_change = self._on_group_change
-        self.zen.button_press = self._on_button_press
-        self.zen.button_long_press = self._on_button_long_press
-        self.zen.motion_event = self._on_motion_event
-        self.zen.absolute_input_change = self._on_absolute_input_change
-        self.zen.system_variable_change = self._on_sv_change
-        self.zen.profile_change = self._on_profile_change
-        self.zen.controller_discovered = self._on_controller_discovered
-        self.zen.controller_status_change = self._on_controller_status
+        self.zen.callbacks.on_connect = self._on_connect
+        self.zen.callbacks.on_disconnect = self._on_disconnect
+        self.zen.callbacks.on_resync = self._on_resync
+        self.zen.callbacks.light_change = self._on_light_change
+        self.zen.callbacks.group_change = self._on_group_change
+        self.zen.callbacks.button_press = self._on_button_press
+        self.zen.callbacks.button_long_press = self._on_button_long_press
+        self.zen.callbacks.motion_event = self._on_motion_event
+        self.zen.callbacks.absolute_input_change = self._on_absolute_input_change
+        self.zen.callbacks.system_variable_change = self._on_sv_change
+        self.zen.callbacks.profile_change = self._on_profile_change
+        self.zen.callbacks.controller_discovered = self._on_controller_discovered
+        self.zen.callbacks.controller_status_change = self._on_controller_status
 
     @property
     def listener_up(self) -> bool:
@@ -231,18 +232,19 @@ class SharedZenRuntime:
 
         zen = self.zen
         await zen.aclose()
-        zen.on_connect = None
-        zen.on_disconnect = None
-        zen.light_change = None
-        zen.group_change = None
-        zen.button_press = None
-        zen.button_long_press = None
-        zen.motion_event = None
-        zen.absolute_input_change = None
-        zen.system_variable_change = None
-        zen.profile_change = None
-        zen.controller_discovered = None
-        zen.controller_status_change = None
+        zen.callbacks.on_connect = None
+        zen.callbacks.on_disconnect = None
+        zen.callbacks.on_resync = None
+        zen.callbacks.light_change = None
+        zen.callbacks.group_change = None
+        zen.callbacks.button_press = None
+        zen.callbacks.button_long_press = None
+        zen.callbacks.motion_event = None
+        zen.callbacks.absolute_input_change = None
+        zen.callbacks.system_variable_change = None
+        zen.callbacks.profile_change = None
+        zen.callbacks.controller_discovered = None
+        zen.callbacks.controller_status_change = None
 
         domain_data = self.hass.data.get(DOMAIN)
         if isinstance(domain_data, dict) and domain_data.get(DATA_RUNTIME) is self:
@@ -265,6 +267,12 @@ class SharedZenRuntime:
         self._listener_up = False
         for hub in list(self._hubs_by_entry.values()):
             hub.handle_listener_disconnect()
+
+    async def _on_resync(self) -> None:
+        """Event session restored after a gap — re-poll without flipping availability."""
+        _LOGGER.info("zencontrol event listener resynced after session gap")
+        for hub in list(self._hubs_by_entry.values()):
+            await hub.handle_listener_resync()
 
     async def _on_controller_status(self, ctrl: ZenController, status: str) -> None:
         hub = self.hub_for_controller(ctrl)
@@ -331,7 +339,7 @@ class SharedZenRuntime:
             hub.handle_profile_change(profile)
 
     async def _on_controller_discovered(self, discovered: DiscoveredController) -> None:
-        """Start a discovery flow for an unknown controller MAC."""
+        """Schedule enrichment + discovery flow off the event consumer path."""
         mac = discovered.mac
         host = discovered.host
         if not mac or not host:
@@ -344,25 +352,45 @@ class SharedZenRuntime:
         if mac_id in self._hubs_by_mac:
             return
 
-        label = discovered.label or mac_n
-        port = int(discovered.port or DEFAULT_PORT)
+        # Identity-only callback must not await command queries on the consumer.
+        self.hass.async_create_task(self._async_offer_discovered(discovered))
+
+    async def _async_offer_discovered(self, discovered: DiscoveredController) -> None:
+        """Probe controller label, then start a discovery config flow."""
+        try:
+            enriched = await self.zen.enrich_discovered(discovered)
+        except Exception:
+            _LOGGER.debug(
+                "Label probe failed for discovered controller %s (%s)",
+                discovered.host,
+                discovered.mac,
+                exc_info=True,
+            )
+            enriched = discovered
+
+        mac_n = normalize_mac(str(enriched.mac))
+        mac_id = normalize_mac_id(mac_n)
+        if mac_is_configured(self.hass, mac_id) or mac_id in self._hubs_by_mac:
+            return
+
+        label = (enriched.label or "").strip() or mac_n
+        port = int(enriched.port or DEFAULT_PORT)
+        host = enriched.host
         _LOGGER.info(
             "Discovered zencontrol controller %s (%s) label=%r",
             host,
             mac_n,
             label,
         )
-        self.hass.async_create_task(
-            self.hass.config_entries.flow.async_init(
-                DOMAIN,
-                context={"source": "discovery"},
-                data={
-                    "host": host,
-                    "port": port,
-                    "mac": mac_n,
-                    "label": label,
-                },
-            )
+        await self.hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={"source": "discovery"},
+            data={
+                "host": host,
+                "port": port,
+                "mac": mac_n,
+                "label": label,
+            },
         )
 
 

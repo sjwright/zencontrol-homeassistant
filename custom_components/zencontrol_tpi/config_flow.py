@@ -265,22 +265,19 @@ async def _async_listen_for_controllers(
 
     runtime = async_get_runtime(hass)
     if runtime is not None and runtime.listener_up:
-        before = {
-            (
-                normalize_mac(str(d.mac)),
-                str(d.host),
-            )
-            for d in runtime.zen.discovered_controllers
-        }
-        await asyncio.sleep(duration)
-        return [
-            _discovered_to_dict(item)
-            for item in runtime.zen.discovered_controllers
-            if (normalize_mac(str(item.mac)), str(item.host)) not in before
-        ]
+        # Shared ZenControl — discover() returns identities heard in this window
+        # (last_seen), so "try again" / "add another" still surfaces controllers
+        # already cached from an earlier listen.
+        try:
+            found = await runtime.zen.discover(timeout=duration)
+        except Exception:
+            _LOGGER.debug("Multicast discovery listen failed", exc_info=True)
+            return []
+        return [_discovered_to_dict(item) for item in found]
 
     zen = zencontrol.ZenControl()
     try:
+        # discover() already probes QUERY_CONTROLLER_LABEL per identity.
         found = await zen.discover(timeout=duration)
         return [_discovered_to_dict(item) for item in found]
     except Exception:
@@ -562,6 +559,11 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
             return self.async_abort(reason="already_configured")
 
         self._discovery_info = info
+        # Discovery banner/notice title uses title_placeholders.name (not the
+        # confirm-step description placeholders).
+        self.context["title_placeholders"] = {
+            "name": str(info.get(CONF_LABEL) or mac).strip(),
+        }
         return await self.async_step_confirm_discovery()
 
     async def async_step_confirm_discovery(
@@ -577,6 +579,7 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
         port = int(info.get(CONF_PORT, DEFAULT_PORT))
         mac = info[CONF_MAC]
         label = str(info.get(CONF_LABEL) or mac).strip()
+        self.context["title_placeholders"] = {"name": label}
 
         if user_input is not None:
             if mac_is_configured(self.hass, mac):

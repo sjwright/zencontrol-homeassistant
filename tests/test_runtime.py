@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -38,6 +39,7 @@ def _hub(entry_id: str = "entry-1") -> MagicMock:
     hub.controller = None
     hub.handle_listener_connect = AsyncMock()
     hub.handle_listener_disconnect = MagicMock()
+    hub.handle_listener_resync = AsyncMock()
     return hub
 
 
@@ -78,6 +80,83 @@ async def test_runtime_attach_detach_closes_when_empty() -> None:
         fake_zen.remove_controller.assert_awaited()
         fake_zen.aclose.assert_awaited()
         assert DATA_RUNTIME not in hass.data.get(DOMAIN, {})
+
+
+@pytest.mark.asyncio
+async def test_runtime_discovery_enriches_label_before_flow() -> None:
+    """Runtime discovery probes QUERY_CONTROLLER_LABEL before starting the flow."""
+    hass = MagicMock()
+    hass.data = {}
+    hass.async_create_task = lambda coro: asyncio.create_task(coro)
+    flow_init = AsyncMock()
+    hass.config_entries.flow.async_init = flow_init
+
+    fake_zen = MagicMock()
+    fake_zen.add_controller = MagicMock()
+    fake_zen.discovered_controllers = []
+    enriched = SimpleNamespace(
+        host="10.0.0.9",
+        mac="AA:BB:CC:DD:EE:09",
+        label="Annex",
+        port=5108,
+    )
+    fake_zen.enrich_discovered = AsyncMock(return_value=enriched)
+
+    discovered = SimpleNamespace(
+        host="10.0.0.9",
+        mac="AA:BB:CC:DD:EE:09",
+        label=None,
+        port=5108,
+    )
+
+    with patch(
+        "custom_components.zencontrol_tpi.runtime.zencontrol.ZenControl",
+        return_value=fake_zen,
+    ), patch(
+        "custom_components.zencontrol_tpi.runtime.mac_is_configured",
+        return_value=False,
+    ):
+        runtime = SharedZenRuntime.async_get_or_create(hass)
+        await runtime._on_controller_discovered(discovered)
+        await asyncio.sleep(0)
+
+    fake_zen.enrich_discovered.assert_awaited_once_with(discovered)
+    flow_init.assert_awaited_once()
+    assert flow_init.await_args.kwargs["data"]["label"] == "Annex"
+
+
+@pytest.mark.asyncio
+async def test_runtime_resync_refreshes_hubs() -> None:
+    """Session-gap on_resync refreshes hubs without marking the listener down."""
+    hass = MagicMock()
+    hass.data = {}
+
+    fake_ctrl = SimpleNamespace(
+        name="10001",
+        label="House",
+        mac="AA:BB:CC:DD:EE:01",
+        filtering=False,
+    )
+    fake_zen = MagicMock()
+    fake_zen.add_controller.return_value = fake_ctrl
+    fake_zen.remove_controller = AsyncMock()
+    fake_zen.start = AsyncMock()
+    fake_zen.aclose = AsyncMock()
+    fake_zen.discovered_controllers = []
+
+    with patch(
+        "custom_components.zencontrol_tpi.runtime.zencontrol.ZenControl",
+        return_value=fake_zen,
+    ):
+        runtime = SharedZenRuntime.async_get_or_create(hass)
+        hub = _hub()
+        await runtime.async_attach(hub, _ctrl_cfg())
+        runtime._listener_up = True
+
+        await runtime._on_resync()
+
+        assert runtime.listener_up is True
+        hub.handle_listener_resync.assert_awaited_once()
 
 
 @pytest.mark.asyncio

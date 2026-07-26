@@ -309,6 +309,12 @@ async def test_runtime_discovery_confirm(hass: HomeAssistant) -> None:
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "confirm_discovery"
     assert result["description_placeholders"]["mac"] == MAC
+    assert result["description_placeholders"]["label"] == LABEL
+
+    # Discovery banner/notice title comes from context title_placeholders.
+    flows = hass.config_entries.flow.async_progress_by_handler(DOMAIN)
+    assert len(flows) == 1
+    assert flows[0]["context"]["title_placeholders"]["name"] == LABEL
 
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"], user_input={}
