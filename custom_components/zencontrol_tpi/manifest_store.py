@@ -226,7 +226,7 @@ async def load_entities_from_manifest(hub: ZenHub, manifest: dict[str, Any]) -> 
     for item in manifest.get("lights", []):
         ctrl = _ctrl(item["controller"])
         addr = ZenAddress(controller=ctrl, type=ZenAddressType.ECG, number=item["number"])
-        light = ZenLight(ctx, addr)
+        light = ctx.light(addr)
         if await _hydrate_or_interview(light, item.get("interview")):
             needs_save = True
         hub.lights.append(light)
@@ -235,7 +235,7 @@ async def load_entities_from_manifest(hub: ZenHub, manifest: dict[str, Any]) -> 
     for item in manifest.get("groups", []):
         ctrl = _ctrl(item["controller"])
         addr = ZenAddress(controller=ctrl, type=ZenAddressType.GROUP, number=item["number"])
-        group = ZenGroup(ctx, addr)
+        group = ctx.group(addr)
         if await _hydrate_or_interview(group, item.get("interview")):
             needs_save = True
         hub.groups.append(group)
@@ -249,7 +249,7 @@ async def load_entities_from_manifest(hub: ZenHub, manifest: dict[str, Any]) -> 
             type=ZenInstanceType.PUSH_BUTTON,
             number=item["instance"],
         )
-        button = ZenButton(ctx, instance)
+        button = ctx.button(instance)
         if await _hydrate_or_interview(button, item.get("interview")):
             needs_save = True
         hub.buttons.append(button)
@@ -263,7 +263,7 @@ async def load_entities_from_manifest(hub: ZenHub, manifest: dict[str, Any]) -> 
             type=ZenInstanceType.OCCUPANCY_SENSOR,
             number=item["instance"],
         )
-        sensor = ZenMotionSensor(ctx, instance)
+        sensor = ctx.motion_sensor(instance)
         if await _hydrate_or_interview(sensor, item.get("interview")):
             needs_save = True
         hub.motion_sensors.append(sensor)
@@ -277,7 +277,7 @@ async def load_entities_from_manifest(hub: ZenHub, manifest: dict[str, Any]) -> 
             type=ZenInstanceType.ABSOLUTE_INPUT,
             number=item["instance"],
         )
-        absolute_input = ZenAbsoluteInput(ctx, instance)
+        absolute_input = ctx.absolute_input(instance)
         if await _hydrate_or_interview(absolute_input, item.get("interview")):
             needs_save = True
         hub.absolute_inputs.append(absolute_input)
@@ -286,7 +286,7 @@ async def load_entities_from_manifest(hub: ZenHub, manifest: dict[str, Any]) -> 
     hub.sv_sensors = []
     for item in manifest.get("sysvars", []):
         ctrl = _ctrl(item["controller"])
-        sv = ZenSystemVariable(ctx, ctrl, item["id"])
+        sv = ctx.system_variable(ctrl, item["id"])
         if await _hydrate_or_interview(sv, item.get("interview")):
             needs_save = True
         as_sensor = item.get("as_sensor")
@@ -302,7 +302,7 @@ async def load_entities_from_manifest(hub: ZenHub, manifest: dict[str, Any]) -> 
     hub.profiles = []
     for item in manifest.get("profiles", []):
         ctrl = _ctrl(item["controller"])
-        profile = ZenProfile(ctx, ctrl, item["number"])
+        profile = ctx.profile(ctrl, item["number"])
         if await _hydrate_or_interview(profile, item.get("interview")):
             needs_save = True
         hub.profiles.append(profile)
