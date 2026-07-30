@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from zencontrol import ZenAbsoluteInput, ZenButton, ZenMotionSensor
 
 from custom_components.zencontrol_tpi.discovery import (
     ControllerNotReadyError,
@@ -51,20 +52,17 @@ async def test_discover_controller_entities_scopes_and_classifies() -> None:
     ctrl = SimpleNamespace(name="house")
     light = SimpleNamespace(address=SimpleNamespace(number=2, controller=ctrl))
     group = SimpleNamespace(address=SimpleNamespace(number=1, controller=ctrl))
-    button = SimpleNamespace(
-        instance=SimpleNamespace(
-            address=SimpleNamespace(number=4, controller=ctrl), number=0
-        )
+    button = object.__new__(ZenButton)
+    button.instance = SimpleNamespace(
+        address=SimpleNamespace(number=4, controller=ctrl), number=0
     )
-    motion = SimpleNamespace(
-        instance=SimpleNamespace(
-            address=SimpleNamespace(number=5, controller=ctrl), number=1
-        )
+    motion = object.__new__(ZenMotionSensor)
+    motion.instance = SimpleNamespace(
+        address=SimpleNamespace(number=5, controller=ctrl), number=1
     )
-    absolute = SimpleNamespace(
-        instance=SimpleNamespace(
-            address=SimpleNamespace(number=6, controller=ctrl), number=2
-        )
+    absolute = object.__new__(ZenAbsoluteInput)
+    absolute.instance = SimpleNamespace(
+        address=SimpleNamespace(number=6, controller=ctrl), number=2
     )
     profile = SimpleNamespace(controller=ctrl, number=3)
     sv_lux = SimpleNamespace(id=1, label="Hall Lux Sensor", controller=ctrl)
@@ -74,9 +72,7 @@ async def test_discover_controller_entities_scopes_and_classifies() -> None:
     zen = MagicMock()
     zen.get_lights = AsyncMock(return_value=[light])
     zen.get_groups = AsyncMock(return_value=[group])
-    zen.get_buttons = AsyncMock(return_value=[button])
-    zen.get_motion_sensors = AsyncMock(return_value=[motion])
-    zen.get_absolute_inputs = AsyncMock(return_value=[absolute])
+    zen.get_instances = AsyncMock(return_value=[button, motion, absolute])
     zen.get_profiles = AsyncMock(return_value=[profile])
     zen.get_system_variables = AsyncMock(
         return_value=[sv_lux, sv_switch, sv_both]
@@ -85,7 +81,11 @@ async def test_discover_controller_entities_scopes_and_classifies() -> None:
     found = await discover_controller_entities(zen, ctrl)
 
     zen.get_lights.assert_awaited_once_with(controller=ctrl)
+    zen.get_instances.assert_awaited_once_with(controller=ctrl)
     assert found.lights == [light]
     assert found.groups == [group]
+    assert found.buttons == [button]
+    assert found.motion_sensors == [motion]
+    assert found.absolute_inputs == [absolute]
     assert found.sv_sensors == [sv_lux, sv_both]
     assert found.sv_switches == [sv_switch, sv_both]

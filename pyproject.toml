@@ -16,6 +16,8 @@ reportIncompatibleVariableOverride = false
 # homeassistant.components.* re-export their public names without an explicit
 # __all__, so pyright treats documented imports like ColorMode as private.
 reportPrivateImportUsage = false
+# Exhaustive match + case _: is intentional defensive coding against new enum members.
+reportUnreachable = false
 
 [tool.ruff]
 target-version = "py314"

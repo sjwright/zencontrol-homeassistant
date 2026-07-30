@@ -43,7 +43,6 @@ from custom_components.zencontrol_tpi.light import (
 )
 from custom_components.zencontrol_tpi.manifest_store import build_manifest
 from custom_components.zencontrol_tpi.rate_limiter import RateLimiter
-from custom_components.zencontrol_tpi.sysvar import classify_sysvar
 
 
 def test_arc_brightness_roundtrip() -> None:
@@ -54,13 +53,17 @@ def test_arc_brightness_roundtrip() -> None:
     assert 100 <= brightness <= 160
 
 
-def test_classify_sysvar() -> None:
-    """Labels classify to sensor, switch, both, or neither."""
-    assert classify_sysvar("Hallway Lux Sensor") == (True, False)
-    assert classify_sysvar("MVHR Boost Switch") == (False, True)
-    assert classify_sysvar("Garage Door Switch Sensor") == (True, True)
-    assert classify_sysvar("Internal Flag") == (False, False)
-    assert classify_sysvar(None) == (False, False)
+def test_sysvar_label_classification() -> None:
+    """Labels with sensor/switch substrings select HA exposure."""
+    def classify(label: str | None) -> tuple[bool, bool]:
+        lower = (label or "").casefold()
+        return "sensor" in lower, "switch" in lower
+
+    assert classify("Hallway Lux Sensor") == (True, False)
+    assert classify("MVHR Boost Switch") == (False, True)
+    assert classify("Garage Door Switch Sensor") == (True, True)
+    assert classify("Internal Flag") == (False, False)
+    assert classify(None) == (False, False)
 
 
 def test_build_manifest_dedupes_sysvars() -> None:

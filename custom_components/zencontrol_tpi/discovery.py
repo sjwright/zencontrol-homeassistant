@@ -24,7 +24,6 @@ from .const import (
     CONTROLLER_READY_QUERY_TIMEOUT,
     CONTROLLER_READY_WAIT_MAX,
 )
-from .sysvar import classify_sysvar_entity
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -94,37 +93,21 @@ async def discover_controller_entities(
     controller: ZenController | None = None,
 ) -> DiscoveredEntities:
     """Scan the bus; scope to ``controller`` when given."""
+    instances = await zen.get_instances(controller=controller)
+    buttons = [e for e in instances if isinstance(e, ZenButton)]
+    motion_sensors = [e for e in instances if isinstance(e, ZenMotionSensor)]
+    absolute_inputs = [e for e in instances if isinstance(e, ZenAbsoluteInput)]
     found = DiscoveredEntities(
-        lights=sorted(
-            await zen.get_lights(controller=controller),
-            key=lambda lt: lt.address.number,
-        ),
-        groups=sorted(
-            await zen.get_groups(controller=controller),
-            key=lambda g: g.address.number,
-        ),
-        buttons=sorted(
-            await zen.get_buttons(controller=controller),
-            key=lambda b: (b.instance.address.number, b.instance.number),
-        ),
-        motion_sensors=sorted(
-            await zen.get_motion_sensors(controller=controller),
-            key=lambda s: (s.instance.address.number, s.instance.number),
-        ),
-        absolute_inputs=sorted(
-            await zen.get_absolute_inputs(controller=controller),
-            key=lambda a: (a.instance.address.number, a.instance.number),
-        ),
-        profiles=sorted(
-            await zen.get_profiles(controller=controller),
-            key=lambda p: (p.controller.name, p.number),
-        ),
+        lights=sorted(await zen.get_lights(controller=controller), key=lambda lt: lt.address.number),
+        groups=sorted(await zen.get_groups(controller=controller), key=lambda g: g.address.number),
+        buttons=sorted(buttons, key=lambda b: (b.instance.address.number, b.instance.number)),
+        motion_sensors=sorted(motion_sensors, key=lambda s: (s.instance.address.number, s.instance.number)),
+        absolute_inputs=sorted(absolute_inputs, key=lambda a: (a.instance.address.number, a.instance.number)),
+        profiles=sorted(await zen.get_profiles(controller=controller), key=lambda p: (p.controller.name, p.number)),
     )
-    for sv in sorted(
-        await zen.get_system_variables(controller=controller),
-        key=lambda s: s.id,
-    ):
-        as_sensor, as_switch = classify_sysvar_entity(sv)
+    for sv in sorted(await zen.get_system_variables(controller=controller), key=lambda s: s.id):
+        lower = (sv.label or "").casefold()
+        as_sensor, as_switch = "sensor" in lower, "switch" in lower
         if as_switch:
             found.sv_switches.append(sv)
         if as_sensor:

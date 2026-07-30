@@ -19,7 +19,7 @@ from homeassistant.components.light import (
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
-from zencontrol import ZenColour, ZenColourType, ZenGroup, ZenLight
+from zencontrol import ZenColour, ZenColourType, ZenControlGear, ZenGroup, ZenLight
 
 from .const import arc_to_brightness, brightness_to_arc
 from .entity import ZenControllerEntity, as_zen_controller
@@ -197,7 +197,7 @@ def _transition_seconds(kwargs: dict[str, Any]) -> int | None:
     return round(float(transition))
 
 
-async def _async_turn_off(target: ZenLight, *, transition: int | None) -> None:
+async def _async_turn_off(target: ZenControlGear, *, transition: int | None) -> None:
     """Turn off with default DALI fade, or an explicit custom fade duration."""
     if transition is not None:
         await target.dali_custom_fade(0, transition)
@@ -206,7 +206,7 @@ async def _async_turn_off(target: ZenLight, *, transition: int | None) -> None:
 
 
 async def _async_set_level_or_colour(
-    target: ZenLight,
+    target: ZenControlGear,
     *,
     brightness: int | None,
     colour: ZenColour | None,

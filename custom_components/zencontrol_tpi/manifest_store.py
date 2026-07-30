@@ -24,7 +24,6 @@ from zencontrol import (
 )
 
 from .const import DOMAIN
-from .sysvar import classify_sysvar
 
 if TYPE_CHECKING:
     from .hub import ZenHub
@@ -174,7 +173,8 @@ def build_manifest(source: ManifestEntitySource) -> dict[str, Any]:
         if key in seen_sv:
             continue
         seen_sv.add(key)
-        as_sensor, as_switch = classify_sysvar(sv.label)
+        lower = (sv.label or "").casefold()
+        as_sensor, as_switch = "sensor" in lower, "switch" in lower
         sysvars.append(
             {
                 "controller": sv.controller.name,
@@ -292,7 +292,8 @@ async def load_entities_from_manifest(hub: ZenHub, manifest: dict[str, Any]) -> 
         as_sensor = item.get("as_sensor")
         as_switch = item.get("as_switch")
         if as_sensor is None or as_switch is None:
-            as_sensor, as_switch = classify_sysvar(sv.label)
+            lower = (sv.label or "").casefold()
+            as_sensor, as_switch = "sensor" in lower, "switch" in lower
         if as_switch:
             hub.sv_switches.append(sv)
         if as_sensor:
