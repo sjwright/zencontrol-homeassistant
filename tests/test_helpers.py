@@ -15,7 +15,7 @@ from homeassistant.components.light import (
     ColorMode,
     LightEntityFeature,
 )
-from zencontrol import ZenColourType
+from zencontrol import ZenRgbColour, ZenTcColour, ZenXyColour
 
 from custom_components.zencontrol_tpi.config_flow import (
     build_controller_dict,
@@ -139,12 +139,12 @@ def test_colour_from_turn_on_kwargs() -> None:
 
     tc = _colour_from_turn_on_kwargs({ATTR_COLOR_TEMP_KELVIN: 3000})
     assert tc is not None
-    assert tc.type == ZenColourType.TC
+    assert isinstance(tc, ZenTcColour)
     assert tc.kelvin == 3000
 
     rgb = _colour_from_turn_on_kwargs({ATTR_RGB_COLOR: (1, 2, 3)})
     assert rgb is not None
-    assert rgb.type == ZenColourType.RGBWAF
+    assert isinstance(rgb, ZenRgbColour)
     assert (rgb.r, rgb.g, rgb.b, rgb.w, rgb.a) == (1, 2, 3, 0, 0)
 
     rgbw = _colour_from_turn_on_kwargs({ATTR_RGBW_COLOR: (1, 2, 3, 4)})
@@ -157,7 +157,7 @@ def test_colour_from_turn_on_kwargs() -> None:
 
     xy = _colour_from_turn_on_kwargs({ATTR_XY_COLOR: (0.25, 0.5)})
     assert xy is not None
-    assert xy.type == ZenColourType.XY
+    assert isinstance(xy, ZenXyColour)
     assert xy.x == round(0.25 * _XY_MAX)
     assert xy.y == round(0.5 * _XY_MAX)
     assert _xy_color(xy) == pytest.approx((0.25, 0.5), abs=1e-5)

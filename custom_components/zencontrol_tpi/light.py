@@ -19,7 +19,15 @@ from homeassistant.components.light import (
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
-from zencontrol import ZenColour, ZenColourType, ZenControlGear, ZenGroup, ZenLight
+from zencontrol import (
+    ZenRgbColour,
+    ZenTcColour,
+    ZenXyColour,
+    ZenColour,
+    ZenControlGear,
+    ZenGroup,
+    ZenLight,
+)
 
 from .const import arc_to_brightness, brightness_to_arc
 from .entity import ZenControllerEntity, as_zen_controller
@@ -76,18 +84,17 @@ def _build_supported_modes(features: dict[str, bool]) -> set[ColorMode]:
 
 def _current_color_mode(supported: set[ColorMode], colour: ZenColour | None) -> ColorMode:
     """Determine the active color mode from the current colour object."""
-    if colour is not None:
-        match colour.type:
-            case ZenColourType.TC if ColorMode.COLOR_TEMP in supported:
-                return ColorMode.COLOR_TEMP
-            case ZenColourType.RGBWAF:
-                for mode in (ColorMode.RGBWW, ColorMode.RGBW, ColorMode.RGB):
-                    if mode in supported:
-                        return mode
-            case ZenColourType.XY if ColorMode.XY in supported:
-                return ColorMode.XY
-            case _:
-                pass
+    match colour:
+        case ZenTcColour() if ColorMode.COLOR_TEMP in supported:
+            return ColorMode.COLOR_TEMP
+        case ZenRgbColour():
+            for mode in (ColorMode.RGBWW, ColorMode.RGBW, ColorMode.RGB):
+                if mode in supported:
+                    return mode
+        case ZenXyColour() if ColorMode.XY in supported:
+            return ColorMode.XY
+        case _:
+            pass
     for mode in (
         ColorMode.RGBWW,
         ColorMode.RGBW,
@@ -103,49 +110,43 @@ def _current_color_mode(supported: set[ColorMode], colour: ZenColour | None) -> 
 
 def _color_temp_kelvin(colour: ZenColour | None) -> int | None:
     match colour:
-        case ZenColour(type=ZenColourType.TC):
-            return colour.kelvin
+        case ZenTcColour(kelvin=kelvin):
+            return kelvin
         case _:
             return None
 
 
 def _rgb_color(colour: ZenColour | None) -> tuple[int, int, int] | None:
     match colour:
-        case ZenColour(type=ZenColourType.RGBWAF):
-            return (colour.r or 0, colour.g or 0, colour.b or 0)
+        case ZenRgbColour(r=r, g=g, b=b):
+            return (r, g, b)
         case _:
             return None
 
 
 def _rgbw_color(colour: ZenColour | None) -> tuple[int, int, int, int] | None:
     match colour:
-        case ZenColour(type=ZenColourType.RGBWAF):
-            return (colour.r or 0, colour.g or 0, colour.b or 0, colour.w or 0)
+        case ZenRgbColour(r=r, g=g, b=b, w=w):
+            return (r, g, b, w or 0)
         case _:
             return None
 
 
 def _rgbww_color(colour: ZenColour | None) -> tuple[int, int, int, int, int] | None:
     match colour:
-        case ZenColour(type=ZenColourType.RGBWAF):
-            return (
-                colour.r or 0,
-                colour.g or 0,
-                colour.b or 0,
-                colour.w or 0,
-                colour.a or 0,
-            )
+        case ZenRgbColour(r=r, g=g, b=b, w=w, a=a):
+            return (r, g, b, w or 0, a or 0)
         case _:
             return None
 
 
 def _xy_color(colour: ZenColour | None) -> tuple[float, float] | None:
     match colour:
-        case ZenColour(type=ZenColourType.XY) if colour.x is not None and colour.y is not None:
+        case ZenXyColour(x=x, y=y):
             # Clamp to HA's 0.0–1.0 range (wire values can be 0xFFFF / no-change)
             return (
-                min(1.0, max(0.0, colour.x / _XY_MAX)),
-                min(1.0, max(0.0, colour.y / _XY_MAX)),
+                min(1.0, max(0.0, x / _XY_MAX)),
+                min(1.0, max(0.0, y / _XY_MAX)),
             )
         case _:
             return None
@@ -161,16 +162,15 @@ def _colour_from_turn_on_kwargs(kwargs: dict[str, Any]) -> ZenColour | None:
         kwargs.get(ATTR_XY_COLOR),
     ):
         case (kelvin, None, None, None, None) if kelvin is not None:
-            return ZenColour(type=ZenColourType.TC, kelvin=kelvin)
+            return ZenTcColour(kelvin=kelvin)
         case (None, (r, g, b), None, None, None):
-            return ZenColour(type=ZenColourType.RGBWAF, r=r, g=g, b=b, w=0, a=0, f=0)
+            return ZenRgbColour(r=r, g=g, b=b, w=0, a=0, f=0)
         case (None, None, (r, g, b, w), None, None):
-            return ZenColour(type=ZenColourType.RGBWAF, r=r, g=g, b=b, w=w, a=0, f=0)
+            return ZenRgbColour(r=r, g=g, b=b, w=w, a=0, f=0)
         case (None, None, None, (r, g, b, w, a), None):
-            return ZenColour(type=ZenColourType.RGBWAF, r=r, g=g, b=b, w=w, a=a, f=0)
+            return ZenRgbColour(r=r, g=g, b=b, w=w, a=a, f=0)
         case (None, None, None, None, (x, y)):
-            return ZenColour(
-                type=ZenColourType.XY,
+            return ZenXyColour(
                 x=max(0, min(_XY_MAX, round(x * _XY_MAX))),
                 y=max(0, min(_XY_MAX, round(y * _XY_MAX))),
             )
