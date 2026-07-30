@@ -49,9 +49,9 @@ class ZenSystemVariableSwitchEntity(ZenControllerEntity, SwitchEntity):
 
         hub.register_sv_switch_entity(zen_sv, self)
 
-    def update_value(self, value: int) -> None:
+    def update_value(self) -> None:
         """Called by ZenHub when the system variable changes."""
-        self._attr_is_on = value != 0
+        self._attr_is_on = (self._sv.value or 0) != 0
         self.async_write_ha_state()
 
     async def async_turn_on(self, **kwargs: Any) -> None:

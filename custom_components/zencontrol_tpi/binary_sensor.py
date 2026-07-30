@@ -57,7 +57,7 @@ class ZenMotionSensorEntity(ZenControllerEntity, BinarySensorEntity):
 
         hub.register_motion_sensor_entity(zen_sensor, self)
 
-    def update_occupied(self, occupied: bool) -> None:
+    def update_occupied(self) -> None:
         """Called by ZenHub when a motion event is received."""
-        self._attr_is_on = occupied
+        self._attr_is_on = self._sensor.occupied
         self.async_write_ha_state()

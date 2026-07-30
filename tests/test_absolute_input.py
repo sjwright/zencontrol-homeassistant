@@ -90,6 +90,7 @@ def test_absolute_input_sensor_update_value() -> None:
 
     entity.entity_id = "sensor.kitchen_dial"
     entity.async_write_ha_state = MagicMock()
-    entity.update_value(0x1234)
+    zen_input.value = 0x1234
+    entity.update_value()
     assert entity.native_value == 0x1234
     entity.async_write_ha_state.assert_called_once()

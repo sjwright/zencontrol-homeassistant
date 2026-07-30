@@ -14,7 +14,6 @@ from zencontrol import (
     DiscoveredController,
     ZenAbsoluteInput,
     ZenButton,
-    ZenColour,
     ZenController,
     ZenGroup,
     ZenLight,
@@ -282,24 +281,16 @@ class SharedZenRuntime:
         if hub is not None:
             await hub.handle_controller_status(status)
 
-    async def _on_light_change(
-        self,
-        light: ZenLight,
-        level: int | None = None,
-        colour: ZenColour | None = None,
-        scene: int | None = None,
-    ) -> None:
+    async def _on_light_change(self, *, light: ZenLight) -> None:
         hub = self.hub_for_controller(as_zen_controller(light.address.controller))
         if hub is not None:
             hub.handle_light_change(light)
 
     async def _on_group_change(
         self,
+        *,
         group: ZenGroup,
-        level: int | None = None,
-        colour: ZenColour | None = None,
-        scene: int | None = None,
-        discoordinated: bool | None = None,
+        discoordinated: bool = False,
     ) -> None:
         hub = self.hub_for_controller(as_zen_controller(group.address.controller))
         if hub is not None:
@@ -315,28 +306,27 @@ class SharedZenRuntime:
         if hub is not None:
             hub.handle_button_long_press(button)
 
-    async def _on_motion_event(self, sensor: ZenMotionSensor, occupied: bool) -> None:
+    async def _on_motion_event(self, *, sensor: ZenMotionSensor) -> None:
         hub = self.hub_for_controller(as_zen_controller(sensor.instance.address.controller))
         if hub is not None:
-            hub.handle_motion_event(sensor, occupied)
+            hub.handle_motion_event(sensor)
 
-    async def _on_absolute_input_change(self, absolute_input: ZenAbsoluteInput, value: int) -> None:
+    async def _on_absolute_input_change(self, *, absolute_input: ZenAbsoluteInput) -> None:
         hub = self.hub_for_controller(as_zen_controller(absolute_input.instance.address.controller))
         if hub is not None:
-            hub.handle_absolute_input_change(absolute_input, value)
+            hub.handle_absolute_input_change(absolute_input)
 
     async def _on_sv_change(
         self,
+        *,
         system_variable: ZenSystemVariable,
-        value: int | None,
-        changed: bool,
-        by_me: bool,
+        by_me: bool = False,
     ) -> None:
-        if value is None:
+        if system_variable.value is None:
             return
         hub = self.hub_for_controller(system_variable.controller)
         if hub is not None:
-            hub.handle_sv_change(system_variable, value, by_me=by_me)
+            hub.handle_sv_change(system_variable, by_me=by_me)
 
     async def _on_profile_change(self, profile: ZenProfile) -> None:
         hub = self.hub_for_controller(profile.controller)

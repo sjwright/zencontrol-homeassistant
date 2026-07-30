@@ -815,31 +815,30 @@ class ZenHub:
         if entity is not None:
             cast(Any, entity).trigger_event("long_press")
 
-    def handle_motion_event(self, sensor: ZenMotionSensor, occupied: bool) -> None:
+    def handle_motion_event(self, sensor: ZenMotionSensor) -> None:
         entity = self._entity(motion_assignment_key(sensor))
         if entity is not None:
-            cast(Any, entity).update_occupied(occupied)
+            cast(Any, entity).update_occupied()
 
-    def handle_absolute_input_change(self, absolute_input: ZenAbsoluteInput, value: int) -> None:
+    def handle_absolute_input_change(self, absolute_input: ZenAbsoluteInput) -> None:
         entity = self._entity(absolute_input_assignment_key(absolute_input))
         if entity is not None:
-            cast(Any, entity).update_value(value)
+            cast(Any, entity).update_value()
 
     def handle_sv_change(
         self,
         system_variable: ZenSystemVariable,
-        value: int,
         *,
         by_me: bool,
     ) -> None:
         sensor_entity = self._entity(_sv_sensor_key(system_variable))
         if sensor_entity is not None:
-            cast(Any, sensor_entity).update_value(value)
+            cast(Any, sensor_entity).update_value()
         if by_me:
             return
         switch_entity = self._entity(_sv_switch_key(system_variable))
         if switch_entity is not None:
-            cast(Any, switch_entity).update_value(value)
+            cast(Any, switch_entity).update_value()
 
     def handle_profile_change(self, profile: ZenProfile) -> None:
         entity = self._entity(_profile_key(profile.controller.name))

@@ -109,9 +109,9 @@ class ZenSystemVariableSensorEntity(ZenControllerEntity, SensorEntity):
 
         hub.register_sv_sensor_entity(zen_sv, self)
 
-    def update_value(self, value: int) -> None:
+    def update_value(self) -> None:
         """Called by ZenHub when the system variable changes."""
-        self._attr_native_value = value
+        self._attr_native_value = self._sv.value
         self.async_write_ha_state()
 
 
@@ -136,7 +136,7 @@ class ZenAbsoluteInputSensorEntity(ZenControllerEntity, SensorEntity):
 
         hub.register_absolute_input_entity(zen_input, self)
 
-    def update_value(self, value: int) -> None:
+    def update_value(self) -> None:
         """Called by ZenHub when an absolute-input event is received."""
-        self._attr_native_value = value
+        self._attr_native_value = self._input.value
         self.async_write_ha_state()
