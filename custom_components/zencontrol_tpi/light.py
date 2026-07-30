@@ -20,13 +20,13 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from zencontrol import (
-    ZenRgbColour,
-    ZenTcColour,
-    ZenXyColour,
     ZenColour,
     ZenControlGear,
     ZenGroup,
     ZenLight,
+    ZenRgbColour,
+    ZenTcColour,
+    ZenXyColour,
 )
 
 from .const import arc_to_brightness, brightness_to_arc
