@@ -36,7 +36,7 @@ STORE_VERSION = 1
 
 # Schema version embedded into the manifest payload we store.
 # Bump this when the structure of `manifest["interview"]` changes.
-MANIFEST_VERSION = 4
+MANIFEST_VERSION = 5
 
 
 class Interviewable(Protocol):
