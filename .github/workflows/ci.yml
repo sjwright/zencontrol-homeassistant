@@ -18,28 +18,44 @@ jobs:
     name: Lint, types and tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out zencontrol-homeassistant
+        uses: actions/checkout@v4
+        with:
+          path: zencontrol-homeassistant
+
+      - name: Check out zencontrol-python
+        uses: actions/checkout@v4
+        with:
+          repository: sjwright/zencontrol-python
+          path: zencontrol-python
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.14"
           cache: pip
-          cache-dependency-path: dev/requirements.txt
+          cache-dependency-path: |
+            zencontrol-homeassistant/dev/requirements.txt
+            zencontrol-python/pyproject.toml
 
-      # pyproject points pyright at ./.venv, so use one here too.
+      # pyproject points pyright at ./.venv and extraPaths at ../zencontrol-python.
       - name: Install dependencies
+        working-directory: zencontrol-homeassistant
         run: |
           python -m venv .venv
           .venv/bin/python -m pip install --upgrade pip
           .venv/bin/python -m pip install -r dev/requirements.txt
+          .venv/bin/python -m pip install -e ../zencontrol-python
 
       - name: Ruff
+        working-directory: zencontrol-homeassistant
         run: .venv/bin/ruff check --output-format=github .
 
       - name: Pyright
+        working-directory: zencontrol-homeassistant
         run: .venv/bin/pyright custom_components/zencontrol_tpi
 
       - name: Pytest
+        working-directory: zencontrol-homeassistant
         run: .venv/bin/pytest -q
 
   hassfest:

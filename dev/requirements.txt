@@ -3,10 +3,11 @@
 # The integration itself declares its runtime requirements in
 # custom_components/zencontrol_tpi/manifest.json.
 #
-# For local development against a checkout of the library, install it editable
-# after these: pip install -e ../zencontrol-python
+# CI installs ../zencontrol-python editable after this file so pyright/tests
+# see unreleased library APIs. Locally: pip install -e ../zencontrol-python
 
 homeassistant>=2026.3
+# PyPI may lag git; CI overrides with editable ../zencontrol-python after this.
 zencontrol-python>=1.0.0
 getmac>=0.9.4
 
