@@ -18,9 +18,11 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import Entity
 from zencontrol import (
     ZenAbsoluteInput,
+    ZenBlind,
     ZenButton,
     ZenControl,
     ZenController,
+    ZenFan,
     ZenGroup,
     ZenLight,
     ZenMotionSensor,
@@ -59,8 +61,10 @@ from .runtime import SharedZenRuntime
 from .sub_devices import (
     SubDeviceDef,
     absolute_input_assignment_key,
+    blind_assignment_key,
     build_assignments,
     button_assignment_key,
+    fan_assignment_key,
     group_assignment_key,
     light_assignment_key,
     motion_assignment_key,
@@ -70,7 +74,9 @@ from .sub_devices import (
 
 if TYPE_CHECKING:
     from .binary_sensor import ZenMotionSensorEntity
+    from .cover import ZenBlindEntity
     from .event import ZenButtonEntity
+    from .fan import ZenFanEntity
     from .light import ZenGroupEntity, ZenLightEntity
     from .scene import ZenGroupSceneEntity
     from .select import ZenGroupSceneSelectEntity, ZenProfileSelectEntity
@@ -160,6 +166,8 @@ class ZenHub:
         self.controller: ZenController | None = None
 
         self.lights: list[ZenLight] = []
+        self.fans: list[ZenFan] = []
+        self.blinds: list[ZenBlind] = []
         self.groups: list[ZenGroup] = []
         self.buttons: list[ZenButton] = []
         self.motion_sensors: list[ZenMotionSensor] = []
@@ -210,7 +218,7 @@ class ZenHub:
         """Return availability for this hub's controller.
 
         Entities are unavailable while the controller reports not-ready
-        (``starting``) as well as when it is unreachable.
+        (starting) as well as when it is unreachable.
         """
         if not self.runtime.listener_up:
             return False
@@ -350,6 +358,8 @@ class ZenHub:
         self._sub_device_assignments = build_assignments(
             controller_sub_devices=self._sub_devices_by_controller,
             lights=self.lights,
+            fans=self.fans,
+            blinds=self.blinds,
             groups=self.groups,
             buttons=self.buttons,
             motion_sensors=self.motion_sensors,
@@ -413,6 +423,14 @@ class ZenHub:
     def register_light_entity(self, zen_light: ZenLight, entity: ZenLightEntity) -> None:
         key = light_assignment_key(zen_light)
         self._bind(key, entity, as_zen_controller(zen_light.address.controller), key)
+
+    def register_fan_entity(self, zen_fan: ZenFan, entity: ZenFanEntity) -> None:
+        key = fan_assignment_key(zen_fan)
+        self._bind(key, entity, as_zen_controller(zen_fan.address.controller), key)
+
+    def register_cover_entity(self, zen_blind: ZenBlind, entity: ZenBlindEntity) -> None:
+        key = blind_assignment_key(zen_blind)
+        self._bind(key, entity, as_zen_controller(zen_blind.address.controller), key)
 
     def register_group_entity(self, zen_group: ZenGroup, entity: ZenGroupEntity) -> None:
         key = group_assignment_key(zen_group)
@@ -520,10 +538,10 @@ class ZenHub:
             raise ConfigEntryNotReady(f"zencontrol setup failed: {err}") from err
 
     def _entry_tracked_tasks(self) -> set[asyncio.Future[Any]]:
-        """Return tasks created via ``ConfigEntry.async_create_task``.
+        """Return tasks created via ConfigEntry.async_create_task.
 
         EntityPlatform uses that API when integrations call the sync
-        ``async_add_entities`` callback. There is no public accessor.
+        async_add_entities callback. There is no public accessor.
         """
         return self.entry._tasks  # noqa: SLF001
 
@@ -533,9 +551,9 @@ class ZenHub:
         *,
         what: str,
     ) -> None:
-        """Await entry tasks scheduled after ``before`` was snapshotted.
+        """Await entry tasks scheduled after before was snapshotted.
 
-        Unlike ``hass.async_block_till_done()``, this never waits on unrelated
+        Unlike hass.async_block_till_done(), this never waits on unrelated
         hass tasks (which deadlocks when CREATE_ENTRY is awaiting setup).
         """
         pending = [task for task in self._entry_tracked_tasks() if task not in before and not task.done()]
@@ -571,10 +589,10 @@ class ZenHub:
     async def _wait_for_controller(self) -> None:
         """Poll until this controller is ready, then interview.
 
-        Never proceeds to discovery/events while ``is_controller_ready()`` is
-        false. Controllers commonly take 1–10 minutes after reboot. While
+        Never proceeds to discovery/events while is_controller_ready() is
+        false. Controllers commonly take 1-10 minutes after reboot. While
         waiting, entities are unavailable and the status sensor shows
-        ``starting`` / ``unreachable``.
+        starting / unreachable.
         """
         ctrl = self.controller
         assert ctrl is not None
@@ -628,6 +646,7 @@ class ZenHub:
                     if needs_save:
                         _LOGGER.info("Cached manifest outdated; re-saving after hydrate failures")
                     await self._manifest_store.async_save(build_manifest(self) if needs_save else manifest)
+                self._prune_kind_changed_entities()
             except (KeyError, TypeError, ValueError) as err:
                 _LOGGER.warning("Cached manifest invalid (%s), running full discovery", err)
                 manifest = None
@@ -641,10 +660,12 @@ class ZenHub:
             await self._manifest_store.async_save(build_manifest(self))
 
         _LOGGER.info(
-            "Discovery complete: %d lights, %d groups, %d buttons, "
+            "Discovery complete: %d lights, %d fans, %d blinds, %d groups, %d buttons, "
             "%d motion sensors, %d absolute inputs, %d sv_switches, "
             "%d sv_sensors, %d profiles",
             len(self.lights),
+            len(self.fans),
+            len(self.blinds),
             len(self.groups),
             len(self.buttons),
             len(self.motion_sensors),
@@ -659,6 +680,8 @@ class ZenHub:
         assert self.controller is not None
         found = await discover_controller_entities(self.zen, self.controller)
         self.lights = found.lights
+        self.fans = found.fans
+        self.blinds = found.blinds
         self.groups = found.groups
         self.buttons = found.buttons
         self.motion_sensors = found.motion_sensors
@@ -666,11 +689,18 @@ class ZenHub:
         self.sv_switches = found.sv_switches
         self.sv_sensors = found.sv_sensors
         self.profiles = found.profiles
+        self._prune_kind_changed_entities()
 
     async def _refresh_light_states(self) -> None:
         """Batch refresh runtime state after discovery."""
         coros: list[Coroutine[Any, Any, Any]] = [light.refresh_state_from_controller() for light in self.lights]
-        coros.extend(group.refresh_state_from_controller() for group in self.groups if group.lights)
+        coros.extend(fan.refresh_state_from_controller() for fan in self.fans)
+        coros.extend(blind.refresh_state_from_controller() for blind in self.blinds)
+        coros.extend(
+            group.refresh_state_from_controller()
+            for group in self.groups
+            if group.lights or group.fans or group.blinds
+        )
         coros.extend(sensor.refresh_state_from_controller() for sensor in self.motion_sensors)
         seen_sv: set[tuple[str, int]] = set()
         for sv in (*self.sv_switches, *self.sv_sensors):
@@ -680,11 +710,44 @@ class ZenHub:
             seen_sv.add(key)
             coros.append(sv.refresh_state_from_controller())
         if coros:
-            _LOGGER.debug("Refreshing state for %d lights/groups/sysvars", len(coros))
+            _LOGGER.debug("Refreshing state for %d lights/fans/blinds/groups/sysvars", len(coros))
             results = await self._rate_limiter.execute_batch(coros, return_exceptions=True)
             for result in results:
                 if isinstance(result, Exception):
                     _LOGGER.warning("State refresh failed: %s", result)
+
+    def _prune_kind_changed_entities(self) -> None:
+        """Remove registry entities whose ECG kind no longer matches discovery.
+
+        When a labeled fan/blind replaces a former light (or vice versa), the
+        old unique_id would otherwise linger. Never clears user disabled_by.
+        """
+        if self.controller is None:
+            return
+        entity_registry = er.async_get(self.hass)
+        ctrl = self.controller.name
+        fan_numbers = {fan.address.number for fan in self.fans}
+        blind_numbers = {blind.address.number for blind in self.blinds}
+        light_numbers = {light.address.number for light in self.lights}
+        kind_for_number = {
+            **{n: "light" for n in light_numbers},
+            **{n: "fan" for n in fan_numbers},
+            **{n: "blind" for n in blind_numbers},
+        }
+        for registry_entry in er.async_entries_for_config_entry(entity_registry, self.entry.entry_id):
+            unique_id = registry_entry.unique_id or ""
+            for kind, prefix in (("light", f"{ctrl}_ecg_"), ("fan", f"{ctrl}_fan_"), ("blind", f"{ctrl}_blind_")):
+                if not unique_id.startswith(prefix):
+                    continue
+                try:
+                    number = int(unique_id[len(prefix) :])
+                except ValueError:
+                    break
+                current = kind_for_number.get(number)
+                if current is not None and current != kind:
+                    entity_registry.async_remove(registry_entry.entity_id)
+                break
+
 
     async def _async_notify_discovery_best_effort(self) -> None:
         """Notify platforms after a failed start without masking the error."""
@@ -699,9 +762,9 @@ class ZenHub:
     async def _notify_discovery_complete(self) -> None:
         """Run platform discovery callbacks and await entity-adds they schedule.
 
-        Platform ``async_add_entities`` is synchronous and only schedules work
-        via ``ConfigEntry.async_create_task``. We await those new entry tasks
-        only — never ``hass.async_block_till_done()``, which deadlocks when
+        Platform async_add_entities is synchronous and only schedules work
+        via ConfigEntry.async_create_task. We await those new entry tasks
+        only — never hass.async_block_till_done(), which deadlocks when
         CREATE_ENTRY is awaiting setup.
         """
         if self._discovery_notified:
@@ -794,6 +857,16 @@ class ZenHub:
 
     def handle_light_change(self, light: ZenLight) -> None:
         entity = self._entity(light_assignment_key(light))
+        if entity is not None:
+            cast(Any, entity).update_state()
+
+    def handle_fan_change(self, fan: ZenFan) -> None:
+        entity = self._entity(fan_assignment_key(fan))
+        if entity is not None:
+            cast(Any, entity).update_state()
+
+    def handle_blind_change(self, blind: ZenBlind) -> None:
+        entity = self._entity(blind_assignment_key(blind))
         if entity is not None:
             cast(Any, entity).update_state()
 

@@ -9,9 +9,11 @@ from dataclasses import dataclass, field
 
 from zencontrol import (
     ZenAbsoluteInput,
+    ZenBlind,
     ZenButton,
     ZenControl,
     ZenController,
+    ZenFan,
     ZenGroup,
     ZenLight,
     ZenMotionSensor,
@@ -37,6 +39,8 @@ class DiscoveredEntities:
     """Sorted, classified entities from a bus scan."""
 
     lights: list[ZenLight] = field(default_factory=list)
+    fans: list[ZenFan] = field(default_factory=list)
+    blinds: list[ZenBlind] = field(default_factory=list)
     groups: list[ZenGroup] = field(default_factory=list)
     buttons: list[ZenButton] = field(default_factory=list)
     motion_sensors: list[ZenMotionSensor] = field(default_factory=list)
@@ -92,13 +96,20 @@ async def discover_controller_entities(
     zen: ZenControl,
     controller: ZenController | None = None,
 ) -> DiscoveredEntities:
-    """Scan the bus; scope to ``controller`` when given."""
+    """Scan the bus; scope to controller when given."""
+    gear = await zen.get_control_gear(controller=controller)
+    lights = [g for g in gear if isinstance(g, ZenLight)]
+    fans = [g for g in gear if isinstance(g, ZenFan)]
+    blinds = [g for g in gear if isinstance(g, ZenBlind)]
+
     instances = await zen.get_instances(controller=controller)
     buttons = [e for e in instances if isinstance(e, ZenButton)]
     motion_sensors = [e for e in instances if isinstance(e, ZenMotionSensor)]
     absolute_inputs = [e for e in instances if isinstance(e, ZenAbsoluteInput)]
     found = DiscoveredEntities(
-        lights=sorted(await zen.get_lights(controller=controller), key=lambda lt: lt.address.number),
+        lights=sorted(lights, key=lambda lt: lt.address.number),
+        fans=sorted(fans, key=lambda f: f.address.number),
+        blinds=sorted(blinds, key=lambda b: b.address.number),
         groups=sorted(await zen.get_groups(controller=controller), key=lambda g: g.address.number),
         buttons=sorted(buttons, key=lambda b: (b.instance.address.number, b.instance.number)),
         motion_sensors=sorted(motion_sensors, key=lambda s: (s.instance.address.number, s.instance.number)),

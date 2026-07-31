@@ -51,7 +51,7 @@ class ZenControllerStatusSensor(ZenControllerEntity, SensorEntity):
     """Diagnostic enum: online / starting / unreachable.
 
     Stays available while the integration is loaded so a rebooting controller
-    still shows ``starting`` instead of disappearing as unavailable.
+    still shows starting instead of disappearing as unavailable.
     """
 
     _attr_translation_key = "controller_status"

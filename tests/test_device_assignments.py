@@ -41,6 +41,8 @@ def _make_hub(*, controllers_cfg: list[dict[str, Any]], controllers: list[Any]) 
     hub.entry = entry
     hub.controller = controllers[0] if controllers else None
     hub.lights = []
+    hub.fans = []
+    hub.blinds = []
     hub.groups = []
     hub.buttons = []
     hub.motion_sensors = []

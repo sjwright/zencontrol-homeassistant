@@ -8,7 +8,7 @@ A Home Assistant custom integration for [zencontrol](https://zencontrol.com) app
 * **Easy setup** — discover a controller on your subnet at the press of a DALI button
 * **Stable entity IDs** — unique IDs based on controller identity and DALI addressing, so replacing faulty DALI devices won't break your automations
 * **Runtime discovery** — additional controllers found later can be confirmed and added with ease
-* **Full device support** — lights, groups, buttons, motion sensors, profiles, and labelled system variables all appear after setup
+* **Full device support** — lights, fans, blinds, groups, buttons, motion sensors, profiles, and labelled system variables all appear after setup
 * **Rooms and areas** — divide a large DALI bus into virtual sub-devices, so your DALI lights can be divided among multiple Home Assistant areas
 * **Live updates** — levels, colour, scenes, profiles, motion, buttons, and absolute inputs stay in sync as the controller changes
 * **Full colour control** — dimming, colour temperature, and colour where the fixture supports it, with correct conversion between linear DALI levels and perceptual Home Assistant brightness
@@ -17,6 +17,7 @@ A Home Assistant custom integration for [zencontrol](https://zencontrol.com) app
 * **All device events** — short and long press button events, occupancy sensors, dials, sliders, and other ECD inputs
 * **Profiles** — view and change the active controller profile, and use profile changes to trigger automations
 * **System variables** — expose zen SVs as switches or sensors by suffixing their label with `switch`, `sensor`, or `lux sensor`
+* **Fans and blinds** — expose channels as fully featured fans and blinds by suffixing their label with `fan` or `blind`
 * **Controller status** — diagnostic online / starting / unreachable state per controller
 * **Translations** — English, German, French, Danish, Swedish, Polish, Hindi, and Simplified Chinese
 

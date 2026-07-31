@@ -17,7 +17,7 @@ DATA_PENDING_MANIFEST: Final = "pending_manifest"
 
 DEFAULT_PORT: Final = 5108
 
-# Controller boot can take 1–10 minutes after power-on / reboot. Setup and
+# Controller boot can take 1-10 minutes after power-on / reboot. Setup and
 # config-flow priming poll is_controller_ready() until this deadline.
 CONTROLLER_READY_POLL_INTERVAL: Final = 10  # seconds between polls
 CONTROLLER_READY_QUERY_TIMEOUT: Final = 10.0
@@ -35,6 +35,8 @@ CONTROLLER_STATUS_OPTIONS: Final = (
 
 PLATFORMS: Final = [
     Platform.LIGHT,
+    Platform.FAN,
+    Platform.COVER,
     Platform.BINARY_SENSOR,
     Platform.SWITCH,
     Platform.SENSOR,
@@ -79,8 +81,8 @@ def controller_from_entry_data(
 ) -> dict[str, Any] | None:
     """Return the single controller config from entry data.
 
-    Accepts a Mapping because ``ConfigEntry.data`` is a read-only
-    ``MappingProxyType``.
+    Accepts a Mapping because ConfigEntry.data is a read-only
+    MappingProxyType.
     """
     controllers = data.get(CONF_CONTROLLERS)
     if isinstance(controllers, list) and controllers:

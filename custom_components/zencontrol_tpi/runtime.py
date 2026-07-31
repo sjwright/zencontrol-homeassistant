@@ -13,8 +13,10 @@ from homeassistant.exceptions import HomeAssistantError
 from zencontrol import (
     DiscoveredController,
     ZenAbsoluteInput,
+    ZenBlind,
     ZenButton,
     ZenController,
+    ZenFan,
     ZenGroup,
     ZenLight,
     ZenMotionSensor,
@@ -73,6 +75,8 @@ class SharedZenRuntime:
         self.zen.callbacks.on_disconnect = self._on_disconnect
         self.zen.callbacks.on_resync = self._on_resync
         self.zen.callbacks.light_change = self._on_light_change
+        self.zen.callbacks.fan_change = self._on_fan_change
+        self.zen.callbacks.blind_change = self._on_blind_change
         self.zen.callbacks.group_change = self._on_group_change
         self.zen.callbacks.button_press = self._on_button_press
         self.zen.callbacks.button_long_press = self._on_button_long_press
@@ -164,7 +168,7 @@ class SharedZenRuntime:
     async def async_configure_controller_events(self, ctrl: ZenController | None) -> None:
         """Enable TPI events for a controller that is already ready.
 
-        No-op when the shared listener is not running yet; ``async_ensure_started``
+        No-op when the shared listener is not running yet; async_ensure_started
         configures every registered controller when it first binds the listener.
         """
         if not self._started or ctrl is None:
@@ -236,6 +240,8 @@ class SharedZenRuntime:
         zen.callbacks.on_disconnect = None
         zen.callbacks.on_resync = None
         zen.callbacks.light_change = None
+        zen.callbacks.fan_change = None
+        zen.callbacks.blind_change = None
         zen.callbacks.group_change = None
         zen.callbacks.button_press = None
         zen.callbacks.button_long_press = None
@@ -285,6 +291,16 @@ class SharedZenRuntime:
         hub = self.hub_for_controller(as_zen_controller(light.address.controller))
         if hub is not None:
             hub.handle_light_change(light)
+
+    async def _on_fan_change(self, *, fan: ZenFan) -> None:
+        hub = self.hub_for_controller(as_zen_controller(fan.address.controller))
+        if hub is not None:
+            hub.handle_fan_change(fan)
+
+    async def _on_blind_change(self, *, blind: ZenBlind) -> None:
+        hub = self.hub_for_controller(as_zen_controller(blind.address.controller))
+        if hub is not None:
+            hub.handle_blind_change(blind)
 
     async def _on_group_change(
         self,

@@ -2,7 +2,7 @@
 
 Lifecycle (owned by ZenHub.sync_device_assignments):
 
-1. Config: per-controller ``sub_devices`` list in the config entry
+1. Config: per-controller sub_devices list in the config entry
 2. Assign: group-first, then longest label-prefix match (build_assignments)
 3. Sync: create/update devices + areas, move entities, prune orphans
 
@@ -19,7 +19,9 @@ from typing import Any, Literal
 
 from zencontrol import (
     ZenAbsoluteInput,
+    ZenBlind,
     ZenButton,
+    ZenFan,
     ZenGroup,
     ZenLight,
     ZenMotionSensor,
@@ -209,6 +211,16 @@ def match_label_for_light(light: ZenLight) -> str:
     return (light.sub_label or light.label or "").strip()
 
 
+def match_label_for_fan(fan: ZenFan) -> str:
+    """Label used for fan name matching."""
+    return (fan.label or "").strip()
+
+
+def match_label_for_blind(blind: ZenBlind) -> str:
+    """Label used for blind name matching."""
+    return (blind.label or "").strip()
+
+
 def match_label_for_group(group: ZenGroup) -> str:
     """Label used for group matching."""
     return (group.label or "").strip()
@@ -237,6 +249,16 @@ def match_label_for_sysvar(sv: ZenSystemVariable) -> str:
 def light_assignment_key(light: ZenLight) -> str:
     ctrl = light.address.controller
     return f"light:{ctrl.name}:{light.address.number}"
+
+
+def fan_assignment_key(fan: ZenFan) -> str:
+    ctrl = fan.address.controller
+    return f"fan:{ctrl.name}:{fan.address.number}"
+
+
+def blind_assignment_key(blind: ZenBlind) -> str:
+    ctrl = blind.address.controller
+    return f"blind:{ctrl.name}:{blind.address.number}"
 
 
 def group_assignment_key(group: ZenGroup) -> str:
@@ -273,6 +295,8 @@ def build_assignments(
     *,
     controller_sub_devices: dict[str, list[SubDeviceDef]],
     lights: list[ZenLight],
+    fans: list[ZenFan] | None = None,
+    blinds: list[ZenBlind] | None = None,
     groups: list[ZenGroup],
     buttons: list[ZenButton],
     motion_sensors: list[ZenMotionSensor],
@@ -281,16 +305,21 @@ def build_assignments(
 ) -> dict[str, str]:
     """Compute assignment key → sub-device id.
 
-    Groups are matched first (lowest address number wins when a light sits in
-    multiple matched groups); member lights inherit that sub-device and are not
-    name-matched. Remaining lights and other entities use longest-prefix name
-    matching. Profile entities are never assigned here (always parent).
+    Groups are matched first (lowest address number wins when a member sits in
+    multiple matched groups); member lights/fans/blinds inherit that sub-device
+    and are not name-matched. Remaining ECGs and other entities use
+    longest-prefix name matching. Profile entities are never assigned here
+    (always parent).
     """
+    fans = fans or []
+    blinds = blinds or []
     assignments: dict[str, str] = {}
     lights_claimed: set[str] = set()
+    fans_claimed: set[str] = set()
+    blinds_claimed: set[str] = set()
 
     # Groups: lowest address number first so "first matched group" is stable
-    # when a light sits in multiple matched groups.
+    # when a member sits in multiple matched groups.
     sorted_groups = sorted(
         groups,
         key=lambda g: (g.address.controller.name, g.address.number),
@@ -316,6 +345,18 @@ def build_assignments(
                 continue
             assignments[lkey] = matched.id
             lights_claimed.add(lkey)
+        for fan in getattr(group, "fans", ()) or ():
+            fkey = fan_assignment_key(fan)
+            if fkey in fans_claimed:
+                continue
+            assignments[fkey] = matched.id
+            fans_claimed.add(fkey)
+        for blind in getattr(group, "blinds", ()) or ():
+            bkey = blind_assignment_key(blind)
+            if bkey in blinds_claimed:
+                continue
+            assignments[bkey] = matched.id
+            blinds_claimed.add(bkey)
 
     for light in lights:
         lkey = light_assignment_key(light)
@@ -326,6 +367,26 @@ def build_assignments(
         matched = match_sub_device(match_label_for_light(light), devices)
         if matched is not None:
             assignments[lkey] = matched.id
+
+    for fan in fans:
+        fkey = fan_assignment_key(fan)
+        if fkey in fans_claimed:
+            continue
+        ctrl_name = fan.address.controller.name
+        devices = controller_sub_devices.get(ctrl_name) or []
+        matched = match_sub_device(match_label_for_fan(fan), devices)
+        if matched is not None:
+            assignments[fkey] = matched.id
+
+    for blind in blinds:
+        bkey = blind_assignment_key(blind)
+        if bkey in blinds_claimed:
+            continue
+        ctrl_name = blind.address.controller.name
+        devices = controller_sub_devices.get(ctrl_name) or []
+        matched = match_sub_device(match_label_for_blind(blind), devices)
+        if matched is not None:
+            assignments[bkey] = matched.id
 
     for button in buttons:
         ctrl_name = button.instance.address.controller.name

@@ -77,6 +77,8 @@ def test_build_manifest_dedupes_sysvars() -> None:
     )
     hub = SimpleNamespace(
         lights=[],
+        fans=[],
+        blinds=[],
         groups=[],
         buttons=[],
         motion_sensors=[],

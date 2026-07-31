@@ -49,8 +49,16 @@ async def test_wait_until_controller_ready_unreachable_callback() -> None:
 
 @pytest.mark.asyncio
 async def test_discover_controller_entities_scopes_and_classifies() -> None:
+    from zencontrol import ZenBlind, ZenFan, ZenLight
+
     ctrl = SimpleNamespace(name="house")
-    light = SimpleNamespace(address=SimpleNamespace(number=2, controller=ctrl))
+    light_obj = object.__new__(ZenLight)
+    light_obj.address = SimpleNamespace(number=2, controller=ctrl)
+    fan_obj = object.__new__(ZenFan)
+    fan_obj.address = SimpleNamespace(number=12, controller=ctrl)
+    blind_obj = object.__new__(ZenBlind)
+    blind_obj.address = SimpleNamespace(number=13, controller=ctrl)
+
     group = SimpleNamespace(address=SimpleNamespace(number=1, controller=ctrl))
     button = object.__new__(ZenButton)
     button.instance = SimpleNamespace(
@@ -70,7 +78,7 @@ async def test_discover_controller_entities_scopes_and_classifies() -> None:
     sv_both = SimpleNamespace(id=3, label="Door Switch Sensor", controller=ctrl)
 
     zen = MagicMock()
-    zen.get_lights = AsyncMock(return_value=[light])
+    zen.get_control_gear = AsyncMock(return_value=[light_obj, fan_obj, blind_obj])
     zen.get_groups = AsyncMock(return_value=[group])
     zen.get_instances = AsyncMock(return_value=[button, motion, absolute])
     zen.get_profiles = AsyncMock(return_value=[profile])
@@ -80,9 +88,11 @@ async def test_discover_controller_entities_scopes_and_classifies() -> None:
 
     found = await discover_controller_entities(zen, ctrl)
 
-    zen.get_lights.assert_awaited_once_with(controller=ctrl)
+    zen.get_control_gear.assert_awaited_once_with(controller=ctrl)
     zen.get_instances.assert_awaited_once_with(controller=ctrl)
-    assert found.lights == [light]
+    assert found.lights == [light_obj]
+    assert found.fans == [fan_obj]
+    assert found.blinds == [blind_obj]
     assert found.groups == [group]
     assert found.buttons == [button]
     assert found.motion_sensors == [motion]

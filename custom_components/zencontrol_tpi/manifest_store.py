@@ -12,8 +12,10 @@ from zencontrol import (
     ZenAbsoluteInput,
     ZenAddress,
     ZenAddressType,
+    ZenBlind,
     ZenButton,
     ZenController,
+    ZenFan,
     ZenGroup,
     ZenInstance,
     ZenInstanceType,
@@ -36,7 +38,7 @@ STORE_VERSION = 1
 
 # Schema version embedded into the manifest payload we store.
 # Bump this when the structure of `manifest["interview"]` changes.
-MANIFEST_VERSION = 5
+MANIFEST_VERSION = 7
 
 
 class Interviewable(Protocol):
@@ -53,6 +55,8 @@ class ManifestEntitySource(Protocol):
     """Entity lists accepted by build_manifest (ZenHub or discovery result)."""
 
     lights: list[ZenLight]
+    fans: list[ZenFan]
+    blinds: list[ZenBlind]
     groups: list[ZenGroup]
     buttons: list[ZenButton]
     motion_sensors: list[ZenMotionSensor]
@@ -131,6 +135,22 @@ def build_manifest(source: ManifestEntitySource) -> dict[str, Any]:
         }
         for lt in hub.lights
     ]
+    fans = [
+        {
+            "controller": f.address.controller.name,
+            "number": f.address.number,
+            "interview": _interview_blob(f),
+        }
+        for f in hub.fans
+    ]
+    blinds = [
+        {
+            "controller": b.address.controller.name,
+            "number": b.address.number,
+            "interview": _interview_blob(b),
+        }
+        for b in hub.blinds
+    ]
     groups = [
         {
             "controller": g.address.controller.name,
@@ -196,6 +216,8 @@ def build_manifest(source: ManifestEntitySource) -> dict[str, Any]:
     return {
         "version": MANIFEST_VERSION,
         "lights": lights,
+        "fans": fans,
+        "blinds": blinds,
         "groups": groups,
         "buttons": buttons,
         "motion_sensors": motion_sensors,
@@ -208,9 +230,9 @@ def build_manifest(source: ManifestEntitySource) -> dict[str, Any]:
 async def load_entities_from_manifest(hub: ZenHub, manifest: dict[str, Any]) -> bool:
     """Rebuild hub entity lists from a saved interview manifest.
 
-    Lights must be hydrated before groups so ZenLight.interview_hydrate() can
-    populate group.lights membership on the group singletons via
-    group_membership. Controllers are already interviewed by the hub.
+    Lights/fans/blinds must be hydrated before groups so interview_hydrate can
+    populate group membership on the group singletons. Controllers are already
+    interviewed by the hub.
     """
     ctrl_by_name = {hub.controller.name: hub.controller} if hub.controller is not None else {}
     ctx = hub.zen.context
@@ -221,7 +243,7 @@ async def load_entities_from_manifest(hub: ZenHub, manifest: dict[str, Any]) -> 
             raise KeyError(f"Manifest references unknown controller {name!r}")
         return ctrl_by_name[name]
 
-    # Lights first: hydrate rebuilds light.groups and group.lights links.
+    # ECG kinds first: hydrate rebuilds group membership links.
     hub.lights = []
     for item in manifest.get("lights", []):
         ctrl = _ctrl(item["controller"])
@@ -230,6 +252,24 @@ async def load_entities_from_manifest(hub: ZenHub, manifest: dict[str, Any]) -> 
         if await _hydrate_or_interview(light, item.get("interview")):
             needs_save = True
         hub.lights.append(light)
+
+    hub.fans = []
+    for item in manifest.get("fans", []):
+        ctrl = _ctrl(item["controller"])
+        addr = ZenAddress(controller=ctrl, type=ZenAddressType.ECG, number=item["number"])
+        fan = ctx.fan(addr)
+        if await _hydrate_or_interview(fan, item.get("interview")):
+            needs_save = True
+        hub.fans.append(fan)
+
+    hub.blinds = []
+    for item in manifest.get("blinds", []):
+        ctrl = _ctrl(item["controller"])
+        addr = ZenAddress(controller=ctrl, type=ZenAddressType.ECG, number=item["number"])
+        blind = ctx.blind(addr)
+        if await _hydrate_or_interview(blind, item.get("interview")):
+            needs_save = True
+        hub.blinds.append(blind)
 
     hub.groups = []
     for item in manifest.get("groups", []):
@@ -308,6 +348,8 @@ async def load_entities_from_manifest(hub: ZenHub, manifest: dict[str, Any]) -> 
         hub.profiles.append(profile)
 
     hub.lights.sort(key=lambda lt: lt.address.number)
+    hub.fans.sort(key=lambda f: f.address.number)
+    hub.blinds.sort(key=lambda b: b.address.number)
     hub.groups.sort(key=lambda g: g.address.number)
     hub.buttons.sort(key=lambda b: (b.instance.address.number, b.instance.number))
     hub.motion_sensors.sort(key=lambda s: (s.instance.address.number, s.instance.number))
