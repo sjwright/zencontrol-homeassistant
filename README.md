@@ -4,7 +4,7 @@ A Home Assistant custom integration for [zencontrol](https://zencontrol.com) app
 
 ## Features
 
-* **Local control** — exclusively LAN-based communications; no zencontrol Cloud dependency for day-to-day use
+* **Local control** — exclusively LAN-based communications; no zencontrol Cloud dependency for day-to-day use
 * **Easy setup** — discover a controller on your subnet at the press of a DALI button
 * **Stable entity IDs** — unique IDs based on controller identity and DALI addressing, so replacing faulty DALI devices won't break your automations
 * **Runtime discovery** — additional controllers found later can be confirmed and added with ease
@@ -13,7 +13,7 @@ A Home Assistant custom integration for [zencontrol](https://zencontrol.com) app
 * **Live updates** — levels, colour, scenes, profiles, motion, buttons, and absolute inputs stay in sync as the controller changes
 * **Full colour control** — dimming, colour temperature, and colour where the fixture supports it, with correct conversion between linear DALI levels and perceptual Home Assistant brightness
 * **Custom fade times** — transition times in Home Assistant automations are transformed into DALI fade times
-* **Scene control** — complete support for recalling group scenes, plus a per-group select entity so you can build automations which respond to current scene state, and to state changes
+* **Scene control** — complete support for recalling group scenes, plus a per-group select entity so you can build automations that respond to current scene state and to state changes
 * **All device events** — short and long press button events, occupancy sensors, dials, sliders, and other ECD inputs
 * **Profiles** — view and change the active controller profile, and use profile changes to trigger automations
 * **System variables** — expose zen SVs as switches or sensors by suffixing their label with `switch`, `sensor`, or `lux sensor`
@@ -23,14 +23,14 @@ A Home Assistant custom integration for [zencontrol](https://zencontrol.com) app
 
 ## Architecture
 
-This integration builds on [`zencontrol-python`](https://github.com/sjwright/zencontrol-python), a complete TPI Advanced stack covering the wire protocol, transport, command API, and entity model. This mature foundation gives you:
+This integration builds on [`zencontrol-python`](https://github.com/sjwright/zencontrol-python), a complete TPI Advanced stack covering the wire protocol, transport, command API, and entity model. That foundation provides:
 
 * **Reliable networking** — a solid UDP implementation of the TPI Advanced wire protocol, plus a battle-tested event listener
 * **Controller workarounds** — strategies for known hardware limits (for example, a local scene cache, because the controller is often slow to report scene-derived colour changes)
 * **Multicast or unicast** — multicast when the network allows it; unicast fallback when it does not
 * **Rich discovery** — multicast controller discovery, plus a full interview of lights, groups, buttons, sensors, inputs, and system variables
 * **Test-driven reliability** — a large test suite, backed by a [`hardware simulator`](https://github.com/sjwright/zencontrol-simulator), covering edge cases and timing-sensitive behaviour
-* **Real-world reliability** — in production for over a year, and has been used to find and resolve many firmware bugs in earlier versions of zencontrol firmware
+* **Real-world reliability** — in production for over a year, and used to find and help resolve many bugs in earlier zencontrol firmware
 
 ## Requirements
 
@@ -68,7 +68,7 @@ Configure sub-devices from the integration page (click on **Zencontrol** from th
 
 * In zencontrol Cloud, device labels are called _locations_. Under **Device Location**, edit locations so devices in the same room are prefixed with the same string — for example `Kitchen 1`, `Kitchen Pendant`.
 * In addition (or alternatively), if you have a DALI group named `Kitchen`, member lights of that group are treated as if their names start with `Kitchen`. (Groups are matched first, so avoid matching groups which span multiple rooms.)
-*  When adding sub-devices, you can combine several prefixes into one sub-device by supplying a comma-delimited list of prefixes. This is useful when DALI rooms don't map 1:1 with Home Assistant rooms, for example `Kitchen` and `Living` in an open-plan home.
+* When adding sub-devices, you can combine several prefixes into one sub-device by supplying a comma-delimited list of prefixes. This is useful when DALI rooms don't map 1:1 with Home Assistant rooms, for example `Kitchen` and `Living` in an open-plan home.
 * Be aware: in zencontrol Cloud, **Floor** is a cloud-only concept and is not sent to the controller, so it cannot be read by this integration.
 
 ### 2. Label every instance
@@ -77,7 +77,7 @@ Buttons and sensors appear in Home Assistant using their instance labels.
 
 * In zencontrol Cloud, under **Instance types**, label everything under **Push button**, **Absolute input**, **Touchscreen**, **Occupancy sensor**, and **Light sensor**. It takes a little time, but it's worth it. Tip: the grid editor lets you copy one label cell and paste across multiple others. From there you can edit suffixes.
 * As with devices, buttons and sensors are assigned to virtual sub-devices by instance-label prefix. Use names like `Kitchen B1` or `Kitchen Pantry`.
-* Names only need to be distinct within their own context. It's perfectly fine (and works well) to have one light named `Laundry` and a button named `Laundry` with an single instance named `Laundry`.
+* Names only need to be distinct within their own context. It's perfectly fine (and works well) to have one light named `Laundry` and a button named `Laundry` with a single instance named `Laundry`.
 
 ### 3. Workarounds for zencontrol limits
 
