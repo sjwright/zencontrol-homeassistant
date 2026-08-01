@@ -411,10 +411,10 @@ class ZenHub:
         self,
         key: str,
         entity: Entity,
-        controller: ZenController,
+        ctrl: ZenController,
         assignment_key: str | None,
     ) -> None:
-        self._entities[key] = _BoundEntity(entity, controller, assignment_key)
+        self._entities[key] = _BoundEntity(entity, ctrl, assignment_key)
 
     def _entity(self, key: str) -> Entity | None:
         bound = self._entities.get(key)

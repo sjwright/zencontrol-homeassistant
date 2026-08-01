@@ -81,9 +81,9 @@ def _controllers_from_all_entries(hass: HomeAssistant) -> list[ControllerConfig]
     """Return every controller config across all domain entries."""
     result: list[ControllerConfig] = []
     for entry in hass.config_entries.async_entries(DOMAIN):
-        for ctrl in entry.data.get(CONF_CONTROLLERS, []):
-            if isinstance(ctrl, dict):
-                result.append(ctrl)
+        for ctrl_cfg in entry.data.get(CONF_CONTROLLERS, []):
+            if isinstance(ctrl_cfg, dict):
+                result.append(ctrl_cfg)
     return result
 
 
@@ -105,9 +105,9 @@ def unique_controller_name(host: str, mac: str, existing: list[ControllerConfig]
         n += 1
 
 
-def entry_title(controller: ControllerConfig) -> str:
+def entry_title(ctrl_cfg: ControllerConfig) -> str:
     """Human-readable config entry title (label, else name)."""
-    return str(controller.get(CONF_LABEL) or controller.get(CONF_NAME) or "zencontrol")
+    return str(ctrl_cfg.get(CONF_LABEL) or ctrl_cfg.get(CONF_NAME) or "zencontrol")
 
 
 def build_controller_dict(
@@ -294,7 +294,7 @@ async def _async_listen_for_controllers(
 
 async def _async_prime_discovery(
     hass: HomeAssistant,
-    controller: ControllerConfig,
+    ctrl_cfg: ControllerConfig,
     *,
     unicast: bool = False,
 ) -> None:
@@ -307,11 +307,11 @@ async def _async_prime_discovery(
     try:
         ctrl = zen.add_controller(
             id=1,
-            name=controller[CONF_NAME],
-            label=controller[CONF_LABEL],
-            host=controller[CONF_HOST],
-            port=int(controller.get(CONF_PORT, DEFAULT_PORT)),
-            mac=controller.get(CONF_MAC),
+            name=ctrl_cfg[CONF_NAME],
+            label=ctrl_cfg[CONF_LABEL],
+            host=ctrl_cfg[CONF_HOST],
+            port=int(ctrl_cfg.get(CONF_PORT, DEFAULT_PORT)),
+            mac=ctrl_cfg.get(CONF_MAC),
         )
         try:
             await wait_until_controller_ready(zen, ctrl)
@@ -320,7 +320,7 @@ async def _async_prime_discovery(
 
         snap = await discover_controller_entities(zen, ctrl)
         manifest = build_manifest(snap)
-        mac_id = normalize_mac_id(controller[CONF_MAC])
+        mac_id = normalize_mac_id(ctrl_cfg[CONF_MAC])
         hass.data.setdefault(DOMAIN, {}).setdefault(DATA_PENDING_MANIFEST, {})[mac_id] = {"manifest": manifest}
     finally:
         try:
@@ -610,11 +610,11 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
         if not isinstance(controllers, list) or not controllers:
             return self.async_abort(reason="no_controllers")
 
-        ctrl = controllers[0]
-        if not isinstance(ctrl, dict):
+        ctrl_cfg = controllers[0]
+        if not isinstance(ctrl_cfg, dict):
             return self.async_abort(reason="no_controllers")
 
-        mac = str(ctrl.get(CONF_MAC, ""))
+        mac = str(ctrl_cfg.get(CONF_MAC, ""))
         mac_id = normalize_mac_id(mac)
         if not mac_id:
             return self.async_abort(reason="no_controllers")
@@ -622,11 +622,11 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
         await self.async_set_unique_id(mac_id)
         self._abort_if_unique_id_configured()
 
-        title = str(import_data.get("title") or entry_title(ctrl))
+        title = str(import_data.get("title") or entry_title(ctrl_cfg))
         result = self.async_create_entry(
             title=title,
             data={
-                CONF_CONTROLLERS: [ctrl],
+                CONF_CONTROLLERS: [ctrl_cfg],
                 CONF_UNICAST: bool(import_data.get(CONF_UNICAST, False)),
             },
         )

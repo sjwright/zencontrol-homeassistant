@@ -117,10 +117,10 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         version=CONFIG_VERSION,
     )
 
-    for ctrl in extras:
-        mac_id = normalize_mac_id(str(ctrl.get(CONF_MAC, "")))
+    for ctrl_cfg in extras:
+        mac_id = normalize_mac_id(str(ctrl_cfg.get(CONF_MAC, "")))
         if not mac_id:
-            _LOGGER.warning("Skipping migration of controller without MAC: %s", ctrl)
+            _LOGGER.warning("Skipping migration of controller without MAC: %s", ctrl_cfg)
             continue
         if mac_is_configured(hass, mac_id, ignore_entry_id=entry.entry_id):
             _LOGGER.info("Controller %s already has an entry; skipping import", mac_id)
@@ -130,9 +130,9 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             DOMAIN,
             context={"source": SOURCE_IMPORT},
             data={
-                CONF_CONTROLLERS: [ctrl],
+                CONF_CONTROLLERS: [ctrl_cfg],
                 CONF_UNICAST: unicast,
-                "title": str(ctrl.get(CONF_LABEL) or ctrl.get("name") or "zencontrol"),
+                "title": str(ctrl_cfg.get(CONF_LABEL) or ctrl_cfg.get("name") or "zencontrol"),
                 "migrate_from_entry_id": entry.entry_id,
             },
         )
@@ -145,9 +145,9 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 
-def entry_data_for_controller(ctrl: dict[str, Any], *, unicast: bool = False) -> dict[str, Any]:
+def entry_data_for_controller(ctrl_cfg: dict[str, Any], *, unicast: bool = False) -> dict[str, Any]:
     """Build persisted entry data for a single controller."""
     return {
-        CONF_CONTROLLERS: [ctrl],
+        CONF_CONTROLLERS: [ctrl_cfg],
         CONF_UNICAST: unicast,
     }

@@ -280,10 +280,10 @@ class SharedZenRuntime:
         for hub in list(self._hubs_by_entry.values()):
             await hub.handle_listener_resync()
 
-    async def _on_controller_status(self, controller: Any, status: str) -> None:
+    async def _on_controller_status(self, ctrl: Any, status: str) -> None:
         # zencontrol-python 1.0.0 typed this Protocol against api.ZenController;
         # runtime always passes the interface subclass.
-        hub = self.hub_for_controller(as_zen_controller(controller))
+        hub = self.hub_for_controller(as_zen_controller(ctrl))
         if hub is not None:
             await hub.handle_controller_status(status)
 

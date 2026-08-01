@@ -59,13 +59,13 @@ def controller_config(
 
 
 def entry_data(
-    controller: dict[str, Any] | None = None,
+    ctrl_cfg: dict[str, Any] | None = None,
     *,
     unicast: bool = False,
 ) -> dict[str, Any]:
     """Build config-entry data for one controller."""
     return {
-        CONF_CONTROLLERS: [controller or controller_config()],
+        CONF_CONTROLLERS: [ctrl_cfg or controller_config()],
         CONF_UNICAST: unicast,
     }
 
@@ -349,12 +349,12 @@ async def test_runtime_discovery_already_configured(hass: HomeAssistant) -> None
 
 async def test_import_creates_entry(hass: HomeAssistant) -> None:
     """Legacy multi-controller migration import creates a single entry."""
-    ctrl = controller_config()
+    ctrl_cfg = controller_config()
     result = await hass.config_entries.flow.async_init(
         DOMAIN,
         context={"source": SOURCE_IMPORT},
         data={
-            CONF_CONTROLLERS: [ctrl],
+            CONF_CONTROLLERS: [ctrl_cfg],
             CONF_UNICAST: True,
             "title": "Imported",
         },
@@ -415,11 +415,11 @@ async def test_reconfigure_does_not_offer_unicast(hass: HomeAssistant) -> None:
 
 async def test_reconfigure_controller(hass: HomeAssistant) -> None:
     """Reconfigure updates host while keeping the controller name stable."""
-    ctrl = controller_config(name="stable")
+    ctrl_cfg = controller_config(name="stable")
     entry = MockConfigEntry(
         domain=DOMAIN,
         unique_id=MAC_ID,
-        data=entry_data(ctrl),
+        data=entry_data(ctrl_cfg),
         title=LABEL,
     )
     entry.add_to_hass(hass)
@@ -489,7 +489,7 @@ async def test_options_add_sub_device(hass: HomeAssistant) -> None:
 
 async def test_options_add_duplicate_prefix(hass: HomeAssistant) -> None:
     """Duplicate prefixes are rejected when adding a sub-device."""
-    ctrl = controller_config(
+    ctrl_cfg = controller_config(
         sub_devices=[
             {
                 "id": "kitchen",
@@ -498,7 +498,7 @@ async def test_options_add_duplicate_prefix(hass: HomeAssistant) -> None:
             }
         ]
     )
-    entry = _entry_with_runtime(hass, entry_data(ctrl))
+    entry = _entry_with_runtime(hass, entry_data(ctrl_cfg))
 
     result = await hass.config_entries.options.async_init(entry.entry_id)
     result = await hass.config_entries.options.async_configure(
@@ -514,7 +514,7 @@ async def test_options_add_duplicate_prefix(hass: HomeAssistant) -> None:
 
 async def test_options_delete_sub_device(hass: HomeAssistant) -> None:
     """Options flow can delete an existing sub-device via the dynamic menu."""
-    ctrl = controller_config(
+    ctrl_cfg = controller_config(
         sub_devices=[
             {
                 "id": "kitchen",
@@ -523,7 +523,7 @@ async def test_options_delete_sub_device(hass: HomeAssistant) -> None:
             }
         ]
     )
-    entry = _entry_with_runtime(hass, entry_data(ctrl))
+    entry = _entry_with_runtime(hass, entry_data(ctrl_cfg))
 
     result = await hass.config_entries.options.async_init(entry.entry_id)
     assert "subdev_kitchen" in result["menu_options"]
@@ -548,13 +548,13 @@ async def test_options_delete_sub_device(hass: HomeAssistant) -> None:
 
 async def test_options_suggest_from_setup(hass: HomeAssistant) -> None:
     """Post-setup options context opens the suggest-sub-devices menu."""
-    ctrl = controller_config()
-    entry = _entry_with_runtime(hass, entry_data(ctrl))
+    ctrl_cfg = controller_config()
+    entry = _entry_with_runtime(hass, entry_data(ctrl_cfg))
 
     result = await hass.config_entries.options.async_init(
         entry.entry_id,
         context={"source": SOURCE_USER},
-        data={"suggest_sub_devices_ctrl": ctrl[CONF_NAME]},
+        data={"suggest_sub_devices_ctrl": ctrl_cfg[CONF_NAME]},
     )
     assert result["type"] is FlowResultType.MENU
     assert result["step_id"] == "suggest_sub_devices"
