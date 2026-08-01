@@ -98,12 +98,12 @@ async def discover_controller_entities(
     controller: ZenController | None = None,
 ) -> DiscoveredEntities:
     """Scan the bus; scope to controller when given."""
-    gear = await zen.get_control_gear(controller=controller)
+    gear = await zen.get_control_gear(ctrl=controller)
     lights = [g for g in gear if isinstance(g, ZenLight)]
     fans = [g for g in gear if isinstance(g, ZenFan)]
     blinds = [g for g in gear if isinstance(g, ZenBlind)]
 
-    instances = await zen.get_instances(controller=controller)
+    instances = await zen.get_instances(ctrl=controller)
     buttons = [e for e in instances if isinstance(e, ZenButton)]
     motion_sensors = [e for e in instances if isinstance(e, ZenMotionSensor)]
     absolute_inputs = [e for e in instances if isinstance(e, ZenAbsoluteInput)]
@@ -111,13 +111,13 @@ async def discover_controller_entities(
         lights=sorted(lights, key=lambda lt: lt.address.number),
         fans=sorted(fans, key=lambda f: f.address.number),
         blinds=sorted(blinds, key=lambda b: b.address.number),
-        groups=sorted(await zen.get_groups(controller=controller), key=lambda g: g.address.number),
+        groups=sorted(await zen.get_groups(ctrl=controller), key=lambda g: g.address.number),
         buttons=sorted(buttons, key=lambda b: (b.instance.address.number, b.instance.number)),
         motion_sensors=sorted(motion_sensors, key=lambda s: (s.instance.address.number, s.instance.number)),
         absolute_inputs=sorted(absolute_inputs, key=lambda a: (a.instance.address.number, a.instance.number)),
-        profiles=sorted(await zen.get_profiles(controller=controller), key=lambda p: (p.controller.name, p.number)),
+        profiles=sorted(await zen.get_profiles(ctrl=controller), key=lambda p: (p.ctrl.name, p.number)),
     )
-    for sv in sorted(await zen.get_system_variables(controller=controller), key=lambda s: s.id):
+    for sv in sorted(await zen.get_system_variables(ctrl=controller), key=lambda s: s.id):
         lower = (sv.label or "").casefold()
         as_sensor, as_switch = "sensor" in lower, "switch" in lower
         if as_switch:

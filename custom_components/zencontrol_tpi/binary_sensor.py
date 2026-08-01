@@ -39,7 +39,7 @@ class ZenMotionSensorEntity(ZenControllerEntity, BinarySensorEntity):
     _attr_device_class = BinarySensorDeviceClass.MOTION
 
     def __init__(self, hub: ZenHub, zen_sensor: ZenMotionSensor) -> None:
-        ctrl = as_zen_controller(zen_sensor.instance.address.controller)
+        ctrl = as_zen_controller(zen_sensor.instance.address.ctrl)
         super().__init__(hub, ctrl)
         self._sensor = zen_sensor
         addr = zen_sensor.instance.address.number

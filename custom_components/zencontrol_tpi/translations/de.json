@@ -19,7 +19,7 @@
           "port": "Port",
           "mac": "MAC-Adresse",
           "label": "Controllername",
-          "unicast": "Unicast-Ereignisse verwenden (nicht empfohlen — nur wenn Broadcast-Pakete von Ihrer Netzwerktopologie nicht unterstützt werden)"
+          "unicast": "Unicast-Ereignisse verwenden (nicht empfohlen - nur wenn Broadcast-Pakete von Ihrer Netzwerktopologie nicht unterstützt werden)"
         },
         "data_description": {
           "mac": "Leer lassen und absenden, um die Adresse über die Host-IP zu ermitteln (nur gleiches Subnetz). Wert prüfen und erneut absenden.",
@@ -69,7 +69,7 @@
         "title": "Unicast-Einstellungen",
         "description": "Unicast gilt integrationsweit und wird verwendet, wenn die gemeinsame ZenControl-Runtime erstellt wird. Eine Aktualisierung speichert die Einstellung, wechselt aber keine laufende Runtime.",
         "data": {
-          "unicast": "Unicast-Ereignisse verwenden (nicht empfohlen — nur wenn Broadcast-Pakete von Ihrer Netzwerktopologie nicht unterstützt werden)"
+          "unicast": "Unicast-Ereignisse verwenden (nicht empfohlen - nur wenn Broadcast-Pakete von Ihrer Netzwerktopologie nicht unterstützt werden)"
         }
       }
     },

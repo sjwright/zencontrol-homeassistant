@@ -247,48 +247,48 @@ def match_label_for_sysvar(sv: ZenSystemVariable) -> str:
 
 
 def light_assignment_key(light: ZenLight) -> str:
-    ctrl = light.address.controller
+    ctrl = light.address.ctrl
     return f"light:{ctrl.name}:{light.address.number}"
 
 
 def fan_assignment_key(fan: ZenFan) -> str:
-    ctrl = fan.address.controller
+    ctrl = fan.address.ctrl
     return f"fan:{ctrl.name}:{fan.address.number}"
 
 
 def blind_assignment_key(blind: ZenBlind) -> str:
-    ctrl = blind.address.controller
+    ctrl = blind.address.ctrl
     return f"blind:{ctrl.name}:{blind.address.number}"
 
 
 def group_assignment_key(group: ZenGroup) -> str:
-    ctrl = group.address.controller
+    ctrl = group.address.ctrl
     return f"group:{ctrl.name}:{group.address.number}"
 
 
 def button_assignment_key(button: ZenButton) -> str:
-    ctrl = button.instance.address.controller
+    ctrl = button.instance.address.ctrl
     addr = button.instance.address.number
     inst = button.instance.number
     return f"button:{ctrl.name}:{addr}:{inst}"
 
 
 def motion_assignment_key(sensor: ZenMotionSensor) -> str:
-    ctrl = sensor.instance.address.controller
+    ctrl = sensor.instance.address.ctrl
     addr = sensor.instance.address.number
     inst = sensor.instance.number
     return f"motion:{ctrl.name}:{addr}:{inst}"
 
 
 def absolute_input_assignment_key(absolute_input: ZenAbsoluteInput) -> str:
-    ctrl = absolute_input.instance.address.controller
+    ctrl = absolute_input.instance.address.ctrl
     addr = absolute_input.instance.address.number
     inst = absolute_input.instance.number
     return f"absolute:{ctrl.name}:{addr}:{inst}"
 
 
 def sysvar_assignment_key(sv: ZenSystemVariable) -> str:
-    return f"sv:{sv.controller.name}:{sv.id}"
+    return f"sv:{sv.ctrl.name}:{sv.id}"
 
 
 def build_assignments(
@@ -322,10 +322,10 @@ def build_assignments(
     # when a member sits in multiple matched groups.
     sorted_groups = sorted(
         groups,
-        key=lambda g: (g.address.controller.name, g.address.number),
+        key=lambda g: (g.address.ctrl.name, g.address.number),
     )
     for group in sorted_groups:
-        ctrl_name = group.address.controller.name
+        ctrl_name = group.address.ctrl.name
         devices = controller_sub_devices.get(ctrl_name) or []
         if not devices:
             continue
@@ -362,7 +362,7 @@ def build_assignments(
         lkey = light_assignment_key(light)
         if lkey in lights_claimed:
             continue
-        ctrl_name = light.address.controller.name
+        ctrl_name = light.address.ctrl.name
         devices = controller_sub_devices.get(ctrl_name) or []
         matched = match_sub_device(match_label_for_light(light), devices)
         if matched is not None:
@@ -372,7 +372,7 @@ def build_assignments(
         fkey = fan_assignment_key(fan)
         if fkey in fans_claimed:
             continue
-        ctrl_name = fan.address.controller.name
+        ctrl_name = fan.address.ctrl.name
         devices = controller_sub_devices.get(ctrl_name) or []
         matched = match_sub_device(match_label_for_fan(fan), devices)
         if matched is not None:
@@ -382,28 +382,28 @@ def build_assignments(
         bkey = blind_assignment_key(blind)
         if bkey in blinds_claimed:
             continue
-        ctrl_name = blind.address.controller.name
+        ctrl_name = blind.address.ctrl.name
         devices = controller_sub_devices.get(ctrl_name) or []
         matched = match_sub_device(match_label_for_blind(blind), devices)
         if matched is not None:
             assignments[bkey] = matched.id
 
     for button in buttons:
-        ctrl_name = button.instance.address.controller.name
+        ctrl_name = button.instance.address.ctrl.name
         devices = controller_sub_devices.get(ctrl_name) or []
         matched = match_sub_device(match_label_for_button(button), devices)
         if matched is not None:
             assignments[button_assignment_key(button)] = matched.id
 
     for sensor in motion_sensors:
-        ctrl_name = sensor.instance.address.controller.name
+        ctrl_name = sensor.instance.address.ctrl.name
         devices = controller_sub_devices.get(ctrl_name) or []
         matched = match_sub_device(match_label_for_motion(sensor), devices)
         if matched is not None:
             assignments[motion_assignment_key(sensor)] = matched.id
 
     for absolute_input in absolute_inputs:
-        ctrl_name = absolute_input.instance.address.controller.name
+        ctrl_name = absolute_input.instance.address.ctrl.name
         devices = controller_sub_devices.get(ctrl_name) or []
         matched = match_sub_device(
             match_label_for_absolute_input(absolute_input), devices
@@ -412,7 +412,7 @@ def build_assignments(
             assignments[absolute_input_assignment_key(absolute_input)] = matched.id
 
     for sv in sysvars:
-        ctrl_name = sv.controller.name
+        ctrl_name = sv.ctrl.name
         devices = controller_sub_devices.get(ctrl_name) or []
         matched = match_sub_device(match_label_for_sysvar(sv), devices)
         if matched is not None:

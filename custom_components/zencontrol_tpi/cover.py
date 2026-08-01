@@ -51,7 +51,7 @@ class ZenBlindEntity(ZenControllerEntity, CoverEntity):
     )
 
     def __init__(self, hub: ZenHub, zen_blind: ZenBlind) -> None:
-        ctrl = as_zen_controller(zen_blind.address.controller)
+        ctrl = as_zen_controller(zen_blind.address.ctrl)
         super().__init__(hub, ctrl)
         self._blind = zen_blind
         number = zen_blind.address.number

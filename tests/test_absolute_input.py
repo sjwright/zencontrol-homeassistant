@@ -25,7 +25,7 @@ def _absolute_input(
 ) -> SimpleNamespace:
     ctrl = SimpleNamespace(name=ctrl_name)
     instance = SimpleNamespace(
-        address=SimpleNamespace(controller=ctrl, number=addr),
+        address=SimpleNamespace(ctrl=ctrl, number=addr),
         number=inst,
         entity_id_string=lambda: f"ecd{addr}_{inst}",
     )

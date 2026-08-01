@@ -32,12 +32,12 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
-# HA Store internal version for `helpers.storage.Store`.
+# HA Store internal version for helpers.storage.Store.
 # Keep this at 1 unless you also implement an explicit migration function.
 STORE_VERSION = 1
 
 # Schema version embedded into the manifest payload we store.
-# Bump this when the structure of `manifest["interview"]` changes.
+# Bump this when the structure of manifest["interview"] changes.
 MANIFEST_VERSION = 7
 
 
@@ -114,7 +114,7 @@ def _interview_blob(obj: Interviewable) -> dict[str, Any]:
 async def _hydrate_or_interview(obj: Interviewable, interview: str | dict[str, Any] | None) -> bool:
     """Apply interview_hydrate; fall back to a live interview on failure.
 
-    Returns True when we had to run `interview()` (so the manifest is now
+    Returns True when we had to run interview() (so the manifest is now
     stale and should be re-saved).
     """
     if interview is not None and obj.interview_hydrate(interview):
@@ -129,7 +129,7 @@ def build_manifest(source: ManifestEntitySource) -> dict[str, Any]:
     hub = source
     lights = [
         {
-            "controller": lt.address.controller.name,
+            "controller": lt.address.ctrl.name,
             "number": lt.address.number,
             "interview": _interview_blob(lt),
         }
@@ -137,7 +137,7 @@ def build_manifest(source: ManifestEntitySource) -> dict[str, Any]:
     ]
     fans = [
         {
-            "controller": f.address.controller.name,
+            "controller": f.address.ctrl.name,
             "number": f.address.number,
             "interview": _interview_blob(f),
         }
@@ -145,7 +145,7 @@ def build_manifest(source: ManifestEntitySource) -> dict[str, Any]:
     ]
     blinds = [
         {
-            "controller": b.address.controller.name,
+            "controller": b.address.ctrl.name,
             "number": b.address.number,
             "interview": _interview_blob(b),
         }
@@ -153,7 +153,7 @@ def build_manifest(source: ManifestEntitySource) -> dict[str, Any]:
     ]
     groups = [
         {
-            "controller": g.address.controller.name,
+            "controller": g.address.ctrl.name,
             "number": g.address.number,
             "interview": _interview_blob(g),
         }
@@ -161,7 +161,7 @@ def build_manifest(source: ManifestEntitySource) -> dict[str, Any]:
     ]
     buttons = [
         {
-            "controller": b.instance.address.controller.name,
+            "controller": b.instance.address.ctrl.name,
             "address": b.instance.address.number,
             "instance": b.instance.number,
             "interview": _interview_blob(b),
@@ -170,7 +170,7 @@ def build_manifest(source: ManifestEntitySource) -> dict[str, Any]:
     ]
     motion_sensors = [
         {
-            "controller": s.instance.address.controller.name,
+            "controller": s.instance.address.ctrl.name,
             "address": s.instance.address.number,
             "instance": s.instance.number,
             "interview": _interview_blob(s),
@@ -179,7 +179,7 @@ def build_manifest(source: ManifestEntitySource) -> dict[str, Any]:
     ]
     absolute_inputs = [
         {
-            "controller": a.instance.address.controller.name,
+            "controller": a.instance.address.ctrl.name,
             "address": a.instance.address.number,
             "instance": a.instance.number,
             "interview": _interview_blob(a),
@@ -189,7 +189,7 @@ def build_manifest(source: ManifestEntitySource) -> dict[str, Any]:
     sysvars: list[dict[str, Any]] = []
     seen_sv: set[tuple[str, int]] = set()
     for sv in (*hub.sv_switches, *hub.sv_sensors):
-        key = (sv.controller.name, sv.id)
+        key = (sv.ctrl.name, sv.id)
         if key in seen_sv:
             continue
         seen_sv.add(key)
@@ -197,7 +197,7 @@ def build_manifest(source: ManifestEntitySource) -> dict[str, Any]:
         as_sensor, as_switch = "sensor" in lower, "switch" in lower
         sysvars.append(
             {
-                "controller": sv.controller.name,
+                "controller": sv.ctrl.name,
                 "id": sv.id,
                 "as_sensor": as_sensor,
                 "as_switch": as_switch,
@@ -206,7 +206,7 @@ def build_manifest(source: ManifestEntitySource) -> dict[str, Any]:
         )
     profiles = [
         {
-            "controller": p.controller.name,
+            "controller": p.ctrl.name,
             "number": p.number,
             "interview": _interview_blob(p),
         }
@@ -247,7 +247,7 @@ async def load_entities_from_manifest(hub: ZenHub, manifest: dict[str, Any]) -> 
     hub.lights = []
     for item in manifest.get("lights", []):
         ctrl = _ctrl(item["controller"])
-        addr = ZenAddress(controller=ctrl, type=ZenAddressType.ECG, number=item["number"])
+        addr = ZenAddress(ctrl=ctrl, type=ZenAddressType.ECG, number=item["number"])
         light = ctx.light(addr)
         if await _hydrate_or_interview(light, item.get("interview")):
             needs_save = True
@@ -256,7 +256,7 @@ async def load_entities_from_manifest(hub: ZenHub, manifest: dict[str, Any]) -> 
     hub.fans = []
     for item in manifest.get("fans", []):
         ctrl = _ctrl(item["controller"])
-        addr = ZenAddress(controller=ctrl, type=ZenAddressType.ECG, number=item["number"])
+        addr = ZenAddress(ctrl=ctrl, type=ZenAddressType.ECG, number=item["number"])
         fan = ctx.fan(addr)
         if await _hydrate_or_interview(fan, item.get("interview")):
             needs_save = True
@@ -265,7 +265,7 @@ async def load_entities_from_manifest(hub: ZenHub, manifest: dict[str, Any]) -> 
     hub.blinds = []
     for item in manifest.get("blinds", []):
         ctrl = _ctrl(item["controller"])
-        addr = ZenAddress(controller=ctrl, type=ZenAddressType.ECG, number=item["number"])
+        addr = ZenAddress(ctrl=ctrl, type=ZenAddressType.ECG, number=item["number"])
         blind = ctx.blind(addr)
         if await _hydrate_or_interview(blind, item.get("interview")):
             needs_save = True
@@ -274,7 +274,7 @@ async def load_entities_from_manifest(hub: ZenHub, manifest: dict[str, Any]) -> 
     hub.groups = []
     for item in manifest.get("groups", []):
         ctrl = _ctrl(item["controller"])
-        addr = ZenAddress(controller=ctrl, type=ZenAddressType.GROUP, number=item["number"])
+        addr = ZenAddress(ctrl=ctrl, type=ZenAddressType.GROUP, number=item["number"])
         group = ctx.group(addr)
         if await _hydrate_or_interview(group, item.get("interview")):
             needs_save = True
@@ -283,7 +283,7 @@ async def load_entities_from_manifest(hub: ZenHub, manifest: dict[str, Any]) -> 
     hub.buttons = []
     for item in manifest.get("buttons", []):
         ctrl = _ctrl(item["controller"])
-        addr = ZenAddress(controller=ctrl, type=ZenAddressType.ECD, number=item["address"])
+        addr = ZenAddress(ctrl=ctrl, type=ZenAddressType.ECD, number=item["address"])
         instance = ZenInstance(
             address=addr,
             type=ZenInstanceType.PUSH_BUTTON,
@@ -297,7 +297,7 @@ async def load_entities_from_manifest(hub: ZenHub, manifest: dict[str, Any]) -> 
     hub.motion_sensors = []
     for item in manifest.get("motion_sensors", []):
         ctrl = _ctrl(item["controller"])
-        addr = ZenAddress(controller=ctrl, type=ZenAddressType.ECD, number=item["address"])
+        addr = ZenAddress(ctrl=ctrl, type=ZenAddressType.ECD, number=item["address"])
         instance = ZenInstance(
             address=addr,
             type=ZenInstanceType.OCCUPANCY_SENSOR,
@@ -311,7 +311,7 @@ async def load_entities_from_manifest(hub: ZenHub, manifest: dict[str, Any]) -> 
     hub.absolute_inputs = []
     for item in manifest.get("absolute_inputs", []):
         ctrl = _ctrl(item["controller"])
-        addr = ZenAddress(controller=ctrl, type=ZenAddressType.ECD, number=item["address"])
+        addr = ZenAddress(ctrl=ctrl, type=ZenAddressType.ECD, number=item["address"])
         instance = ZenInstance(
             address=addr,
             type=ZenInstanceType.ABSOLUTE_INPUT,
@@ -354,5 +354,5 @@ async def load_entities_from_manifest(hub: ZenHub, manifest: dict[str, Any]) -> 
     hub.buttons.sort(key=lambda b: (b.instance.address.number, b.instance.number))
     hub.motion_sensors.sort(key=lambda s: (s.instance.address.number, s.instance.number))
     hub.absolute_inputs.sort(key=lambda a: (a.instance.address.number, a.instance.number))
-    hub.profiles.sort(key=lambda p: (p.controller.name, p.number))
+    hub.profiles.sort(key=lambda p: (p.ctrl.name, p.number))
     return needs_save

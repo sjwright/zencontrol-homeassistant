@@ -55,29 +55,29 @@ async def test_discover_controller_entities_scopes_and_classifies() -> None:
 
     ctrl = SimpleNamespace(name="house")
     light_obj = object.__new__(ZenLight)
-    light_obj.address = SimpleNamespace(number=2, controller=ctrl)
+    light_obj.address = SimpleNamespace(number=2, ctrl=ctrl)
     fan_obj = object.__new__(ZenFan)
-    fan_obj.address = SimpleNamespace(number=12, controller=ctrl)
+    fan_obj.address = SimpleNamespace(number=12, ctrl=ctrl)
     blind_obj = object.__new__(ZenBlind)
-    blind_obj.address = SimpleNamespace(number=13, controller=ctrl)
+    blind_obj.address = SimpleNamespace(number=13, ctrl=ctrl)
 
-    group = SimpleNamespace(address=SimpleNamespace(number=1, controller=ctrl))
+    group = SimpleNamespace(address=SimpleNamespace(number=1, ctrl=ctrl))
     button = object.__new__(ZenButton)
     button.instance = SimpleNamespace(
-        address=SimpleNamespace(number=4, controller=ctrl), number=0
+        address=SimpleNamespace(number=4, ctrl=ctrl), number=0
     )
     motion = object.__new__(ZenMotionSensor)
     motion.instance = SimpleNamespace(
-        address=SimpleNamespace(number=5, controller=ctrl), number=1
+        address=SimpleNamespace(number=5, ctrl=ctrl), number=1
     )
     absolute = object.__new__(ZenAbsoluteInput)
     absolute.instance = SimpleNamespace(
-        address=SimpleNamespace(number=6, controller=ctrl), number=2
+        address=SimpleNamespace(number=6, ctrl=ctrl), number=2
     )
-    profile = SimpleNamespace(controller=ctrl, number=3)
-    sv_lux = SimpleNamespace(id=1, label="Hall Lux Sensor", controller=ctrl)
-    sv_switch = SimpleNamespace(id=2, label="Boost Switch", controller=ctrl)
-    sv_both = SimpleNamespace(id=3, label="Door Switch Sensor", controller=ctrl)
+    profile = SimpleNamespace(ctrl=ctrl, number=3)
+    sv_lux = SimpleNamespace(id=1, label="Hall Lux Sensor", ctrl=ctrl)
+    sv_switch = SimpleNamespace(id=2, label="Boost Switch", ctrl=ctrl)
+    sv_both = SimpleNamespace(id=3, label="Door Switch Sensor", ctrl=ctrl)
 
     zen = MagicMock()
     zen.get_control_gear = AsyncMock(return_value=[light_obj, fan_obj, blind_obj])
@@ -90,8 +90,8 @@ async def test_discover_controller_entities_scopes_and_classifies() -> None:
 
     found = await discover_controller_entities(zen, ctrl)
 
-    zen.get_control_gear.assert_awaited_once_with(controller=ctrl)
-    zen.get_instances.assert_awaited_once_with(controller=ctrl)
+    zen.get_control_gear.assert_awaited_once_with(ctrl=ctrl)
+    zen.get_instances.assert_awaited_once_with(ctrl=ctrl)
     assert found.lights == [light_obj]
     assert found.fans == [fan_obj]
     assert found.blinds == [blind_obj]

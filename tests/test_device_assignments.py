@@ -17,12 +17,12 @@ class _Light:
     """Hashable light stub for entity maps."""
 
     def __init__(self, controller: Any, number: int, label: str) -> None:
-        self.address = SimpleNamespace(controller=controller, number=number)
+        self.address = SimpleNamespace(ctrl=controller, number=number)
         self.sub_label = label
         self.label = label
 
     def __hash__(self) -> int:
-        return hash((self.address.controller.name, self.address.number))
+        return hash((self.address.ctrl.name, self.address.number))
 
     def __eq__(self, other: object) -> bool:
         return isinstance(other, _Light) and hash(self) == hash(other)
@@ -172,7 +172,7 @@ def test_sync_device_assignments_moves_entity_and_prunes_orphan() -> None:
     )
     device_registry.async_remove_device.assert_called_once_with("orphan-sub")
 
-    # Already on the correct device — second pass is a no-op for entity moves.
+    # Already on the correct device - second pass is a no-op for entity moves.
     entity_registry.async_get.return_value = SimpleNamespace(device_id=kitchen_id)
     entity_registry.async_update_entity.reset_mock()
     device_registry.async_remove_device.reset_mock()

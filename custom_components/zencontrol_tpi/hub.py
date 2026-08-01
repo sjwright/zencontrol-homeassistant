@@ -109,11 +109,11 @@ class _BoundEntity:
 
 
 def _scene_select_key(group: ZenGroup) -> str:
-    return f"scene_select:{group.address.controller.name}:{group.address.number}"
+    return f"scene_select:{group.address.ctrl.name}:{group.address.number}"
 
 
 def _scene_key(group: ZenGroup, scene_number: int) -> str:
-    return f"scene:{group.address.controller.name}:{group.address.number}:{scene_number}"
+    return f"scene:{group.address.ctrl.name}:{group.address.number}:{scene_number}"
 
 
 def _profile_key(controller_name: str) -> str:
@@ -422,37 +422,37 @@ class ZenHub:
 
     def register_light_entity(self, zen_light: ZenLight, entity: ZenLightEntity) -> None:
         key = light_assignment_key(zen_light)
-        self._bind(key, entity, as_zen_controller(zen_light.address.controller), key)
+        self._bind(key, entity, as_zen_controller(zen_light.address.ctrl), key)
 
     def register_fan_entity(self, zen_fan: ZenFan, entity: ZenFanEntity) -> None:
         key = fan_assignment_key(zen_fan)
-        self._bind(key, entity, as_zen_controller(zen_fan.address.controller), key)
+        self._bind(key, entity, as_zen_controller(zen_fan.address.ctrl), key)
 
     def register_cover_entity(self, zen_blind: ZenBlind, entity: ZenBlindEntity) -> None:
         key = blind_assignment_key(zen_blind)
-        self._bind(key, entity, as_zen_controller(zen_blind.address.controller), key)
+        self._bind(key, entity, as_zen_controller(zen_blind.address.ctrl), key)
 
     def register_group_entity(self, zen_group: ZenGroup, entity: ZenGroupEntity) -> None:
         key = group_assignment_key(zen_group)
-        self._bind(key, entity, as_zen_controller(zen_group.address.controller), key)
+        self._bind(key, entity, as_zen_controller(zen_group.address.ctrl), key)
 
     def register_button_entity(self, zen_button: ZenButton, entity: ZenButtonEntity) -> None:
         key = button_assignment_key(zen_button)
-        self._bind(key, entity, as_zen_controller(zen_button.instance.address.controller), key)
+        self._bind(key, entity, as_zen_controller(zen_button.instance.address.ctrl), key)
 
     def register_motion_sensor_entity(self, zen_sensor: ZenMotionSensor, entity: ZenMotionSensorEntity) -> None:
         key = motion_assignment_key(zen_sensor)
-        self._bind(key, entity, as_zen_controller(zen_sensor.instance.address.controller), key)
+        self._bind(key, entity, as_zen_controller(zen_sensor.instance.address.ctrl), key)
 
     def register_absolute_input_entity(self, zen_input: ZenAbsoluteInput, entity: ZenAbsoluteInputSensorEntity) -> None:
         key = absolute_input_assignment_key(zen_input)
-        self._bind(key, entity, as_zen_controller(zen_input.instance.address.controller), key)
+        self._bind(key, entity, as_zen_controller(zen_input.instance.address.ctrl), key)
 
     def register_sv_sensor_entity(self, zen_sv: ZenSystemVariable, entity: ZenSystemVariableSensorEntity) -> None:
-        self._bind(_sv_sensor_key(zen_sv), entity, zen_sv.controller, sysvar_assignment_key(zen_sv))
+        self._bind(_sv_sensor_key(zen_sv), entity, zen_sv.ctrl, sysvar_assignment_key(zen_sv))
 
     def register_sv_switch_entity(self, zen_sv: ZenSystemVariable, entity: ZenSystemVariableSwitchEntity) -> None:
-        self._bind(_sv_switch_key(zen_sv), entity, zen_sv.controller, sysvar_assignment_key(zen_sv))
+        self._bind(_sv_switch_key(zen_sv), entity, zen_sv.ctrl, sysvar_assignment_key(zen_sv))
 
     def register_profile_entity(self, zen_controller: ZenController, entity: ZenProfileSelectEntity) -> None:
         self._bind(_profile_key(zen_controller.name), entity, zen_controller, None)
@@ -461,7 +461,7 @@ class ZenHub:
         self._bind(
             _scene_select_key(zen_group),
             entity,
-            as_zen_controller(zen_group.address.controller),
+            as_zen_controller(zen_group.address.ctrl),
             group_assignment_key(zen_group),
         )
 
@@ -469,7 +469,7 @@ class ZenHub:
         self._bind(
             _scene_key(zen_group, scene_number),
             entity,
-            as_zen_controller(zen_group.address.controller),
+            as_zen_controller(zen_group.address.ctrl),
             group_assignment_key(zen_group),
         )
 
@@ -704,7 +704,7 @@ class ZenHub:
         coros.extend(sensor.refresh_state_from_controller() for sensor in self.motion_sensors)
         seen_sv: set[tuple[str, int]] = set()
         for sv in (*self.sv_switches, *self.sv_sensors):
-            key = (sv.controller.name, sv.id)
+            key = (sv.ctrl.name, sv.id)
             if key in seen_sv:
                 continue
             seen_sv.add(key)
@@ -764,7 +764,7 @@ class ZenHub:
 
         Platform async_add_entities is synchronous and only schedules work
         via ConfigEntry.async_create_task. We await those new entry tasks
-        only — never hass.async_block_till_done(), which deadlocks when
+        only - never hass.async_block_till_done(), which deadlocks when
         CREATE_ENTRY is awaiting setup.
         """
         if self._discovery_notified:
@@ -799,7 +799,7 @@ class ZenHub:
     # ------------------------------------------------------------------
 
     async def handle_listener_connect(self) -> None:
-        """Shared listener came up — probe ready; do not assume online."""
+        """Shared listener came up - probe ready; do not assume online."""
         if self.controller is not None:
             try:
                 ready = await asyncio.wait_for(
@@ -829,7 +829,7 @@ class ZenHub:
         self.set_controller_status(CONTROLLER_STATUS_UNREACHABLE)
 
     async def handle_listener_resync(self) -> None:
-        """Shared listener restored after a recoverable gap — refresh entity state."""
+        """Shared listener restored after a recoverable gap - refresh entity state."""
         if not self._setup_complete or self.stopping:
             return
         if self._controller_status != CONTROLLER_STATUS_ONLINE:
@@ -911,7 +911,7 @@ class ZenHub:
             cast(Any, switch_entity).update_value()
 
     def handle_profile_change(self, profile: ZenProfile) -> None:
-        entity = self._entity(_profile_key(profile.controller.name))
+        entity = self._entity(_profile_key(profile.ctrl.name))
         if entity is not None:
             cast(Any, entity).update_current_option()
 

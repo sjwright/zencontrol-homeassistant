@@ -19,7 +19,7 @@
           "port": "Port",
           "mac": "Adresse MAC",
           "label": "Nom du contrôleur",
-          "unicast": "Utiliser les événements en unicast (non recommandé — uniquement si les paquets de diffusion ne sont pas pris en charge par votre topologie réseau)"
+          "unicast": "Utiliser les événements en unicast (non recommandé - uniquement si les paquets de diffusion ne sont pas pris en charge par votre topologie réseau)"
         },
         "data_description": {
           "mac": "Laissez vide et validez pour rechercher à partir de l'IP de l'hôte (même sous-réseau uniquement). Confirmez la valeur, puis validez à nouveau.",
@@ -69,7 +69,7 @@
         "title": "Paramètres unicast",
         "description": "L’unicast est à l’échelle du domaine et est utilisé lors de la création du runtime ZenControl partagé. Mettre à jour cette entrée enregistre la préférence sans remplacer un runtime en cours.",
         "data": {
-          "unicast": "Utiliser les événements en unicast (non recommandé — uniquement si les paquets de diffusion ne sont pas pris en charge par votre topologie réseau)"
+          "unicast": "Utiliser les événements en unicast (non recommandé - uniquement si les paquets de diffusion ne sont pas pris en charge par votre topologie réseau)"
         }
       }
     },

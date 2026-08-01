@@ -1,4 +1,4 @@
-# Minimal dev config — avoids default_config which pulls in bluetooth,
+# Minimal dev config - avoids default_config which pulls in bluetooth,
 # USB, and other discovery integrations that require system deps not
 # present in the dev venv.
 homeassistant:
@@ -16,6 +16,6 @@ scene: !include scenes.yaml
 logger:
   default: warning
   logs:
-    # Logger path uses the legacy HA domain — do not rename.
+    # Logger path uses the legacy HA domain - do not rename.
     custom_components.zencontrol_tpi: debug
     zencontrol: debug

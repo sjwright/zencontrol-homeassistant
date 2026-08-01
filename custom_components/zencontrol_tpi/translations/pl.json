@@ -19,7 +19,7 @@
           "port": "Port",
           "mac": "Adres MAC",
           "label": "Nazwa kontrolera",
-          "unicast": "Używaj zdarzeń unicast (niezalecane — tylko gdy pakiety rozgłoszeniowe nie są obsługiwane przez topologię sieci)"
+          "unicast": "Używaj zdarzeń unicast (niezalecane - tylko gdy pakiety rozgłoszeniowe nie są obsługiwane przez topologię sieci)"
         },
         "data_description": {
           "mac": "Pozostaw puste i wyślij, aby wyszukać na podstawie IP hosta (tylko ta sama podsieć). Potwierdź wartość i wyślij ponownie.",
@@ -69,7 +69,7 @@
         "title": "Ustawienia unicast",
         "description": "Unicast obowiązuje w całej domenie i jest używany przy tworzeniu wspólnego runtime ZenControl. Aktualizacja tego wpisu zapisuje preferencję, ale nie przełącza działającego runtime.",
         "data": {
-          "unicast": "Używaj zdarzeń unicast (niezalecane — tylko gdy pakiety rozgłoszeniowe nie są obsługiwane przez topologię sieci)"
+          "unicast": "Używaj zdarzeń unicast (niezalecane - tylko gdy pakiety rozgłoszeniowe nie są obsługiwane przez topologię sieci)"
         }
       }
     },

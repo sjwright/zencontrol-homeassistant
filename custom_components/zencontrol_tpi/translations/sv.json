@@ -19,7 +19,7 @@
           "port": "Port",
           "mac": "MAC-adress",
           "label": "Styrenhetens namn",
-          "unicast": "Använd unicast-händelser (rekommenderas inte — endast om broadcast-paket inte stöds av din nätverkstopologi)"
+          "unicast": "Använd unicast-händelser (rekommenderas inte - endast om broadcast-paket inte stöds av din nätverkstopologi)"
         },
         "data_description": {
           "mac": "Lämna tomt och skicka för att söka upp från värdens IP (endast samma subnät). Bekräfta värdet och skicka igen.",
@@ -69,7 +69,7 @@
         "title": "Unicast-inställningar",
         "description": "Unicast är domänomfattande och används när den delade ZenControl-runtime skapas. Att uppdatera den här posten sparar inställningen men byter inte en körande runtime.",
         "data": {
-          "unicast": "Använd unicast-händelser (rekommenderas inte — endast om broadcast-paket inte stöds av din nätverkstopologi)"
+          "unicast": "Använd unicast-händelser (rekommenderas inte - endast om broadcast-paket inte stöds av din nätverkstopologi)"
         }
       }
     },

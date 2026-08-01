@@ -93,7 +93,7 @@ class ZenSystemVariableSensorEntity(ZenControllerEntity, SensorEntity):
     _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(self, hub: ZenHub, zen_sv: ZenSystemVariable) -> None:
-        ctrl = zen_sv.controller
+        ctrl = zen_sv.ctrl
         super().__init__(hub, ctrl)
         self._sv = zen_sv
 
@@ -121,7 +121,7 @@ class ZenAbsoluteInputSensorEntity(ZenControllerEntity, SensorEntity):
     _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(self, hub: ZenHub, zen_input: ZenAbsoluteInput) -> None:
-        ctrl = as_zen_controller(zen_input.instance.address.controller)
+        ctrl = as_zen_controller(zen_input.instance.address.ctrl)
         super().__init__(hub, ctrl)
         self._input = zen_input
         addr = zen_input.instance.address.number

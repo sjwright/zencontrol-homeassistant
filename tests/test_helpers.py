@@ -70,7 +70,7 @@ def test_build_manifest_dedupes_sysvars() -> None:
     """Manifest stores one sysvar record with both exposure flags."""
     ctrl = SimpleNamespace(name="zen1")
     sv = SimpleNamespace(
-        controller=ctrl,
+        ctrl=ctrl,
         id=2,
         label="Lux Sensor Switch",
         interview_serialize=lambda: '{"id": 2}',

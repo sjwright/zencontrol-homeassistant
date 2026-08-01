@@ -24,7 +24,7 @@ class RateLimiter:
     ) -> list[T | BaseException]:
         """Execute coroutines in controlled batches.
 
-        With ``return_exceptions`` set, failures are returned in place of
+        With return_exceptions set, failures are returned in place of
         results rather than raised. Unstarted coroutines are closed if the
         batch loop is cancelled or aborted.
         """

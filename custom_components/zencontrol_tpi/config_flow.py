@@ -258,7 +258,7 @@ async def _async_listen_for_controllers(
 ) -> list[ControllerConfig]:
     """Listen for multicast and return identified controllers.
 
-    ``duration`` is how long to keep listening, not a deadline for the call.
+    duration is how long to keep listening, not a deadline for the call.
 
     When the shared runtime already has a listener, reuse it so we do not bind
     a second multicast socket (SO_REUSEPORT can drop events on Linux).
@@ -267,7 +267,7 @@ async def _async_listen_for_controllers(
 
     runtime = async_get_runtime(hass)
     if runtime is not None and runtime.listener_up:
-        # Shared ZenControl — discover() returns identities heard in this window
+        # Shared ZenControl - discover() returns identities heard in this window
         # (last_seen), so "try again" / "add another" still surfaces controllers
         # already cached from an earlier listen.
         try:
@@ -300,8 +300,8 @@ async def _async_prime_discovery(
 ) -> None:
     """Wait for the controller, discover entities, and stash a pending manifest.
 
-    Does not proceed until ``query_controller_startup_complete()`` is True (up to
-    ``CONTROLLER_READY_WAIT_MAX`` — controllers can take 1–10 minutes after reboot).
+    Does not proceed until query_controller_startup_complete() is True (up to
+    CONTROLLER_READY_WAIT_MAX - controllers can take 1-10 minutes after reboot).
     """
     zen = zencontrol.ZenControl(unicast=unicast)
     try:
@@ -461,7 +461,7 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
         self,
         user_input: dict[str, Any] | None = None,
     ) -> ConfigFlowResult:
-        """No controllers found — try again or enter manually."""
+        """No controllers found - try again or enter manually."""
         return self.async_show_menu(
             step_id="discovery_failed",
             menu_options=["discover", "manual"],
@@ -814,7 +814,7 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
         """Validate and store the controller, or re-show for MAC confirm.
 
         Returns a ConfigFlowResult when navigation should continue, else None
-        to show the form with ``errors``.
+        to show the form with errors.
         """
         host = str(user_input.get(CONF_HOST, "")).strip()
         mac = (user_input.get(CONF_MAC) or "").strip()

@@ -55,7 +55,7 @@ class ZenGroupSceneEntity(ZenControllerEntity, Scene):
         scene_number: int,
         scene_label: str,
     ) -> None:
-        ctrl = as_zen_controller(zen_group.address.controller)
+        ctrl = as_zen_controller(zen_group.address.ctrl)
         super().__init__(hub, ctrl)
         self._group = zen_group
         self._scene_number = scene_number

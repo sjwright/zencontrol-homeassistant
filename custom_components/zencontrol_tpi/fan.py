@@ -65,7 +65,7 @@ class ZenFanEntity(ZenControllerEntity, FanEntity):
     _attr_preset_modes: ClassVar[list[str]] = list(_PRESETS)
 
     def __init__(self, hub: ZenHub, zen_fan: ZenFan) -> None:
-        ctrl = as_zen_controller(zen_fan.address.controller)
+        ctrl = as_zen_controller(zen_fan.address.ctrl)
         super().__init__(hub, ctrl)
         self._fan = zen_fan
         number = zen_fan.address.number

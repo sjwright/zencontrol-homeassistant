@@ -37,7 +37,7 @@ class ZenSystemVariableSwitchEntity(ZenControllerEntity, SwitchEntity):
     """HA switch entity wrapping a boolean ZenSystemVariable."""
 
     def __init__(self, hub: ZenHub, zen_sv: ZenSystemVariable) -> None:
-        ctrl = zen_sv.controller
+        ctrl = zen_sv.ctrl
         super().__init__(hub, ctrl)
         self._sv = zen_sv
 

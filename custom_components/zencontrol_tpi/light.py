@@ -58,7 +58,7 @@ async def async_setup_entry(
 # Shared helpers
 # ---------------------------------------------------------------------------
 
-# TPI/DALI CIE XY uses 0–0xFFFE; Home Assistant uses 0.0–1.0 floats.
+# TPI/DALI CIE XY uses 0-0xFFFE; Home Assistant uses 0.0-1.0 floats.
 _XY_MAX = 0xFFFE
 
 
@@ -74,7 +74,7 @@ def _build_supported_modes(features: dict[str, bool]) -> set[ColorMode]:
         modes.add(ColorMode.COLOR_TEMP)
     if features.get("XY"):
         modes.add(ColorMode.XY)
-    # BRIGHTNESS must not coexist with any richer mode — those already imply
+    # BRIGHTNESS must not coexist with any richer mode - those already imply
     # brightness control. Only add it when the light supports dimming but
     # nothing else.
     if features.get("brightness") and not modes:
@@ -143,7 +143,7 @@ def _rgbww_color(colour: ZenColour | None) -> tuple[int, int, int, int, int] | N
 def _xy_color(colour: ZenColour | None) -> tuple[float, float] | None:
     match colour:
         case ZenXyColour(x=x, y=y):
-            # Clamp to HA's 0.0–1.0 range (wire values can be 0xFFFF / no-change)
+            # Clamp to HA's 0.0-1.0 range (wire values can be 0xFFFF / no-change)
             return (
                 min(1.0, max(0.0, x / _XY_MAX)),
                 min(1.0, max(0.0, y / _XY_MAX)),
@@ -188,7 +188,7 @@ def _supported_features(modes: set[ColorMode]) -> LightEntityFeature:
 def _transition_seconds(kwargs: dict[str, Any]) -> int | None:
     """Return an explicit HA transition in whole seconds, or None if unset.
 
-    Home Assistant validates transition as a float (0–6553). TPI custom fade
+    Home Assistant validates transition as a float (0-6553). TPI custom fade
     uses integer seconds, so values are rounded.
     """
     transition = kwargs.get(ATTR_TRANSITION)
@@ -214,7 +214,7 @@ async def _async_set_level_or_colour(
 ) -> None:
     """Apply brightness/colour to a ZenLight or ZenGroup, or just turn on.
 
-    Colour-only commands use level 255 (0xFF) — TPI "no arc change" — matching
+    Colour-only commands use level 255 (0xFF) - TPI "no arc change" - matching
     the library default and Lumen's colour path. Re-sending the current arc (or
     254) would incorrectly force level 0 when the light is off.
 
@@ -248,7 +248,7 @@ class ZenLightEntity(ZenControllerEntity, LightEntity):
     """HA entity wrapping a single DALI control gear (ZenLight)."""
 
     def __init__(self, hub: ZenHub, zen_light: ZenLight) -> None:
-        ctrl = as_zen_controller(zen_light.address.controller)
+        ctrl = as_zen_controller(zen_light.address.ctrl)
         super().__init__(hub, ctrl)
         self._light = zen_light
 
@@ -318,7 +318,7 @@ class ZenGroupEntity(ZenControllerEntity, LightEntity):
     """HA entity wrapping a DALI group (ZenGroup)."""
 
     def __init__(self, hub: ZenHub, zen_group: ZenGroup) -> None:
-        ctrl = as_zen_controller(zen_group.address.controller)
+        ctrl = as_zen_controller(zen_group.address.ctrl)
         super().__init__(hub, ctrl)
         self._group = zen_group
 

@@ -31,7 +31,7 @@ async def async_setup_entry(
         # One profile select for this entry's controller
         if hub.controller is not None:
             ctrl = hub.controller
-            ctrl_profiles = [p for p in hub.profiles if p.controller is ctrl]
+            ctrl_profiles = [p for p in hub.profiles if p.ctrl is ctrl]
             if ctrl_profiles:
                 entities.append(ZenProfileSelectEntity(hub, ctrl, ctrl_profiles))
 
@@ -98,7 +98,7 @@ class ZenGroupSceneSelectEntity(ZenControllerEntity, SelectEntity):
     _attr_translation_key = "group_scene"
 
     def __init__(self, hub: ZenHub, zen_group: ZenGroup) -> None:
-        ctrl = as_zen_controller(zen_group.address.controller)
+        ctrl = as_zen_controller(zen_group.address.ctrl)
         super().__init__(hub, ctrl)
         self._group = zen_group
 
@@ -131,7 +131,7 @@ class ZenGroupSceneSelectEntity(ZenControllerEntity, SelectEntity):
         if option not in self._attr_options:
             raise ServiceValidationError(f"Unknown scene: {option}")
         if option == SCENE_NONE:
-            # Sentinel for unknown scene — no controller command.
+            # Sentinel for unknown scene - no controller command.
             self._attr_current_option = self._current_option_from_group()
             self.async_write_ha_state()
             return

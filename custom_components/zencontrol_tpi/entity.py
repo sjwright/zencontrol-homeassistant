@@ -15,9 +15,9 @@ if TYPE_CHECKING:
 
 
 def as_zen_controller(controller: object) -> ZenController:
-    """Narrow ``address.controller`` to the interface ``ZenController``.
+    """Narrow address.ctrl to the interface ZenController.
 
-    ``ZenAddress.controller`` is typed as ``ControllerRef`` so the API layer
+    ZenAddress.ctrl is typed as ControllerRef so the API layer
     does not import the interface. Registered controllers are always the
     interface subclass at runtime.
     """

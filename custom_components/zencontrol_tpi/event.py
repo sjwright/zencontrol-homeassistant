@@ -39,7 +39,7 @@ class ZenButtonEntity(ZenControllerEntity, EventEntity):
     _attr_event_types: ClassVar[list[str]] = ["short_press", "long_press"]
 
     def __init__(self, hub: ZenHub, zen_button: ZenButton) -> None:
-        ctrl = as_zen_controller(zen_button.instance.address.controller)
+        ctrl = as_zen_controller(zen_button.instance.address.ctrl)
         super().__init__(hub, ctrl)
         self._button = zen_button
         addr = zen_button.instance.address.number

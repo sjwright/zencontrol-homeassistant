@@ -16,7 +16,7 @@ from custom_components.zencontrol_tpi.scene import ZenGroupSceneEntity
 def _make_group(controller: Any, number: int, *, label: str) -> Any:
     group = SimpleNamespace(
         address=SimpleNamespace(
-            controller=controller,
+            ctrl=controller,
             number=number,
             entity_id_string=lambda: f"group{number}",
         ),

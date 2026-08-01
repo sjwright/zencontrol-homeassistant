@@ -81,12 +81,12 @@ def test_group_membership_overrides_light_name() -> None:
     kitchen = SubDeviceDef("kitchen", "Kitchen", ("Kitchen",))
 
     light = SimpleNamespace(
-        address=SimpleNamespace(controller=ctrl, number=3),
+        address=SimpleNamespace(ctrl=ctrl, number=3),
         sub_label="Kitchen spot",
         label="Kitchen spot",
     )
     group = SimpleNamespace(
-        address=SimpleNamespace(controller=ctrl, number=1),
+        address=SimpleNamespace(ctrl=ctrl, number=1),
         label="Emily upstairs",
         lights=[light],
     )
@@ -119,7 +119,7 @@ def test_ungrouped_light_uses_name() -> None:
     ctrl = SimpleNamespace(name="house")
     kitchen = SubDeviceDef("kitchen", "Kitchen", ("Kitchen",))
     light = SimpleNamespace(
-        address=SimpleNamespace(controller=ctrl, number=5),
+        address=SimpleNamespace(ctrl=ctrl, number=5),
         sub_label=None,
         label="Kitchen pendant",
     )

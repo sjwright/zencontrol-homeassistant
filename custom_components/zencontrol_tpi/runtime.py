@@ -154,7 +154,7 @@ class SharedZenRuntime:
             self._hubs_by_mac[mac_id] = hub
             self._controllers_by_entry[entry_id] = ctrl
 
-            # Do not configure TPI events here — the controller may still be
+            # Do not configure TPI events here - the controller may still be
             # booting. ZenHub enables events only after query_controller_startup_complete.
 
             _LOGGER.info(
@@ -275,7 +275,7 @@ class SharedZenRuntime:
             hub.handle_listener_disconnect()
 
     async def _on_resync(self) -> None:
-        """Event session restored after a gap — re-poll without flipping availability."""
+        """Event session restored after a gap - re-poll without flipping availability."""
         _LOGGER.info("zencontrol event listener resynced after session gap")
         for hub in list(self._hubs_by_entry.values()):
             await hub.handle_listener_resync()
@@ -288,17 +288,17 @@ class SharedZenRuntime:
             await hub.handle_controller_status(status)
 
     async def _on_light_change(self, *, light: ZenLight) -> None:
-        hub = self.hub_for_controller(as_zen_controller(light.address.controller))
+        hub = self.hub_for_controller(as_zen_controller(light.address.ctrl))
         if hub is not None:
             hub.handle_light_change(light)
 
     async def _on_fan_change(self, *, fan: ZenFan) -> None:
-        hub = self.hub_for_controller(as_zen_controller(fan.address.controller))
+        hub = self.hub_for_controller(as_zen_controller(fan.address.ctrl))
         if hub is not None:
             hub.handle_fan_change(fan)
 
     async def _on_blind_change(self, *, blind: ZenBlind) -> None:
-        hub = self.hub_for_controller(as_zen_controller(blind.address.controller))
+        hub = self.hub_for_controller(as_zen_controller(blind.address.ctrl))
         if hub is not None:
             hub.handle_blind_change(blind)
 
@@ -308,27 +308,27 @@ class SharedZenRuntime:
         group: ZenGroup,
         discoordinated: bool = False,
     ) -> None:
-        hub = self.hub_for_controller(as_zen_controller(group.address.controller))
+        hub = self.hub_for_controller(as_zen_controller(group.address.ctrl))
         if hub is not None:
             hub.handle_group_change(group)
 
     async def _on_button_press(self, button: ZenButton) -> None:
-        hub = self.hub_for_controller(as_zen_controller(button.instance.address.controller))
+        hub = self.hub_for_controller(as_zen_controller(button.instance.address.ctrl))
         if hub is not None:
             hub.handle_button_press(button)
 
     async def _on_button_long_press(self, button: ZenButton) -> None:
-        hub = self.hub_for_controller(as_zen_controller(button.instance.address.controller))
+        hub = self.hub_for_controller(as_zen_controller(button.instance.address.ctrl))
         if hub is not None:
             hub.handle_button_long_press(button)
 
     async def _on_motion_event(self, *, sensor: ZenMotionSensor) -> None:
-        hub = self.hub_for_controller(as_zen_controller(sensor.instance.address.controller))
+        hub = self.hub_for_controller(as_zen_controller(sensor.instance.address.ctrl))
         if hub is not None:
             hub.handle_motion_event(sensor)
 
     async def _on_absolute_input_change(self, *, absolute_input: ZenAbsoluteInput) -> None:
-        hub = self.hub_for_controller(as_zen_controller(absolute_input.instance.address.controller))
+        hub = self.hub_for_controller(as_zen_controller(absolute_input.instance.address.ctrl))
         if hub is not None:
             hub.handle_absolute_input_change(absolute_input)
 
@@ -340,12 +340,12 @@ class SharedZenRuntime:
     ) -> None:
         if system_variable.value is None:
             return
-        hub = self.hub_for_controller(system_variable.controller)
+        hub = self.hub_for_controller(system_variable.ctrl)
         if hub is not None:
             hub.handle_sv_change(system_variable, by_me=by_me)
 
     async def _on_profile_change(self, profile: ZenProfile) -> None:
-        hub = self.hub_for_controller(profile.controller)
+        hub = self.hub_for_controller(profile.ctrl)
         if hub is not None:
             hub.handle_profile_change(profile)
 
