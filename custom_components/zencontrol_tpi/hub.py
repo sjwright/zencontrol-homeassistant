@@ -589,7 +589,7 @@ class ZenHub:
     async def _wait_for_controller(self) -> None:
         """Poll until this controller is ready, then interview.
 
-        Never proceeds to discovery/events while is_controller_ready() is
+        Never proceeds to discovery/events while query_controller_startup_complete() is
         false. Controllers commonly take 1-10 minutes after reboot. While
         waiting, entities are unavailable and the status sensor shows
         starting / unreachable.
@@ -606,7 +606,6 @@ class ZenHub:
             )
         except ControllerNotReadyError as err:
             raise ConfigEntryNotReady(str(err)) from err
-        ctrl.connected = True
         # Stay "starting" until async_start finishes listener/event setup.
         # Marking online here made the status sensor lie (and briefly marked
         # entities available) before the shared listener was up.
@@ -801,10 +800,9 @@ class ZenHub:
     async def handle_listener_connect(self) -> None:
         """Shared listener came up — probe ready; do not assume online."""
         if self.controller is not None:
-            self.controller.connected = True
             try:
                 ready = await asyncio.wait_for(
-                    self.controller.is_controller_ready(),
+                    self.controller.commands.query_controller_startup_complete(self.controller),
                     timeout=CONTROLLER_READY_QUERY_TIMEOUT,
                 )
             except TimeoutError:
@@ -827,8 +825,6 @@ class ZenHub:
 
     def handle_listener_disconnect(self) -> None:
         """Shared listener went down."""
-        if self.controller is not None:
-            self.controller.connected = False
         self.set_controller_status(CONTROLLER_STATUS_UNREACHABLE)
 
     async def handle_listener_resync(self) -> None:

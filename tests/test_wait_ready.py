@@ -1,4 +1,4 @@
-"""Tests that setup waits for is_controller_ready() before discovery/events."""
+"""Tests that setup waits for controller ready before discovery/events."""
 
 from __future__ import annotations
 
@@ -47,7 +47,7 @@ def _hub_with_controller(ready_sequence: list[bool | None]) -> ZenHub:
 
     calls = {"n": 0}
 
-    async def is_ready() -> bool | None:
+    async def is_ready(_ctrl: object = None) -> bool | None:
         i = min(calls["n"], len(ready_sequence) - 1)
         calls["n"] += 1
         return ready_sequence[i]
@@ -56,7 +56,7 @@ def _hub_with_controller(ready_sequence: list[bool | None]) -> ZenHub:
     ctrl.label = "House"
     ctrl.host = "10.0.0.1"
     ctrl.version = "1.0"
-    ctrl.is_controller_ready = AsyncMock(side_effect=is_ready)
+    ctrl.commands.query_controller_startup_complete = AsyncMock(side_effect=is_ready)
     ctrl.interview = AsyncMock()
     hub.controller = ctrl
     return hub
@@ -70,7 +70,7 @@ async def test_wait_polls_until_ready() -> None:
         0,
     ):
         await hub._wait_for_controller()
-    assert hub.controller.is_controller_ready.await_count == 3
+    assert hub.controller.commands.query_controller_startup_complete.await_count == 3
     hub.controller.interview.assert_awaited_once()
     # Online is deferred until async_start finishes listener/event setup.
     assert hub.controller_status == CONTROLLER_STATUS_STARTING
@@ -95,13 +95,15 @@ async def test_entities_unavailable_while_starting() -> None:
         0,
     ):
         # Drive one not-ready poll by interrupting after status flips.
-        async def ready_then_stop() -> bool | None:
+        async def ready_then_stop(_ctrl: object = None) -> bool | None:
             hub.set_controller_status(CONTROLLER_STATUS_STARTING)
             assert hub.available is False
             assert hub.is_controller_available(hub.controller) is False
             return True
 
-        hub.controller.is_controller_ready = AsyncMock(side_effect=ready_then_stop)
+        hub.controller.commands.query_controller_startup_complete = AsyncMock(
+            side_effect=ready_then_stop
+        )
         await hub._wait_for_controller()
     assert hub.controller_status == CONTROLLER_STATUS_STARTING
     assert hub.available is False

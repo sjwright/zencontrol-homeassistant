@@ -202,7 +202,9 @@ async def _test_connection(host: str, port: int, mac: str, label: str) -> bool:
     zen = zencontrol.ZenControl()
     try:
         ctrl = zen.add_controller(id=99, name=test_name, label=label, host=host, port=port, mac=mac)
-        result = await asyncio.wait_for(ctrl.is_controller_ready(), timeout=5.0)
+        result = await asyncio.wait_for(
+            ctrl.commands.query_controller_startup_complete(ctrl), timeout=5.0
+        )
         return result is True
     except Exception:
         _LOGGER.debug("Connection test failed for %s:%s", host, port, exc_info=True)
@@ -298,7 +300,7 @@ async def _async_prime_discovery(
 ) -> None:
     """Wait for the controller, discover entities, and stash a pending manifest.
 
-    Does not proceed until ``is_controller_ready()`` is True (up to
+    Does not proceed until ``query_controller_startup_complete()`` is True (up to
     ``CONTROLLER_READY_WAIT_MAX`` — controllers can take 1–10 minutes after reboot).
     """
     zen = zencontrol.ZenControl(unicast=unicast)

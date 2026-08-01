@@ -1,4 +1,4 @@
-"""Rate limiter for batched async operations (from mqtt_bridge)."""
+"""Rate limiter for batched async operations."""
 
 from __future__ import annotations
 

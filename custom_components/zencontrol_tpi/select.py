@@ -83,7 +83,7 @@ class ZenProfileSelectEntity(ZenControllerEntity, SelectEntity):
         if option not in self._profiles:
             raise ServiceValidationError(f"Unknown profile: {option}")
         try:
-            await self._ctrl.switch_to_profile(option)
+            await self._profiles[option].select()
         except HomeAssistantError:
             raise
         except Exception as err:

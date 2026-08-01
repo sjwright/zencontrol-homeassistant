@@ -61,7 +61,7 @@ async def wait_until_controller_ready(
     while True:
         try:
             ready = await asyncio.wait_for(
-                ctrl.is_controller_ready(),
+                ctrl.commands.query_controller_startup_complete(ctrl),
                 timeout=CONTROLLER_READY_QUERY_TIMEOUT,
             )
         except TimeoutError:

@@ -155,7 +155,7 @@ class SharedZenRuntime:
             self._controllers_by_entry[entry_id] = ctrl
 
             # Do not configure TPI events here — the controller may still be
-            # booting. ZenHub enables events only after is_controller_ready().
+            # booting. ZenHub enables events only after query_controller_startup_complete.
 
             _LOGGER.info(
                 "Attached controller %s (%s) to shared runtime (%d entries)",

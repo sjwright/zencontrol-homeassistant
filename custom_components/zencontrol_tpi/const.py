@@ -18,7 +18,7 @@ DATA_PENDING_MANIFEST: Final = "pending_manifest"
 DEFAULT_PORT: Final = 5108
 
 # Controller boot can take 1-10 minutes after power-on / reboot. Setup and
-# config-flow priming poll is_controller_ready() until this deadline.
+# config-flow priming poll query_controller_startup_complete until this deadline.
 CONTROLLER_READY_POLL_INTERVAL: Final = 10  # seconds between polls
 CONTROLLER_READY_QUERY_TIMEOUT: Final = 10.0
 CONTROLLER_READY_WAIT_MAX: Final = 600.0  # 10 minutes
@@ -58,7 +58,7 @@ CONF_SUB_DEVICES: Final = "sub_devices"
 SCENE_OFF: Final = "Off"
 SCENE_NONE: Final = "None"
 
-# Logarithmic arc↔brightness constants (from mqtt_bridge)
+# Logarithmic arc↔brightness constants
 _LOG_A: Final = -59.53
 _LOG_B: Final = 56.58
 

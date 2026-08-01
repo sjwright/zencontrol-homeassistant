@@ -20,12 +20,12 @@ async def test_wait_until_controller_ready_interviews() -> None:
     ctrl = MagicMock()
     ctrl.label = "House"
     ctrl.host = "10.0.0.1"
-    ctrl.is_controller_ready = AsyncMock(return_value=True)
+    ctrl.commands.query_controller_startup_complete = AsyncMock(return_value=True)
     ctrl.interview = AsyncMock()
 
     await wait_until_controller_ready(ctrl)
 
-    ctrl.is_controller_ready.assert_awaited_once()
+    ctrl.commands.query_controller_startup_complete.assert_awaited_once_with(ctrl)
     ctrl.interview.assert_awaited_once()
 
 
@@ -34,7 +34,7 @@ async def test_wait_until_controller_ready_unreachable_callback() -> None:
     ctrl = MagicMock()
     ctrl.label = "House"
     ctrl.host = "10.0.0.1"
-    ctrl.is_controller_ready = AsyncMock(return_value=None)
+    ctrl.commands.query_controller_startup_complete = AsyncMock(return_value=None)
     ctrl.interview = AsyncMock()
     seen: list[str] = []
 
