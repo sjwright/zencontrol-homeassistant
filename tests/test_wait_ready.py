@@ -56,9 +56,10 @@ def _hub_with_controller(ready_sequence: list[bool | None]) -> ZenHub:
     ctrl.label = "House"
     ctrl.host = "10.0.0.1"
     ctrl.version = "1.0"
-    ctrl.commands.query_controller_startup_complete = AsyncMock(side_effect=is_ready)
     ctrl.interview = AsyncMock()
     hub.controller = ctrl
+    hub.runtime.zen = MagicMock()
+    hub.runtime.zen.commands.query_controller_startup_complete = AsyncMock(side_effect=is_ready)
     return hub
 
 
@@ -70,7 +71,7 @@ async def test_wait_polls_until_ready() -> None:
         0,
     ):
         await hub._wait_for_controller()
-    assert hub.controller.commands.query_controller_startup_complete.await_count == 3
+    assert hub.zen.commands.query_controller_startup_complete.await_count == 3
     hub.controller.interview.assert_awaited_once()
     # Online is deferred until async_start finishes listener/event setup.
     assert hub.controller_status == CONTROLLER_STATUS_STARTING
@@ -101,7 +102,7 @@ async def test_entities_unavailable_while_starting() -> None:
             assert hub.is_controller_available(hub.controller) is False
             return True
 
-        hub.controller.commands.query_controller_startup_complete = AsyncMock(
+        hub.runtime.zen.commands.query_controller_startup_complete = AsyncMock(
             side_effect=ready_then_stop
         )
         await hub._wait_for_controller()

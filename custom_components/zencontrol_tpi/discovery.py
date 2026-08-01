@@ -51,6 +51,7 @@ class DiscoveredEntities:
 
 
 async def wait_until_controller_ready(
+    zen: ZenControl,
     ctrl: ZenController,
     *,
     on_unreachable: Callable[[], None] | None = None,
@@ -61,7 +62,7 @@ async def wait_until_controller_ready(
     while True:
         try:
             ready = await asyncio.wait_for(
-                ctrl.commands.query_controller_startup_complete(ctrl),
+                zen.commands.query_controller_startup_complete(ctrl),
                 timeout=CONTROLLER_READY_QUERY_TIMEOUT,
             )
         except TimeoutError:

@@ -17,30 +17,32 @@ from custom_components.zencontrol_tpi.discovery import (
 
 @pytest.mark.asyncio
 async def test_wait_until_controller_ready_interviews() -> None:
+    zen = MagicMock()
+    zen.commands.query_controller_startup_complete = AsyncMock(return_value=True)
     ctrl = MagicMock()
     ctrl.label = "House"
     ctrl.host = "10.0.0.1"
-    ctrl.commands.query_controller_startup_complete = AsyncMock(return_value=True)
     ctrl.interview = AsyncMock()
 
-    await wait_until_controller_ready(ctrl)
+    await wait_until_controller_ready(zen, ctrl)
 
-    ctrl.commands.query_controller_startup_complete.assert_awaited_once_with(ctrl)
+    zen.commands.query_controller_startup_complete.assert_awaited_once_with(ctrl)
     ctrl.interview.assert_awaited_once()
 
 
 @pytest.mark.asyncio
 async def test_wait_until_controller_ready_unreachable_callback() -> None:
+    zen = MagicMock()
+    zen.commands.query_controller_startup_complete = AsyncMock(return_value=None)
     ctrl = MagicMock()
     ctrl.label = "House"
     ctrl.host = "10.0.0.1"
-    ctrl.commands.query_controller_startup_complete = AsyncMock(return_value=None)
     ctrl.interview = AsyncMock()
     seen: list[str] = []
 
     with pytest.raises(ControllerNotReadyError, match="Cannot reach"):
         await wait_until_controller_ready(
-            ctrl, on_unreachable=lambda: seen.append("unreachable")
+            zen, ctrl, on_unreachable=lambda: seen.append("unreachable")
         )
 
     assert seen == ["unreachable"]

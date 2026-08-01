@@ -600,6 +600,7 @@ class ZenHub:
         self.set_controller_status(CONTROLLER_STATUS_STARTING)
         try:
             await wait_until_controller_ready(
+                self.zen,
                 ctrl,
                 on_unreachable=lambda: self.set_controller_status(CONTROLLER_STATUS_UNREACHABLE),
                 on_starting=lambda: self.set_controller_status(CONTROLLER_STATUS_STARTING),
@@ -802,7 +803,7 @@ class ZenHub:
         if self.controller is not None:
             try:
                 ready = await asyncio.wait_for(
-                    self.controller.commands.query_controller_startup_complete(self.controller),
+                    self.zen.commands.query_controller_startup_complete(self.controller),
                     timeout=CONTROLLER_READY_QUERY_TIMEOUT,
                 )
             except TimeoutError:

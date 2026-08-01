@@ -235,7 +235,7 @@ async def load_entities_from_manifest(hub: ZenHub, manifest: dict[str, Any]) -> 
     interviewed by the hub.
     """
     ctrl_by_name = {hub.controller.name: hub.controller} if hub.controller is not None else {}
-    ctx = hub.zen.context
+    ctx = hub.zen.ctx
     needs_save = False
 
     def _ctrl(name: str) -> ZenController:

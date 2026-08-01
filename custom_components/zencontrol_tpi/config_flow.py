@@ -203,7 +203,7 @@ async def _test_connection(host: str, port: int, mac: str, label: str) -> bool:
     try:
         ctrl = zen.add_controller(id=99, name=test_name, label=label, host=host, port=port, mac=mac)
         result = await asyncio.wait_for(
-            ctrl.commands.query_controller_startup_complete(ctrl), timeout=5.0
+            zen.commands.query_controller_startup_complete(ctrl), timeout=5.0
         )
         return result is True
     except Exception:
@@ -314,7 +314,7 @@ async def _async_prime_discovery(
             mac=controller.get(CONF_MAC),
         )
         try:
-            await wait_until_controller_ready(ctrl)
+            await wait_until_controller_ready(zen, ctrl)
         except ControllerNotReadyError as err:
             raise RuntimeError(str(err)) from err
 
