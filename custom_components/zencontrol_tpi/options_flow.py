@@ -259,7 +259,9 @@ class ZencontrolTpiOptionsFlow(OptionsFlow):
                     prefixes=tuple(prefixes),
                     area_id=_area_id_from_input(user_input),
                 )
-                ctrl_cfg[CONF_SUB_DEVICES] = sub_devices_to_config([updated if item.id == device.id else item for item in existing])
+                ctrl_cfg[CONF_SUB_DEVICES] = sub_devices_to_config(
+                    [updated if item.id == device.id else item for item in existing]
+                )
                 return await self._async_save_sub_devices(controllers)
 
         return self.async_show_form(
