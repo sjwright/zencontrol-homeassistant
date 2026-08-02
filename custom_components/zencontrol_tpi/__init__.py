@@ -2,22 +2,21 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
-from typing import Any
 
 from homeassistant.config_entries import SOURCE_IMPORT, ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryNotReady
 
 from .const import (
-    CONF_CONTROLLERS,
     CONF_LABEL,
     CONF_MAC,
+    CONF_NAME,
     CONF_UNICAST,
     CONFIG_VERSION,
     DOMAIN,
     PLATFORMS,
+    controllers_from_entry_data,
+    entry_data_for_controller,
     normalize_mac_id,
 )
 from .entry_helpers import mac_is_configured
@@ -32,7 +31,7 @@ from .runtime import SharedZenRuntime, entry_unicast
 
 _LOGGER = logging.getLogger(__name__)
 
-__all__ = ["ZencontrolTpiConfigEntry"]
+__all__ = ["ZencontrolTpiConfigEntry", "entry_data_for_controller"]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ZencontrolTpiConfigEntry) -> bool:
@@ -49,18 +48,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ZencontrolTpiConfigEntry
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
         platforms_forwarded = True
         await hub.async_start()
-    except asyncio.CancelledError:
+    except BaseException:
+        # Cleanup on any failure (including CancelledError), then re-raise as-is.
+        # Retryable errors are already ConfigEntryNotReady from the hub; unexpected
+        # exceptions must surface rather than being wrapped into a retry loop.
         await hub.async_stop()
         if platforms_forwarded:
             await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
         raise
-    except Exception as err:
-        await hub.async_stop()
-        if platforms_forwarded:
-            await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-        if isinstance(err, ConfigEntryNotReady):
-            raise
-        raise ConfigEntryNotReady(f"zencontrol setup failed: {err}") from err
 
     return True
 
@@ -93,7 +88,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         CONFIG_VERSION,
     )
 
-    controllers = list(entry.data.get(CONF_CONTROLLERS, []))
+    controllers = controllers_from_entry_data(entry.data)
     unicast = bool(entry.data.get(CONF_UNICAST, False))
 
     if not controllers:
@@ -104,16 +99,13 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     extras = controllers[1:]
 
     primary_mac = normalize_mac_id(str(primary.get(CONF_MAC, "")))
-    title = str(primary.get(CONF_LABEL) or primary.get("name") or "zencontrol")
+    title = str(primary.get(CONF_LABEL) or primary.get(CONF_NAME) or "zencontrol")
 
     hass.config_entries.async_update_entry(
         entry,
         title=title,
         unique_id=primary_mac or entry.unique_id,
-        data={
-            CONF_CONTROLLERS: [primary],
-            CONF_UNICAST: unicast,
-        },
+        data=entry_data_for_controller(primary, unicast=unicast),
         version=CONFIG_VERSION,
     )
 
@@ -130,9 +122,8 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             DOMAIN,
             context={"source": SOURCE_IMPORT},
             data={
-                CONF_CONTROLLERS: [ctrl_cfg],
-                CONF_UNICAST: unicast,
-                "title": str(ctrl_cfg.get(CONF_LABEL) or ctrl_cfg.get("name") or "zencontrol"),
+                **entry_data_for_controller(ctrl_cfg, unicast=unicast),
+                "title": str(ctrl_cfg.get(CONF_LABEL) or ctrl_cfg.get(CONF_NAME) or "zencontrol"),
                 "migrate_from_entry_id": entry.entry_id,
             },
         )
@@ -143,11 +134,3 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         len(extras),
     )
     return True
-
-
-def entry_data_for_controller(ctrl_cfg: dict[str, Any], *, unicast: bool = False) -> dict[str, Any]:
-    """Build persisted entry data for a single controller."""
-    return {
-        CONF_CONTROLLERS: [ctrl_cfg],
-        CONF_UNICAST: unicast,
-    }

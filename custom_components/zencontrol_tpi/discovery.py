@@ -20,6 +20,7 @@ from zencontrol import (
     ZenProfile,
     ZenSystemVariable,
 )
+from zencontrol.exceptions import ZenConnectionError, ZenTimeoutError
 
 from .const import (
     CONTROLLER_READY_POLL_INTERVAL,
@@ -32,6 +33,17 @@ _LOGGER = logging.getLogger(__name__)
 
 class ControllerNotReadyError(Exception):
     """Controller did not become ready within the wait budget."""
+
+
+# Transport / readiness failures → ConfigEntryNotReady (HA will retry).
+# Everything else should surface after cleanup so programming defects are visible.
+RETRYABLE_SETUP_ERRORS: tuple[type[BaseException], ...] = (
+    ControllerNotReadyError,
+    TimeoutError,
+    OSError,
+    ZenConnectionError,
+    ZenTimeoutError,
+)
 
 
 @dataclass(slots=True)

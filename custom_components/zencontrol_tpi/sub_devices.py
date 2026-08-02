@@ -28,7 +28,7 @@ from zencontrol import (
     ZenSystemVariable,
 )
 
-from .const import CONF_SUB_DEVICES
+from .const import CONF_SUB_DEVICES, ControllerConfig, SubDeviceConfig
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -108,16 +108,16 @@ def sub_devices_from_config(raw: Any) -> list[SubDeviceDef]:
     return out
 
 
-def sub_devices_from_controller(ctrl_cfg: dict[str, Any]) -> list[SubDeviceDef]:
+def sub_devices_from_controller(ctrl_cfg: ControllerConfig | dict[str, Any]) -> list[SubDeviceDef]:
     """Load sub-devices from a controller dict."""
     return sub_devices_from_config(ctrl_cfg.get(CONF_SUB_DEVICES))
 
 
-def sub_devices_to_config(sub_devices: list[SubDeviceDef]) -> list[dict[str, Any]]:
+def sub_devices_to_config(sub_devices: list[SubDeviceDef]) -> list[SubDeviceConfig]:
     """Serialize sub-devices for config entry storage."""
-    result: list[dict[str, Any]] = []
+    result: list[SubDeviceConfig] = []
     for d in sub_devices:
-        item: dict[str, Any] = {
+        item: SubDeviceConfig = {
             CONF_SUB_DEVICE_ID: d.id,
             CONF_SUB_DEVICE_NAME: d.name,
             CONF_SUB_DEVICE_PREFIXES: list(d.prefixes),

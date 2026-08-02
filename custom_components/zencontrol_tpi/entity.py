@@ -73,9 +73,19 @@ class ZenControllerEntity(Entity):
     # Subclasses set this to request a stable entity object id.
     _suggested_object_id: str | None = None
 
-    def __init__(self, hub: ZenHub, zen_ctrl: ZenController | None = None) -> None:
+    def __init__(
+        self,
+        hub: ZenHub,
+        zen_ctrl: ZenController | None = None,
+        *,
+        assignment_key: str | None = None,
+    ) -> None:
         self._hub = hub
         self._zen_ctrl = zen_ctrl
+        self._assignment_key = assignment_key
+        # Resolved in async_added_to_hass so startup can await entity adds
+        # without reading ConfigEntry private task sets.
+        self._added_future = hub.track_entity_add()
 
     @property
     def available(self) -> bool:
@@ -83,6 +93,18 @@ class ZenControllerEntity(Entity):
         return self._hub.is_controller_available(self._zen_ctrl)
 
     @property
+    def device_info(self) -> DeviceInfo | None:
+        """Parent or sub-device info from current hub assignments."""
+        if self._zen_ctrl is None:
+            return None
+        return self._hub.device_info_for(self._zen_ctrl, assignment_key=self._assignment_key)
+
+    @property
     def suggested_object_id(self) -> str | None:
         """Return a stable suggested object id when provided by subclasses."""
         return self._suggested_object_id
+
+    async def async_added_to_hass(self) -> None:
+        """Signal the hub that HA has finished adding this entity."""
+        await super().async_added_to_hass()
+        self._hub.resolve_entity_add(self._added_future)

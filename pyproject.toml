@@ -3,12 +3,15 @@ asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = ["."]
 norecursedirs = [".*", "__pycache__", "homeassistant-config"]
+markers = [
+  "simulator: integration tests that start zencontrol-simulator (installed or sibling ../zencontrol-simulator)",
+]
 
 [tool.pyright]
 venvPath = "."
 venv = ".venv"
 pythonVersion = "3.14"
-extraPaths = ["../zencontrol-python"]
+extraPaths = ["../zencontrol-python", "../zencontrol-simulator"]
 # Home Assistant declares Entity.available, native_value and friends as
 # cached_property, but overriding them with a plain @property is the documented
 # integration pattern. HA core checks itself with mypy, which allows it.

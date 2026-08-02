@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -12,12 +12,11 @@ from homeassistant.exceptions import ConfigEntryNotReady
 from custom_components.zencontrol_tpi.hub import ZenHub
 
 
-def _hub_for_start(*, entry_tasks: set[asyncio.Task[Any]] | None = None) -> ZenHub:
+def _hub_for_start() -> ZenHub:
     hass = MagicMock()
     hass.async_block_till_done = AsyncMock()
     entry = MagicMock()
     entry.entry_id = "entry-1"
-    entry._tasks = entry_tasks if entry_tasks is not None else set()
     entry.async_create_task = MagicMock()
     entry.async_create_background_task = MagicMock()
 
@@ -38,6 +37,7 @@ def _hub_for_start(*, entry_tasks: set[asyncio.Task[Any]] | None = None) -> ZenH
     hub._discovery_notified = False
     hub._setup_complete = False
     hub._discovery_callbacks = []
+    hub._pending_entity_adds = set()
     hub.sync_device_assignments = MagicMock()
     hub._wait_for_controller = AsyncMock()
     hub._discover_entities = AsyncMock()
@@ -55,31 +55,32 @@ async def test_async_start_ignores_unrelated_hass_hang() -> None:
         await asyncio.Event().wait()
 
     # Old bug: async_start awaited this and never returned to the config flow.
-    hub.hass.async_block_till_done = hang_forever
+    cast(Any, hub.hass).async_block_till_done = hang_forever
 
     await asyncio.wait_for(hub.async_start(), timeout=1.0)
 
-    hub.set_controller_status.assert_called_with("online")
+    cast(MagicMock, hub.set_controller_status).assert_called_with("online")
     assert hub._discovery_notified is True
-    hub.sync_device_assignments.assert_called()
+    cast(MagicMock, hub.sync_device_assignments).assert_called()
 
 
 @pytest.mark.asyncio
-async def test_notify_awaits_only_new_entry_entity_add_tasks() -> None:
-    """Platform adds are tracked on the config entry; await those, nothing else."""
-    entry_tasks: set[asyncio.Task[Any]] = set()
-    hub = _hub_for_start(entry_tasks=entry_tasks)
-
+async def test_notify_awaits_only_new_entity_add_futures() -> None:
+    """Entity adds resolve hub-owned futures; unrelated hass work is ignored."""
+    hub = _hub_for_start()
     entity_add_done = asyncio.Event()
-
-    async def entity_add() -> None:
-        await asyncio.sleep(0)
-        entity_add_done.set()
+    add_task: asyncio.Task[None] | None = None
 
     async def platform_callback() -> None:
-        task = asyncio.create_task(entity_add())
-        entry_tasks.add(task)
-        task.add_done_callback(entry_tasks.discard)
+        nonlocal add_task
+        fut = hub.track_entity_add()
+
+        async def complete_add() -> None:
+            await asyncio.sleep(0)
+            hub.resolve_entity_add(fut)
+            entity_add_done.set()
+
+        add_task = asyncio.create_task(complete_add())
 
     unrelated = asyncio.create_task(asyncio.Event().wait())
     try:
@@ -87,6 +88,8 @@ async def test_notify_awaits_only_new_entry_entity_add_tasks() -> None:
         await asyncio.wait_for(hub._notify_discovery_complete(), timeout=1.0)
         assert entity_add_done.is_set()
         assert unrelated.done() is False
+        assert add_task is not None
+        await add_task
     finally:
         unrelated.cancel()
         with pytest.raises(asyncio.CancelledError):
@@ -110,16 +113,10 @@ async def test_notify_is_idempotent() -> None:
 
 @pytest.mark.asyncio
 async def test_notify_times_out_stuck_entity_add() -> None:
-    entry_tasks: set[asyncio.Task[Any]] = set()
-    hub = _hub_for_start(entry_tasks=entry_tasks)
-
-    async def stuck_add() -> None:
-        await asyncio.Event().wait()
+    hub = _hub_for_start()
 
     async def platform_callback() -> None:
-        task = asyncio.create_task(stuck_add())
-        entry_tasks.add(task)
-        task.add_done_callback(entry_tasks.discard)
+        hub.track_entity_add()  # never resolved
 
     hub._discovery_callbacks = [platform_callback]
     with (
@@ -143,3 +140,29 @@ async def test_setup_failure_notify_does_not_mask_original_error() -> None:
 
     with pytest.raises(ConfigEntryNotReady, match="controller down"):
         await hub.async_start()
+
+
+@pytest.mark.asyncio
+async def test_unexpected_start_error_surfaces() -> None:
+    """Programming defects must not become ConfigEntryNotReady retries."""
+    hub = _hub_for_start()
+    hub._wait_for_controller = AsyncMock(side_effect=RuntimeError("bug in wait"))
+    hub._async_notify_discovery_best_effort = AsyncMock()
+
+    with pytest.raises(RuntimeError, match="bug in wait"):
+        await hub.async_start()
+
+    cast(MagicMock, hub.set_controller_status).assert_called_with("unreachable")
+    hub._async_notify_discovery_best_effort.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_retryable_transport_error_becomes_not_ready() -> None:
+    hub = _hub_for_start()
+    hub._wait_for_controller = AsyncMock(side_effect=TimeoutError("probe timed out"))
+    hub._async_notify_discovery_best_effort = AsyncMock()
+
+    with pytest.raises(ConfigEntryNotReady, match="probe timed out"):
+        await hub.async_start()
+
+    cast(MagicMock, hub.set_controller_status).assert_called_with("unreachable")

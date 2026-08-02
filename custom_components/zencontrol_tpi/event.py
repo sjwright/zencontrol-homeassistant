@@ -40,14 +40,13 @@ class ZenButtonEntity(ZenControllerEntity, EventEntity):
 
     def __init__(self, hub: ZenHub, zen_button: ZenButton) -> None:
         ctrl = as_zen_controller(zen_button.instance.address.ctrl)
-        super().__init__(hub, ctrl)
+        super().__init__(hub, ctrl, assignment_key=button_assignment_key(zen_button))
         self._button = zen_button
         addr = zen_button.instance.address.number
         inst = zen_button.instance.number
 
         self._attr_unique_id = f"{ctrl.name}_ecd{addr}_btn{inst}"
         self._suggested_object_id = zen_button.instance.entity_id_string()
-        self._attr_device_info = hub.device_info_for(ctrl, assignment_key=button_assignment_key(zen_button))
         self._attr_name = instance_display_label(zen_button) or f"Button {addr}"
 
         hub.register_button_entity(zen_button, self)

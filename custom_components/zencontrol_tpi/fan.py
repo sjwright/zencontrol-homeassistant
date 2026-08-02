@@ -66,13 +66,12 @@ class ZenFanEntity(ZenControllerEntity, FanEntity):
 
     def __init__(self, hub: ZenHub, zen_fan: ZenFan) -> None:
         ctrl = as_zen_controller(zen_fan.address.ctrl)
-        super().__init__(hub, ctrl)
+        super().__init__(hub, ctrl, assignment_key=fan_assignment_key(zen_fan))
         self._fan = zen_fan
         number = zen_fan.address.number
 
         self._attr_unique_id = f"{ctrl.name}_fan_{number}"
         self._suggested_object_id = f"fan{number}"
-        self._attr_device_info = hub.device_info_for(ctrl, assignment_key=fan_assignment_key(zen_fan))
         self._attr_name = zen_fan.label or f"Fan {number}"
         self._apply_state()
         hub.register_fan_entity(zen_fan, self)

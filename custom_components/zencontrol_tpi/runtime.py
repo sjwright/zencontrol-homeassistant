@@ -31,6 +31,7 @@ from .const import (
     CONF_UNICAST,
     DEFAULT_PORT,
     DOMAIN,
+    ControllerConfig,
     normalize_mac,
     normalize_mac_id,
 )
@@ -126,7 +127,7 @@ class SharedZenRuntime:
     async def async_attach(
         self,
         hub: ZenHub,
-        ctrl_cfg: dict[str, Any],
+        ctrl_cfg: ControllerConfig,
     ) -> ZenController:
         """Register a controller for this hub and return the ZenController."""
         async with self._attach_lock:

@@ -128,7 +128,7 @@ def test_sync_device_assignments_moves_entity_and_prunes_orphan() -> None:
 
     light = _Light(ctrl, 3, "Kitchen spot")
     hub.lights = [light]
-    entity = SimpleNamespace(entity_id="light.kitchen_spot", _attr_device_info=None)
+    entity = SimpleNamespace(entity_id="light.kitchen_spot")
     hub.register_light_entity(light, entity)  # type: ignore[arg-type]
 
     created: dict[frozenset[tuple[str, str]], SimpleNamespace] = {}
@@ -164,8 +164,6 @@ def test_sync_device_assignments_moves_entity_and_prunes_orphan() -> None:
 
     kitchen_idents = frozenset({(DOMAIN, "AA:BB:CC:DD:EE:FF:sub:kitchen")})
     kitchen_id = created[kitchen_idents].id
-    assert entity._attr_device_info is not None
-    assert entity._attr_device_info["identifiers"] == {(DOMAIN, "AA:BB:CC:DD:EE:FF:sub:kitchen")}
     entity_registry.async_update_entity.assert_called_once_with(
         "light.kitchen_spot",
         device_id=kitchen_id,
@@ -190,7 +188,7 @@ def test_sync_skips_entities_without_entity_id() -> None:
     )
     light = _Light(ctrl, 1, "Lone")
     hub.lights = [light]
-    entity = SimpleNamespace(entity_id=None, _attr_device_info=None)
+    entity = SimpleNamespace(entity_id=None)
     hub.register_light_entity(light, entity)  # type: ignore[arg-type]
 
     device_registry = MagicMock()
@@ -203,7 +201,6 @@ def test_sync_skips_entities_without_entity_id() -> None:
         hub.sync_device_assignments()
 
     entity_registry.async_update_entity.assert_not_called()
-    assert entity._attr_device_info is not None
 
 
 def test_sync_skips_missing_registry_entry() -> None:
@@ -214,7 +211,7 @@ def test_sync_skips_missing_registry_entry() -> None:
     )
     light = _Light(ctrl, 1, "Lone")
     hub.lights = [light]
-    entity = SimpleNamespace(entity_id="light.lone", _attr_device_info=None)
+    entity = SimpleNamespace(entity_id="light.lone")
     hub.register_light_entity(light, entity)  # type: ignore[arg-type]
 
     device_registry = MagicMock()
@@ -260,8 +257,8 @@ def test_sync_continues_when_one_entity_update_fails() -> None:
     light_a = _Light(ctrl, 1, "Kitchen A")
     light_b = _Light(ctrl, 2, "Kitchen B")
     hub.lights = [light_a, light_b]
-    entity_a = SimpleNamespace(entity_id="light.a", _attr_device_info=None)
-    entity_b = SimpleNamespace(entity_id="light.b", _attr_device_info=None)
+    entity_a = SimpleNamespace(entity_id="light.a")
+    entity_b = SimpleNamespace(entity_id="light.b")
     hub.register_light_entity(light_a, entity_a)  # type: ignore[arg-type]
     hub.register_light_entity(light_b, entity_b)  # type: ignore[arg-type]
 
@@ -295,4 +292,3 @@ def test_sync_continues_when_one_entity_update_fails() -> None:
         hub.sync_device_assignments()
 
     assert entity_registry.async_update_entity.call_count == 2
-    assert entity_b._attr_device_info is not None

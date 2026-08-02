@@ -18,7 +18,7 @@ from .const import (
     CONTROLLER_STATUS_OPTIONS,
     CONTROLLER_STATUS_UNREACHABLE,
 )
-from .entity import ZenControllerEntity, as_zen_controller, controller_device_info
+from .entity import ZenControllerEntity, as_zen_controller
 from .hub import ZencontrolTpiConfigEntry, ZenHub
 from .sub_devices import (
     absolute_input_assignment_key,
@@ -66,8 +66,6 @@ class ZenControllerStatusSensor(ZenControllerEntity, SensorEntity):
         name = ctrl.name if ctrl is not None else hub.entry.entry_id
         self._attr_unique_id = f"{name}_controller_status"
         self._suggested_object_id = "status"
-        if ctrl is not None:
-            self._attr_device_info = controller_device_info(ctrl)
         hub.register_status_entity(self)
 
     @property
@@ -94,12 +92,11 @@ class ZenSystemVariableSensorEntity(ZenControllerEntity, SensorEntity):
 
     def __init__(self, hub: ZenHub, zen_sv: ZenSystemVariable) -> None:
         ctrl = zen_sv.ctrl
-        super().__init__(hub, ctrl)
+        super().__init__(hub, ctrl, assignment_key=sysvar_assignment_key(zen_sv))
         self._sv = zen_sv
 
         self._attr_unique_id = f"{ctrl.name}_sv{zen_sv.id}_sensor"
         self._suggested_object_id = f"sv{zen_sv.id}"
-        self._attr_device_info = hub.device_info_for(ctrl, assignment_key=sysvar_assignment_key(zen_sv))
         self._attr_name = zen_sv.label or f"System Variable {zen_sv.id}"
         lower_label = (zen_sv.label or "").casefold()
         if lower_label.endswith("lux sensor"):
@@ -122,14 +119,13 @@ class ZenAbsoluteInputSensorEntity(ZenControllerEntity, SensorEntity):
 
     def __init__(self, hub: ZenHub, zen_input: ZenAbsoluteInput) -> None:
         ctrl = as_zen_controller(zen_input.instance.address.ctrl)
-        super().__init__(hub, ctrl)
+        super().__init__(hub, ctrl, assignment_key=absolute_input_assignment_key(zen_input))
         self._input = zen_input
         addr = zen_input.instance.address.number
         inst = zen_input.instance.number
 
         self._attr_unique_id = f"{ctrl.name}_ecd{addr}_abs{inst}"
         self._suggested_object_id = zen_input.instance.entity_id_string()
-        self._attr_device_info = hub.device_info_for(ctrl, assignment_key=absolute_input_assignment_key(zen_input))
         self._attr_name = instance_display_label(zen_input) or f"Absolute Input {addr}"
         # Controllers push value-change events only; None until first event.
         self._attr_native_value = zen_input.value

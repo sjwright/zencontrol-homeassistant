@@ -249,12 +249,11 @@ class ZenLightEntity(ZenControllerEntity, LightEntity):
 
     def __init__(self, hub: ZenHub, zen_light: ZenLight) -> None:
         ctrl = as_zen_controller(zen_light.address.ctrl)
-        super().__init__(hub, ctrl)
+        super().__init__(hub, ctrl, assignment_key=light_assignment_key(zen_light))
         self._light = zen_light
 
         self._attr_unique_id = f"{ctrl.name}_ecg_{zen_light.address.number}"
         self._suggested_object_id = zen_light.address.entity_id_string()
-        self._attr_device_info = hub.device_info_for(ctrl, assignment_key=light_assignment_key(zen_light))
         self._attr_name = zen_light.sub_label or zen_light.label or f"Light {zen_light.address.number}"
 
         self._supported_modes = _build_supported_modes(zen_light.features)
@@ -319,12 +318,11 @@ class ZenGroupEntity(ZenControllerEntity, LightEntity):
 
     def __init__(self, hub: ZenHub, zen_group: ZenGroup) -> None:
         ctrl = as_zen_controller(zen_group.address.ctrl)
-        super().__init__(hub, ctrl)
+        super().__init__(hub, ctrl, assignment_key=group_assignment_key(zen_group))
         self._group = zen_group
 
         self._attr_unique_id = f"{ctrl.name}_group_{zen_group.address.number}"
         self._suggested_object_id = zen_group.address.entity_id_string()
-        self._attr_device_info = hub.device_info_for(ctrl, assignment_key=group_assignment_key(zen_group))
         self._attr_name = zen_group.label or f"Group {zen_group.address.number}"
 
         # Derive color modes from member lights

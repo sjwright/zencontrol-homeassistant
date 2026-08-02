@@ -13,7 +13,7 @@ import re
 import socket
 import time
 from functools import partial
-from typing import Any
+from typing import Any, cast
 
 import getmac
 import voluptuous as vol
@@ -48,6 +48,10 @@ from .const import (
     DATA_PENDING_MANIFEST,
     DEFAULT_PORT,
     DOMAIN,
+    ControllerConfig,
+    DiscoveredControllerInfo,
+    SubDeviceConfig,
+    controllers_from_entry_data,
     normalize_mac,
     normalize_mac_id,
 )
@@ -69,8 +73,6 @@ _MAC_RE = re.compile(r"^([0-9A-Fa-f]{2}[:\-]){5}([0-9A-Fa-f]{2})$")
 CONF_DISCOVERED = "discovered"
 DISCOVERY_LISTEN_SECONDS = 5.0
 
-type ControllerConfig = dict[str, Any]
-
 
 def _derive_name(host: str) -> str:
     """Derive an alphanumeric controller name from the host IP."""
@@ -81,9 +83,7 @@ def _controllers_from_all_entries(hass: HomeAssistant) -> list[ControllerConfig]
     """Return every controller config across all domain entries."""
     result: list[ControllerConfig] = []
     for entry in hass.config_entries.async_entries(DOMAIN):
-        for ctrl_cfg in entry.data.get(CONF_CONTROLLERS, []):
-            if isinstance(ctrl_cfg, dict):
-                result.append(ctrl_cfg)
+        result.extend(controllers_from_entry_data(entry.data))
     return result
 
 
@@ -116,7 +116,7 @@ def build_controller_dict(
     mac: str,
     label: str,
     name: str,
-    sub_devices: list[dict[str, Any]] | None = None,
+    sub_devices: list[SubDeviceConfig] | None = None,
 ) -> ControllerConfig:
     """Build a persisted controller config dict."""
     data: ControllerConfig = {
@@ -218,7 +218,7 @@ async def _test_connection(host: str, port: int, mac: str, label: str) -> bool:
 
 def _discovered_to_dict(
     discovered: DiscoveredController | dict[str, Any],
-) -> ControllerConfig:
+) -> DiscoveredControllerInfo:
     """Normalize a library DiscoveredController (or mapping) to flow data."""
     match discovered:
         case dict() as data:
@@ -237,7 +237,7 @@ def _discovered_to_dict(
             }
 
 
-def _discovered_option_label(discovered: ControllerConfig) -> str:
+def _discovered_option_label(discovered: DiscoveredControllerInfo) -> str:
     """Human-readable label for a discovered controller selector option."""
     label = discovered.get(CONF_LABEL) or discovered[CONF_MAC]
     return f"{label} ({discovered[CONF_HOST]})"
@@ -255,7 +255,7 @@ def _selected_mac(user_input: dict[str, Any]) -> str | None:
 async def _async_listen_for_controllers(
     hass: HomeAssistant,
     duration: float = DISCOVERY_LISTEN_SECONDS,
-) -> list[ControllerConfig]:
+) -> list[DiscoveredControllerInfo]:
     """Listen for multicast and return identified controllers.
 
     duration is how long to keep listening, not a deadline for the call.
@@ -363,9 +363,9 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
         """Initialize flow state for single-controller setup."""
         self._controller: ControllerConfig | None = None
         self._unicast: bool = False
-        self._discovered: list[ControllerConfig] = []
-        self._discovery_info: dict[str, Any] | None = None
-        self._discovery_task: asyncio.Task[list[ControllerConfig]] | None = None
+        self._discovered: list[DiscoveredControllerInfo] = []
+        self._discovery_info: DiscoveredControllerInfo | None = None
+        self._discovery_task: asyncio.Task[list[DiscoveredControllerInfo]] | None = None
         self._connect_task: asyncio.Task[str | None] | None = None
         self._connect_error: str | None = None
         self._finish_task: asyncio.Task[None] | None = None
@@ -383,7 +383,7 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
             return False
         return bool(entries[0].data.get(CONF_UNICAST, False))
 
-    async def _async_run_discovery(self) -> list[ControllerConfig]:
+    async def _async_run_discovery(self) -> list[DiscoveredControllerInfo]:
         """Listen for multicast and filter already-configured controllers."""
         found = await _async_listen_for_controllers(self.hass)
         return [item for item in found if not mac_is_configured(self.hass, item[CONF_MAC])]
@@ -534,7 +534,7 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
-    async def _async_connect_discovered(self, selected: ControllerConfig) -> str | None:
+    async def _async_connect_discovered(self, selected: DiscoveredControllerInfo) -> str | None:
         """Validate connectivity and store the single controller. Return error key."""
         host = selected[CONF_HOST]
         port = int(selected.get(CONF_PORT, DEFAULT_PORT))
@@ -610,10 +610,11 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
         if not isinstance(controllers, list) or not controllers:
             return self.async_abort(reason="no_controllers")
 
-        ctrl_cfg = controllers[0]
-        if not isinstance(ctrl_cfg, dict):
+        ctrl_cfg_raw = controllers[0]
+        if not isinstance(ctrl_cfg_raw, dict):
             return self.async_abort(reason="no_controllers")
 
+        ctrl_cfg = cast(ControllerConfig, ctrl_cfg_raw)
         mac = str(ctrl_cfg.get(CONF_MAC, ""))
         mac_id = normalize_mac_id(mac)
         if not mac_id:
@@ -724,7 +725,7 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
     ) -> ConfigFlowResult:
         """Reconfigure this entry's controller connection."""
         entry = self._get_reconfigure_entry()
-        controllers = list(entry.data.get(CONF_CONTROLLERS, []))
+        controllers = controllers_from_entry_data(entry.data)
         if not controllers:
             return self.async_abort(reason="no_controllers")
         return await self.async_step_reconfigure_controller()
@@ -735,7 +736,7 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
     ) -> ConfigFlowResult:
         """Update the single controller on this entry."""
         entry = self._get_reconfigure_entry()
-        controllers = list(entry.data.get(CONF_CONTROLLERS, []))
+        controllers = controllers_from_entry_data(entry.data)
         if not controllers:
             return self.async_abort(reason="no_controllers")
         current = controllers[0]

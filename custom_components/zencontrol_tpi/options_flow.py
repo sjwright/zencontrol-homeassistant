@@ -16,6 +16,8 @@ from .const import (
     CONF_SUB_DEVICES,
     CONF_UNICAST,
     DOMAIN,
+    ControllerConfig,
+    controllers_from_entry_data,
 )
 from .sub_devices import (
     SubDeviceDef,
@@ -30,7 +32,6 @@ CONF_AREA_ID = "area_id"
 CONF_PREFIXES = "prefixes"
 CTX_SUGGEST_SUB_DEVICES = "suggest_sub_devices_ctrl"
 
-type ControllerConfig = dict[str, Any]
 type SaveReturnStep = Literal["suggest_sub_devices", "controller"] | None
 
 
@@ -92,7 +93,7 @@ class ZencontrolTpiOptionsFlow(OptionsFlow):
 
     def _controllers(self) -> list[ControllerConfig]:
         """Return this entry's controllers (always length 0 or 1)."""
-        return list(self.config_entry.data.get(CONF_CONTROLLERS, []))
+        return list(controllers_from_entry_data(self.config_entry.data))
 
     def _controller(self, name: str | None = None) -> ControllerConfig | None:
         """Return the only controller, optionally requiring a name match."""

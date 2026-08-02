@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol, TypedDict, cast
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
@@ -39,6 +39,51 @@ STORE_VERSION = 1
 # Schema version embedded into the manifest payload we store.
 # Bump this when the structure of manifest["interview"] changes.
 MANIFEST_VERSION = 7
+
+# Interview JSON owned by zencontrol-python; treat as opaque here.
+type InterviewBlob = dict[str, Any]
+
+
+class ManifestAddressItem(TypedDict):
+    """ECG/group/profile row keyed by controller + short address/number."""
+
+    controller: str
+    number: int
+    interview: InterviewBlob
+
+
+class ManifestInstanceItem(TypedDict):
+    """ECD instance row (button / motion / absolute input)."""
+
+    controller: str
+    address: int
+    instance: int
+    interview: InterviewBlob
+
+
+class ManifestSysvarItem(TypedDict):
+    """System variable row with HA platform flags."""
+
+    controller: str
+    id: int
+    as_sensor: bool
+    as_switch: bool
+    interview: InterviewBlob
+
+
+class DiscoveryManifest(TypedDict):
+    """Persisted discovery snapshot (version-gated on load)."""
+
+    version: int
+    lights: list[ManifestAddressItem]
+    fans: list[ManifestAddressItem]
+    blinds: list[ManifestAddressItem]
+    groups: list[ManifestAddressItem]
+    buttons: list[ManifestInstanceItem]
+    motion_sensors: list[ManifestInstanceItem]
+    absolute_inputs: list[ManifestInstanceItem]
+    sysvars: list[ManifestSysvarItem]
+    profiles: list[ManifestAddressItem]
 
 
 class Interviewable(Protocol):
@@ -76,7 +121,7 @@ class DiscoveryManifestStore:
             f"{DOMAIN}.{entry_id}.manifest",
         )
 
-    async def async_load(self) -> dict[str, Any] | None:
+    async def async_load(self) -> DiscoveryManifest | None:
         """Return saved manifest or None.
 
         Returns None if the manifest is missing, corrupt, or was written by a
@@ -95,9 +140,9 @@ class DiscoveryManifestStore:
             return None
         if data.get("version") != MANIFEST_VERSION:
             return None
-        return data
+        return cast(DiscoveryManifest, data)
 
-    async def async_save(self, manifest: dict[str, Any]) -> None:
+    async def async_save(self, manifest: DiscoveryManifest) -> None:
         """Persist manifest."""
         await self._store.async_save(manifest)
 
@@ -106,12 +151,12 @@ class DiscoveryManifestStore:
         await self._store.async_remove()
 
 
-def _interview_blob(obj: Interviewable) -> dict[str, Any]:
+def _interview_blob(obj: Interviewable) -> InterviewBlob:
     """Return interview_serialize() parsed as a dict for Store JSON."""
     return json.loads(obj.interview_serialize())
 
 
-async def _hydrate_or_interview(obj: Interviewable, interview: str | dict[str, Any] | None) -> bool:
+async def _hydrate_or_interview(obj: Interviewable, interview: str | InterviewBlob | None) -> bool:
     """Apply interview_hydrate; fall back to a live interview on failure.
 
     Returns True when we had to run interview() (so the manifest is now
@@ -124,10 +169,10 @@ async def _hydrate_or_interview(obj: Interviewable, interview: str | dict[str, A
     return True
 
 
-def build_manifest(source: ManifestEntitySource) -> dict[str, Any]:
+def build_manifest(source: ManifestEntitySource) -> DiscoveryManifest:
     """Serialize discovered entities after full discovery."""
     hub = source
-    lights = [
+    lights: list[ManifestAddressItem] = [
         {
             "controller": lt.address.ctrl.name,
             "number": lt.address.number,
@@ -135,7 +180,7 @@ def build_manifest(source: ManifestEntitySource) -> dict[str, Any]:
         }
         for lt in hub.lights
     ]
-    fans = [
+    fans: list[ManifestAddressItem] = [
         {
             "controller": f.address.ctrl.name,
             "number": f.address.number,
@@ -143,7 +188,7 @@ def build_manifest(source: ManifestEntitySource) -> dict[str, Any]:
         }
         for f in hub.fans
     ]
-    blinds = [
+    blinds: list[ManifestAddressItem] = [
         {
             "controller": b.address.ctrl.name,
             "number": b.address.number,
@@ -151,7 +196,7 @@ def build_manifest(source: ManifestEntitySource) -> dict[str, Any]:
         }
         for b in hub.blinds
     ]
-    groups = [
+    groups: list[ManifestAddressItem] = [
         {
             "controller": g.address.ctrl.name,
             "number": g.address.number,
@@ -159,7 +204,7 @@ def build_manifest(source: ManifestEntitySource) -> dict[str, Any]:
         }
         for g in hub.groups
     ]
-    buttons = [
+    buttons: list[ManifestInstanceItem] = [
         {
             "controller": b.instance.address.ctrl.name,
             "address": b.instance.address.number,
@@ -168,7 +213,7 @@ def build_manifest(source: ManifestEntitySource) -> dict[str, Any]:
         }
         for b in hub.buttons
     ]
-    motion_sensors = [
+    motion_sensors: list[ManifestInstanceItem] = [
         {
             "controller": s.instance.address.ctrl.name,
             "address": s.instance.address.number,
@@ -177,7 +222,7 @@ def build_manifest(source: ManifestEntitySource) -> dict[str, Any]:
         }
         for s in hub.motion_sensors
     ]
-    absolute_inputs = [
+    absolute_inputs: list[ManifestInstanceItem] = [
         {
             "controller": a.instance.address.ctrl.name,
             "address": a.instance.address.number,
@@ -186,7 +231,7 @@ def build_manifest(source: ManifestEntitySource) -> dict[str, Any]:
         }
         for a in hub.absolute_inputs
     ]
-    sysvars: list[dict[str, Any]] = []
+    sysvars: list[ManifestSysvarItem] = []
     seen_sv: set[tuple[str, int]] = set()
     for sv in (*hub.sv_switches, *hub.sv_sensors):
         key = (sv.ctrl.name, sv.id)
@@ -204,7 +249,7 @@ def build_manifest(source: ManifestEntitySource) -> dict[str, Any]:
                 "interview": _interview_blob(sv),
             }
         )
-    profiles = [
+    profiles: list[ManifestAddressItem] = [
         {
             "controller": p.ctrl.name,
             "number": p.number,
@@ -227,7 +272,7 @@ def build_manifest(source: ManifestEntitySource) -> dict[str, Any]:
     }
 
 
-async def load_entities_from_manifest(hub: ZenHub, manifest: dict[str, Any]) -> bool:
+async def load_entities_from_manifest(hub: ZenHub, manifest: DiscoveryManifest) -> bool:
     """Rebuild hub entity lists from a saved interview manifest.
 
     Lights/fans/blinds must be hydrated before groups so interview_hydrate can

@@ -52,13 +52,12 @@ class ZenBlindEntity(ZenControllerEntity, CoverEntity):
 
     def __init__(self, hub: ZenHub, zen_blind: ZenBlind) -> None:
         ctrl = as_zen_controller(zen_blind.address.ctrl)
-        super().__init__(hub, ctrl)
+        super().__init__(hub, ctrl, assignment_key=blind_assignment_key(zen_blind))
         self._blind = zen_blind
         number = zen_blind.address.number
 
         self._attr_unique_id = f"{ctrl.name}_blind_{number}"
         self._suggested_object_id = f"cover{number}"
-        self._attr_device_info = hub.device_info_for(ctrl, assignment_key=blind_assignment_key(zen_blind))
         self._attr_name = zen_blind.label or f"Blind {number}"
         self._apply_state()
         hub.register_cover_entity(zen_blind, self)

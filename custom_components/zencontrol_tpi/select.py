@@ -62,7 +62,6 @@ class ZenProfileSelectEntity(ZenControllerEntity, SelectEntity):
 
         self._attr_unique_id = f"{zen_ctrl.name}_profile"
         self._suggested_object_id = "profile"
-        self._attr_device_info = hub.device_info_for(zen_ctrl)
         self._attr_options = list(self._profiles.keys())
         self._attr_current_option = self._current_option_from_ctrl()
 
@@ -99,12 +98,11 @@ class ZenGroupSceneSelectEntity(ZenControllerEntity, SelectEntity):
 
     def __init__(self, hub: ZenHub, zen_group: ZenGroup) -> None:
         ctrl = as_zen_controller(zen_group.address.ctrl)
-        super().__init__(hub, ctrl)
+        super().__init__(hub, ctrl, assignment_key=group_assignment_key(zen_group))
         self._group = zen_group
 
         self._attr_unique_id = f"{ctrl.name}_group_{zen_group.address.number}_scene"
         self._suggested_object_id = f"{zen_group.address.entity_id_string()}_scene"
-        self._attr_device_info = hub.device_info_for(ctrl, assignment_key=group_assignment_key(zen_group))
         # exclude_none drops the empty slots, but the library still types the
         # return as list[str | None].
         scene_labels = [label for label in zen_group.get_scene_labels(exclude_none=True) if label]

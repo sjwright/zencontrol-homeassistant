@@ -15,6 +15,9 @@ pytest>=8.3
 pytest-asyncio>=0.24
 # Pulls a matching homeassistant test harness (hass fixture, MockConfigEntry).
 pytest-homeassistant-custom-component>=0.13.348
+# Optional for @pytest.mark.simulator tests (sibling checkout also works).
+# pip install -e ../zencontrol-simulator
+PyYAML>=6.0
 
 # Pinned so a new release cannot fail CI without an explicit bump.
 ruff==0.16.0

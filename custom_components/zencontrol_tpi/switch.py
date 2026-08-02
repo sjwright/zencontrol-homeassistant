@@ -38,12 +38,11 @@ class ZenSystemVariableSwitchEntity(ZenControllerEntity, SwitchEntity):
 
     def __init__(self, hub: ZenHub, zen_sv: ZenSystemVariable) -> None:
         ctrl = zen_sv.ctrl
-        super().__init__(hub, ctrl)
+        super().__init__(hub, ctrl, assignment_key=sysvar_assignment_key(zen_sv))
         self._sv = zen_sv
 
         self._attr_unique_id = f"{ctrl.name}_sv{zen_sv.id}_switch"
         self._suggested_object_id = f"sv{zen_sv.id}"
-        self._attr_device_info = hub.device_info_for(ctrl, assignment_key=sysvar_assignment_key(zen_sv))
         self._attr_name = zen_sv.label or f"System Variable {zen_sv.id}"
         self._attr_is_on = (zen_sv.value or 0) != 0
 

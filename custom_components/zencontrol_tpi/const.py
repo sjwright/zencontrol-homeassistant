@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping
-from typing import Any, Final
+from typing import Any, Final, NotRequired, TypedDict, cast
 
 from homeassistant.const import Platform
 
@@ -66,6 +66,42 @@ _LOG_B: Final = 56.58
 CONFIG_VERSION: Final = 2
 
 
+class SubDeviceConfig(TypedDict):
+    """One label-prefix sub-device persisted under a controller."""
+
+    id: str
+    name: str
+    prefixes: list[str]
+    area_id: NotRequired[str]
+
+
+class ControllerConfig(TypedDict):
+    """Persisted per-controller config (one entry → one controller)."""
+
+    host: str
+    port: int
+    mac: str
+    name: str
+    label: str
+    sub_devices: NotRequired[list[SubDeviceConfig]]
+
+
+class DiscoveredControllerInfo(TypedDict):
+    """Multicast/runtime discovery hit before a unique controller name exists."""
+
+    host: str
+    port: int
+    mac: str
+    label: str
+
+
+class EntryData(TypedDict):
+    """Config entry data for a single-controller entry."""
+
+    controllers: list[ControllerConfig]
+    unicast: bool
+
+
 def normalize_mac(mac: str) -> str:
     """Normalize MAC to uppercase colon-separated format."""
     return mac.upper().replace("-", ":").strip()
@@ -76,19 +112,30 @@ def normalize_mac_id(mac: str) -> str:
     return normalize_mac(mac).replace(":", "")
 
 
-def controller_from_entry_data(
-    data: Mapping[str, Any],
-) -> dict[str, Any] | None:
+def controllers_from_entry_data(data: Mapping[str, Any]) -> list[ControllerConfig]:
+    """Return controller configs from entry data (empty if missing/invalid)."""
+    raw = data.get(CONF_CONTROLLERS)
+    if not isinstance(raw, list):
+        return []
+    return [cast(ControllerConfig, item) for item in raw if isinstance(item, dict)]
+
+
+def controller_from_entry_data(data: Mapping[str, Any]) -> ControllerConfig | None:
     """Return the single controller config from entry data.
 
     Accepts a Mapping because ConfigEntry.data is a read-only
     MappingProxyType.
     """
-    controllers = data.get(CONF_CONTROLLERS)
-    if isinstance(controllers, list) and controllers:
-        first = controllers[0]
-        return first if isinstance(first, dict) else None
-    return None
+    controllers = controllers_from_entry_data(data)
+    return controllers[0] if controllers else None
+
+
+def entry_data_for_controller(ctrl_cfg: ControllerConfig, *, unicast: bool = False) -> EntryData:
+    """Build persisted entry data for a single controller."""
+    return {
+        CONF_CONTROLLERS: [ctrl_cfg],
+        CONF_UNICAST: unicast,
+    }
 
 
 def arc_to_brightness(arc: int) -> int:

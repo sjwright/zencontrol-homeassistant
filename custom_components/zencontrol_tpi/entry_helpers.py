@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from homeassistant.core import HomeAssistant
 
-from .const import CONF_CONTROLLERS, CONF_MAC, DOMAIN, normalize_mac_id
+from .const import CONF_MAC, DOMAIN, controllers_from_entry_data, normalize_mac_id
 
 
 def mac_is_configured(
@@ -20,7 +20,7 @@ def mac_is_configured(
             continue
         if entry.unique_id and normalize_mac_id(entry.unique_id) == mac_id:
             return True
-        for controller in entry.data.get(CONF_CONTROLLERS, []):
-            if isinstance(controller, dict) and normalize_mac_id(str(controller.get(CONF_MAC, ""))) == mac_id:
+        for controller in controllers_from_entry_data(entry.data):
+            if normalize_mac_id(str(controller.get(CONF_MAC, ""))) == mac_id:
                 return True
     return False

@@ -40,14 +40,13 @@ class ZenMotionSensorEntity(ZenControllerEntity, BinarySensorEntity):
 
     def __init__(self, hub: ZenHub, zen_sensor: ZenMotionSensor) -> None:
         ctrl = as_zen_controller(zen_sensor.instance.address.ctrl)
-        super().__init__(hub, ctrl)
+        super().__init__(hub, ctrl, assignment_key=motion_assignment_key(zen_sensor))
         self._sensor = zen_sensor
         addr = zen_sensor.instance.address.number
         inst = zen_sensor.instance.number
 
         self._attr_unique_id = f"{ctrl.name}_ecd{addr}_occ{inst}"
         self._suggested_object_id = zen_sensor.instance.entity_id_string()
-        self._attr_device_info = hub.device_info_for(ctrl, assignment_key=motion_assignment_key(zen_sensor))
         self._attr_name = instance_display_label(zen_sensor) or f"Motion {addr}"
 
         # Occupied state; pushed by ZenHub via update_occupied(). Reading

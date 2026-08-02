@@ -19,7 +19,6 @@ def _hub_with_controller(ready_sequence: list[bool | None]) -> ZenHub:
     hass = MagicMock()
     entry = MagicMock()
     entry.entry_id = "entry-1"
-    entry._tasks = set()
 
     with patch.object(ZenHub, "__init__", lambda self, *a, **k: None):
         hub = ZenHub.__new__(ZenHub)
