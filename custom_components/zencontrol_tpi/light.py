@@ -30,7 +30,7 @@ from zencontrol import (
 )
 
 from .const import arc_to_brightness, brightness_to_arc
-from .entity import ZenControllerEntity, as_zen_controller
+from .entity import ZenControllerEntity, as_zen_controller, raise_command_failed
 from .hub import ZencontrolTpiConfigEntry, ZenHub
 from .sub_devices import group_assignment_key, light_assignment_key
 
@@ -297,7 +297,7 @@ class ZenLightEntity(ZenControllerEntity, LightEntity):
         except HomeAssistantError:
             raise
         except Exception as err:
-            raise HomeAssistantError(f"Failed to turn on light: {err}") from err
+            raise_command_failed("turn on light", err)
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         try:
@@ -305,7 +305,7 @@ class ZenLightEntity(ZenControllerEntity, LightEntity):
         except HomeAssistantError:
             raise
         except Exception as err:
-            raise HomeAssistantError(f"Failed to turn off light: {err}") from err
+            raise_command_failed("turn off light", err)
 
 
 # ---------------------------------------------------------------------------
@@ -395,7 +395,7 @@ class ZenGroupEntity(ZenControllerEntity, LightEntity):
         except HomeAssistantError:
             raise
         except Exception as err:
-            raise HomeAssistantError(f"Failed to turn on group: {err}") from err
+            raise_command_failed("turn on group", err)
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         try:
@@ -403,4 +403,4 @@ class ZenGroupEntity(ZenControllerEntity, LightEntity):
         except HomeAssistantError:
             raise
         except Exception as err:
-            raise HomeAssistantError(f"Failed to turn off group: {err}") from err
+            raise_command_failed("turn off group", err)

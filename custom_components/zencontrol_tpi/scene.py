@@ -10,7 +10,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from zencontrol import ZenGroup
 
-from .entity import ZenControllerEntity, as_zen_controller
+from .entity import ZenControllerEntity, as_zen_controller, raise_command_failed
 from .hub import ZencontrolTpiConfigEntry, ZenHub
 from .sub_devices import group_assignment_key
 
@@ -77,4 +77,4 @@ class ZenGroupSceneEntity(ZenControllerEntity, Scene):
         except HomeAssistantError:
             raise
         except Exception as err:
-            raise HomeAssistantError(f"Failed to recall scene: {err}") from err
+            raise_command_failed("recall scene", err)

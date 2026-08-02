@@ -15,7 +15,12 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from zencontrol import ZenBlind
 
-from .entity import ZenControllerEntity, as_zen_controller
+from .entity import (
+    ZenControllerEntity,
+    as_zen_controller,
+    raise_command_failed,
+    raise_cover_position_required,
+)
 from .hub import ZencontrolTpiConfigEntry, ZenHub
 from .sub_devices import blind_assignment_key
 
@@ -90,7 +95,7 @@ class ZenBlindEntity(ZenControllerEntity, CoverEntity):
         except HomeAssistantError:
             raise
         except Exception as err:
-            raise HomeAssistantError(f"Failed to open blind: {err}") from err
+            raise_command_failed("open blind", err)
 
     async def async_close_cover(self, **kwargs: Any) -> None:
         try:
@@ -98,7 +103,7 @@ class ZenBlindEntity(ZenControllerEntity, CoverEntity):
         except HomeAssistantError:
             raise
         except Exception as err:
-            raise HomeAssistantError(f"Failed to close blind: {err}") from err
+            raise_command_failed("close blind", err)
 
     async def async_stop_cover(self, **kwargs: Any) -> None:
         try:
@@ -106,15 +111,15 @@ class ZenBlindEntity(ZenControllerEntity, CoverEntity):
         except HomeAssistantError:
             raise
         except Exception as err:
-            raise HomeAssistantError(f"Failed to stop blind: {err}") from err
+            raise_command_failed("stop blind", err)
 
     async def async_set_cover_position(self, **kwargs: Any) -> None:
         position = kwargs.get(ATTR_POSITION)
         if position is None:
-            raise HomeAssistantError("Cover position is required")
+            raise_cover_position_required()
         try:
             await self._blind.set_position(int(position))
         except HomeAssistantError:
             raise
         except Exception as err:
-            raise HomeAssistantError(f"Failed to set blind position: {err}") from err
+            raise_command_failed("set blind position", err)

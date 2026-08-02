@@ -5,12 +5,17 @@ from __future__ import annotations
 from homeassistant.components.select import SelectEntity
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from zencontrol import ZenController, ZenGroup, ZenProfile
 
 from .const import SCENE_NONE, SCENE_OFF
-from .entity import ZenControllerEntity, as_zen_controller
+from .entity import (
+    ZenControllerEntity,
+    as_zen_controller,
+    raise_command_failed,
+    raise_unknown_option,
+)
 from .hub import ZencontrolTpiConfigEntry, ZenHub
 from .sub_devices import group_assignment_key
 
@@ -80,13 +85,13 @@ class ZenProfileSelectEntity(ZenControllerEntity, SelectEntity):
 
     async def async_select_option(self, option: str) -> None:
         if option not in self._profiles:
-            raise ServiceValidationError(f"Unknown profile: {option}")
+            raise_unknown_option("profile", option)
         try:
             await self._profiles[option].select()
         except HomeAssistantError:
             raise
         except Exception as err:
-            raise HomeAssistantError(f"Failed to switch profile: {err}") from err
+            raise_command_failed("switch profile", err)
         self._attr_current_option = option
         self.async_write_ha_state()
 
@@ -127,7 +132,7 @@ class ZenGroupSceneSelectEntity(ZenControllerEntity, SelectEntity):
 
     async def async_select_option(self, option: str) -> None:
         if option not in self._attr_options:
-            raise ServiceValidationError(f"Unknown scene: {option}")
+            raise_unknown_option("scene", option)
         if option == SCENE_NONE:
             # Sentinel for unknown scene - no controller command.
             self._attr_current_option = self._current_option_from_group()
@@ -142,6 +147,6 @@ class ZenGroupSceneSelectEntity(ZenControllerEntity, SelectEntity):
             raise
         except Exception as err:
             action = "turn off group" if option == SCENE_OFF else "recall scene"
-            raise HomeAssistantError(f"Failed to {action}: {err}") from err
+            raise_command_failed(action, err)
         self._attr_current_option = option
         self.async_write_ha_state()

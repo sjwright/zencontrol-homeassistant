@@ -10,7 +10,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from zencontrol import ZenSystemVariable
 
-from .entity import ZenControllerEntity
+from .entity import ZenControllerEntity, raise_command_failed
 from .hub import ZencontrolTpiConfigEntry, ZenHub
 from .sub_devices import sysvar_assignment_key
 
@@ -59,7 +59,7 @@ class ZenSystemVariableSwitchEntity(ZenControllerEntity, SwitchEntity):
         except HomeAssistantError:
             raise
         except Exception as err:
-            raise HomeAssistantError(f"Failed to turn on switch: {err}") from err
+            raise_command_failed("turn on switch", err)
         self._attr_is_on = True
         self.async_write_ha_state()
 
@@ -69,6 +69,6 @@ class ZenSystemVariableSwitchEntity(ZenControllerEntity, SwitchEntity):
         except HomeAssistantError:
             raise
         except Exception as err:
-            raise HomeAssistantError(f"Failed to turn off switch: {err}") from err
+            raise_command_failed("turn off switch", err)
         self._attr_is_on = False
         self.async_write_ha_state()

@@ -185,5 +185,16 @@
         }
       }
     }
+  },
+  "exceptions": {
+    "command_failed": {
+      "message": "{action} विफल: {error}"
+    },
+    "unknown_option": {
+      "message": "अज्ञात {kind}: {option}"
+    },
+    "cover_position_required": {
+      "message": "कवर स्थिति आवश्यक है"
+    }
   }
 }

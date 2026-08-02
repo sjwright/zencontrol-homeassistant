@@ -15,7 +15,12 @@ from homeassistant.util.percentage import (
 from homeassistant.util.scaling import int_states_in_range
 from zencontrol import ZenFan
 
-from .entity import ZenControllerEntity, as_zen_controller
+from .entity import (
+    ZenControllerEntity,
+    as_zen_controller,
+    raise_command_failed,
+    raise_unknown_option,
+)
 from .hub import ZencontrolTpiConfigEntry, ZenHub
 from .sub_devices import fan_assignment_key
 
@@ -129,7 +134,7 @@ class ZenFanEntity(ZenControllerEntity, FanEntity):
         except HomeAssistantError:
             raise
         except Exception as err:
-            raise HomeAssistantError(f"Failed to turn on fan: {err}") from err
+            raise_command_failed("turn on fan", err)
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         try:
@@ -137,7 +142,7 @@ class ZenFanEntity(ZenControllerEntity, FanEntity):
         except HomeAssistantError:
             raise
         except Exception as err:
-            raise HomeAssistantError(f"Failed to turn off fan: {err}") from err
+            raise_command_failed("turn off fan", err)
 
     async def async_set_percentage(self, percentage: int) -> None:
         try:
@@ -149,15 +154,15 @@ class ZenFanEntity(ZenControllerEntity, FanEntity):
         except HomeAssistantError:
             raise
         except Exception as err:
-            raise HomeAssistantError(f"Failed to set fan speed: {err}") from err
+            raise_command_failed("set fan speed", err)
 
     async def async_set_preset_mode(self, preset_mode: str) -> None:
         speed = _PRESET_TO_SPEED.get(preset_mode)
         if speed is None:
-            raise HomeAssistantError(f"Unknown fan preset mode: {preset_mode}")
+            raise_unknown_option("fan preset mode", preset_mode)
         try:
             await self._fan.set_speed(speed)
         except HomeAssistantError:
             raise
         except Exception as err:
-            raise HomeAssistantError(f"Failed to set fan preset: {err}") from err
+            raise_command_failed("set fan preset", err)

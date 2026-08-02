@@ -185,5 +185,16 @@
         }
       }
     }
+  },
+  "exceptions": {
+    "command_failed": {
+      "message": "Nie udało się wykonać {action}: {error}"
+    },
+    "unknown_option": {
+      "message": "Nieznane {kind}: {option}"
+    },
+    "cover_position_required": {
+      "message": "Pozycja osłony jest wymagana"
+    }
   }
 }

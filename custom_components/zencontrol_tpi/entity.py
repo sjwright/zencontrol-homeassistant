@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, NoReturn, cast
 
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import Entity
 from zencontrol import ZenController
@@ -22,6 +23,32 @@ def as_zen_controller(controller: object) -> ZenController:
     interface subclass at runtime.
     """
     return cast(ZenController, controller)
+
+
+def raise_command_failed(action: str, err: BaseException) -> NoReturn:
+    """Raise a translation-aware HomeAssistantError for a failed entity command."""
+    raise HomeAssistantError(
+        translation_domain=DOMAIN,
+        translation_key="command_failed",
+        translation_placeholders={"action": action, "error": str(err)},
+    ) from err
+
+
+def raise_unknown_option(kind: str, option: str) -> NoReturn:
+    """Raise a translation-aware ServiceValidationError for an unknown option."""
+    raise ServiceValidationError(
+        translation_domain=DOMAIN,
+        translation_key="unknown_option",
+        translation_placeholders={"kind": kind, "option": option},
+    )
+
+
+def raise_cover_position_required() -> NoReturn:
+    """Raise a translation-aware HomeAssistantError when cover position is missing."""
+    raise HomeAssistantError(
+        translation_domain=DOMAIN,
+        translation_key="cover_position_required",
+    )
 
 
 def controller_identifier(zen_ctrl: ZenController) -> tuple[str, str]:
