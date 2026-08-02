@@ -61,7 +61,7 @@ def _patched_registries(
     device_registry: MagicMock,
     entity_registry: MagicMock,
     *,
-    devices: list[Any] | None = None,
+    device_entries: list[Any] | None = None,
 ) -> Iterator[None]:
     with (
         patch(
@@ -74,7 +74,7 @@ def _patched_registries(
         ),
         patch(
             "custom_components.zencontrol_tpi.hub.dr.async_entries_for_config_entry",
-            return_value=devices or [],
+            return_value=device_entries or [],
         ),
     ):
         yield
@@ -136,16 +136,16 @@ def test_sync_device_assignments_moves_entity_and_prunes_orphan() -> None:
 
     def get_or_create(**kwargs: Any) -> SimpleNamespace:
         idents = frozenset(kwargs["identifiers"])
-        device = created.get(idents)
-        if device is None:
-            device = SimpleNamespace(
+        device_entry = created.get(idents)
+        if device_entry is None:
+            device_entry = SimpleNamespace(
                 id=f"dev-{len(created)}",
                 area_id=None,
                 identifiers=set(idents),
             )
-            created[idents] = device
-            by_id[device.id] = device
-        return device
+            created[idents] = device_entry
+            by_id[device_entry.id] = device_entry
+        return device_entry
 
     orphan = SimpleNamespace(
         id="orphan-sub",
@@ -162,7 +162,7 @@ def test_sync_device_assignments_moves_entity_and_prunes_orphan() -> None:
     entity_registry = MagicMock()
     entity_registry.async_get.return_value = SimpleNamespace(device_id="controller-device")
 
-    with _patched_registries(device_registry, entity_registry, devices=[orphan, kept]):
+    with _patched_registries(device_registry, entity_registry, device_entries=[orphan, kept]):
         hub.sync_device_assignments()
 
     kitchen_idents = frozenset({(DOMAIN, "AA:BB:CC:DD:EE:FF:sub:kitchen")})
@@ -193,7 +193,7 @@ def test_sync_device_assignments_moves_entity_and_prunes_orphan() -> None:
     entity_registry.async_get.return_value = SimpleNamespace(device_id=kitchen_id)
     entity_registry.async_update_entity.reset_mock()
     device_registry.async_remove_device.reset_mock()
-    with _patched_registries(device_registry, entity_registry, devices=[kept]):
+    with _patched_registries(device_registry, entity_registry, device_entries=[kept]):
         hub.sync_device_assignments()
     entity_registry.async_update_entity.assert_not_called()
     device_registry.async_remove_device.assert_not_called()
@@ -286,16 +286,16 @@ def test_sync_continues_when_one_entity_update_fails() -> None:
 
     def get_or_create(**kwargs: Any) -> SimpleNamespace:
         idents = frozenset(kwargs["identifiers"])
-        device = created.get(idents)
-        if device is None:
-            device = SimpleNamespace(
+        device_entry = created.get(idents)
+        if device_entry is None:
+            device_entry = SimpleNamespace(
                 id=f"dev-{len(created)}",
                 area_id=None,
                 identifiers=set(idents),
             )
-            created[idents] = device
-            by_id[device.id] = device
-        return device
+            created[idents] = device_entry
+            by_id[device_entry.id] = device_entry
+        return device_entry
 
     device_registry = MagicMock()
     device_registry.async_get_or_create.side_effect = get_or_create

@@ -116,14 +116,14 @@ def sub_devices_from_controller(ctrl_cfg: ControllerConfig | dict[str, Any]) -> 
 def sub_devices_to_config(sub_devices: list[SubDeviceDef]) -> list[SubDeviceConfig]:
     """Serialize sub-devices for config entry storage."""
     result: list[SubDeviceConfig] = []
-    for d in sub_devices:
+    for sub_device_definition in sub_devices:
         item: SubDeviceConfig = {
-            CONF_SUB_DEVICE_ID: d.id,
-            CONF_SUB_DEVICE_NAME: d.name,
-            CONF_SUB_DEVICE_PREFIXES: list(d.prefixes),
+            CONF_SUB_DEVICE_ID: sub_device_definition.id,
+            CONF_SUB_DEVICE_NAME: sub_device_definition.name,
+            CONF_SUB_DEVICE_PREFIXES: list(sub_device_definition.prefixes),
         }
-        if d.area_id:
-            item[CONF_SUB_DEVICE_AREA_ID] = d.area_id
+        if sub_device_definition.area_id:
+            item[CONF_SUB_DEVICE_AREA_ID] = sub_device_definition.area_id
         result.append(item)
     return result
 
@@ -142,11 +142,11 @@ def validate_sub_device_prefixes(
         return "empty_prefixes"
 
     claimed: dict[str, str] = {}
-    for device in existing:
-        if replacing_id is not None and device.id == replacing_id:
+    for sub_device_definition in existing:
+        if replacing_id is not None and sub_device_definition.id == replacing_id:
             continue
-        for prefix in device.prefixes:
-            claimed[prefix.casefold()] = device.id
+        for prefix in sub_device_definition.prefixes:
+            claimed[prefix.casefold()] = sub_device_definition.id
 
     for prefix in new_prefixes:
         key = prefix.casefold()
@@ -186,10 +186,10 @@ def match_sub_device(
 
     best: SubDeviceDef | None = None
     best_len = -1
-    for device in sub_devices:
-        for prefix in device.prefixes:
+    for sub_device_definition in sub_devices:
+        for prefix in sub_device_definition.prefixes:
             if prefix_matches(label, prefix) and len(prefix) > best_len:
-                best = device
+                best = sub_device_definition
                 best_len = len(prefix)
     return best
 
@@ -322,40 +322,40 @@ def build_assignments(
     # when a member sits in multiple matched groups.
     sorted_groups = sorted(
         groups,
-        key=lambda g: (g.address.ctrl.name, g.address.number),
+        key=lambda group: (group.address.ctrl.name, group.address.number),
     )
     for group in sorted_groups:
-        ctrl_name = group.address.ctrl.name
-        devices = controller_sub_devices.get(ctrl_name) or []
-        if not devices:
+        controller_name = group.address.ctrl.name
+        sub_device_definitions = controller_sub_devices.get(controller_name) or []
+        if not sub_device_definitions:
             continue
-        matched = match_sub_device(match_label_for_group(group), devices)
-        if matched is None:
+        matched_sub_device = match_sub_device(match_label_for_group(group), sub_device_definitions)
+        if matched_sub_device is None:
             continue
-        gkey = group_assignment_key(group)
-        assignments[gkey] = matched.id
+        group_assignment = group_assignment_key(group)
+        assignments[group_assignment] = matched_sub_device.id
         for light in group.lights:
-            lkey = light_assignment_key(light)
-            if lkey in lights_claimed:
+            light_assignment = light_assignment_key(light)
+            if light_assignment in lights_claimed:
                 _LOGGER.debug(
                     "Light %s is in multiple matched groups; "
                     "keeping sub-device from first group",
-                    lkey,
+                    light_assignment,
                 )
                 continue
-            assignments[lkey] = matched.id
-            lights_claimed.add(lkey)
+            assignments[light_assignment] = matched_sub_device.id
+            lights_claimed.add(light_assignment)
         for fan in getattr(group, "fans", ()) or ():
             fkey = fan_assignment_key(fan)
             if fkey in fans_claimed:
                 continue
-            assignments[fkey] = matched.id
+            assignments[fkey] = matched_sub_device.id
             fans_claimed.add(fkey)
         for blind in getattr(group, "blinds", ()) or ():
             bkey = blind_assignment_key(blind)
             if bkey in blinds_claimed:
                 continue
-            assignments[bkey] = matched.id
+            assignments[bkey] = matched_sub_device.id
             blinds_claimed.add(bkey)
 
     for light in lights:
@@ -363,59 +363,57 @@ def build_assignments(
         if lkey in lights_claimed:
             continue
         ctrl_name = light.address.ctrl.name
-        devices = controller_sub_devices.get(ctrl_name) or []
-        matched = match_sub_device(match_label_for_light(light), devices)
-        if matched is not None:
-            assignments[lkey] = matched.id
+        sub_device_definitions = controller_sub_devices.get(ctrl_name) or []
+        matched_sub_device = match_sub_device(match_label_for_light(light), sub_device_definitions)
+        if matched_sub_device is not None:
+            assignments[lkey] = matched_sub_device.id
 
     for fan in fans:
         fkey = fan_assignment_key(fan)
         if fkey in fans_claimed:
             continue
         ctrl_name = fan.address.ctrl.name
-        devices = controller_sub_devices.get(ctrl_name) or []
-        matched = match_sub_device(match_label_for_fan(fan), devices)
-        if matched is not None:
-            assignments[fkey] = matched.id
+        sub_device_definitions = controller_sub_devices.get(ctrl_name) or []
+        matched_sub_device = match_sub_device(match_label_for_fan(fan), sub_device_definitions)
+        if matched_sub_device is not None:
+            assignments[fkey] = matched_sub_device.id
 
     for blind in blinds:
         bkey = blind_assignment_key(blind)
         if bkey in blinds_claimed:
             continue
         ctrl_name = blind.address.ctrl.name
-        devices = controller_sub_devices.get(ctrl_name) or []
-        matched = match_sub_device(match_label_for_blind(blind), devices)
-        if matched is not None:
-            assignments[bkey] = matched.id
+        sub_device_definitions = controller_sub_devices.get(ctrl_name) or []
+        matched_sub_device = match_sub_device(match_label_for_blind(blind), sub_device_definitions)
+        if matched_sub_device is not None:
+            assignments[bkey] = matched_sub_device.id
 
     for button in buttons:
         ctrl_name = button.instance.address.ctrl.name
-        devices = controller_sub_devices.get(ctrl_name) or []
-        matched = match_sub_device(match_label_for_button(button), devices)
-        if matched is not None:
-            assignments[button_assignment_key(button)] = matched.id
+        sub_device_definitions = controller_sub_devices.get(ctrl_name) or []
+        matched_sub_device = match_sub_device(match_label_for_button(button), sub_device_definitions)
+        if matched_sub_device is not None:
+            assignments[button_assignment_key(button)] = matched_sub_device.id
 
     for sensor in motion_sensors:
         ctrl_name = sensor.instance.address.ctrl.name
-        devices = controller_sub_devices.get(ctrl_name) or []
-        matched = match_sub_device(match_label_for_motion(sensor), devices)
-        if matched is not None:
-            assignments[motion_assignment_key(sensor)] = matched.id
+        sub_device_definitions = controller_sub_devices.get(ctrl_name) or []
+        matched_sub_device = match_sub_device(match_label_for_motion(sensor), sub_device_definitions)
+        if matched_sub_device is not None:
+            assignments[motion_assignment_key(sensor)] = matched_sub_device.id
 
     for absolute_input in absolute_inputs:
         ctrl_name = absolute_input.instance.address.ctrl.name
-        devices = controller_sub_devices.get(ctrl_name) or []
-        matched = match_sub_device(
-            match_label_for_absolute_input(absolute_input), devices
-        )
-        if matched is not None:
-            assignments[absolute_input_assignment_key(absolute_input)] = matched.id
+        sub_device_definitions = controller_sub_devices.get(ctrl_name) or []
+        matched_sub_device = match_sub_device(match_label_for_absolute_input(absolute_input), sub_device_definitions)
+        if matched_sub_device is not None:
+            assignments[absolute_input_assignment_key(absolute_input)] = matched_sub_device.id
 
     for sv in sysvars:
         ctrl_name = sv.ctrl.name
-        devices = controller_sub_devices.get(ctrl_name) or []
-        matched = match_sub_device(match_label_for_sysvar(sv), devices)
-        if matched is not None:
-            assignments[sysvar_assignment_key(sv)] = matched.id
+        sub_device_definitions = controller_sub_devices.get(ctrl_name) or []
+        matched_sub_device = match_sub_device(match_label_for_sysvar(sv), sub_device_definitions)
+        if matched_sub_device is not None:
+            assignments[sysvar_assignment_key(sv)] = matched_sub_device.id
 
     return assignments

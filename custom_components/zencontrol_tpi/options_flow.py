@@ -75,12 +75,12 @@ class ZencontrolTpiOptionsFlow(OptionsFlow):
     def __getattr__(self, name: str) -> Any:
         """Route dynamic menu steps for sub-devices."""
         if name.startswith("async_step_subdev_"):
-            sub_id = name.removeprefix("async_step_subdev_")
+            sub_device_id = name.removeprefix("async_step_subdev_")
 
             async def async_step_subdev(
                 user_input: dict[str, Any] | None = None,
             ) -> ConfigFlowResult:
-                self._sub_device_id = sub_id
+                self._sub_device_id = sub_device_id
                 return await self.async_step_sub_device()
 
             return async_step_subdev
@@ -151,17 +151,21 @@ class ZencontrolTpiOptionsFlow(OptionsFlow):
             return self.async_abort(reason="no_controllers")
         self._ctrl_name = ctrl_cfg[CONF_NAME]
         self._return_after_save = "controller"
-        devices = sub_devices_from_controller(ctrl_cfg)
+        sub_device_definitions = sub_devices_from_controller(ctrl_cfg)
         menu_options: dict[str, str] = {
             "add_sub_device": await self._options_label(
                 "step.controller.menu_options.add_sub_device",
                 "➕ Add sub-device",
             ),
         }
-        for device in devices:
-            prefixes = ", ".join(device.prefixes)
-            label = device.name if prefixes == device.name else f"{device.name} ({prefixes})"
-            menu_options[f"subdev_{device.id}"] = label
+        for sub_device_definition in sub_device_definitions:
+            prefixes = ", ".join(sub_device_definition.prefixes)
+            label = (
+                sub_device_definition.name
+                if prefixes == sub_device_definition.name
+                else f"{sub_device_definition.name} ({prefixes})"
+            )
+            menu_options[f"subdev_{sub_device_definition.id}"] = label
         return self.async_show_menu(
             step_id="controller",
             menu_options=menu_options,
@@ -175,18 +179,18 @@ class ZencontrolTpiOptionsFlow(OptionsFlow):
         ctrl_cfg = self._controller(self._ctrl_name)
         if ctrl_cfg is None:
             return await self.async_step_init()
-        device = next(
+        sub_device_definition = next(
             (item for item in sub_devices_from_controller(ctrl_cfg) if item.id == self._sub_device_id),
             None,
         )
-        if device is None:
+        if sub_device_definition is None:
             return await self.async_step_controller()
         return self.async_show_menu(
             step_id="sub_device",
             menu_options=["reconfigure_sub_device", "delete_sub_device"],
             description_placeholders={
-                "sub_device": device.name,
-                "prefixes": ", ".join(device.prefixes),
+                "sub_device": sub_device_definition.name,
+                "prefixes": ", ".join(sub_device_definition.prefixes),
                 "controller": ctrl_cfg.get(CONF_LABEL) or ctrl_cfg[CONF_NAME],
             },
         )
@@ -206,21 +210,21 @@ class ZencontrolTpiOptionsFlow(OptionsFlow):
             if error:
                 errors[CONF_PREFIXES] = error
             else:
-                device = sub_device_from_prefixes(prefixes)
-                assert device is not None
+                sub_device_definition = sub_device_from_prefixes(prefixes)
+                assert sub_device_definition is not None
                 area_id = _area_id_from_input(user_input)
                 ids = {item.id for item in existing}
-                device_id = device.id
-                base_id = device.id
+                sub_device_id = sub_device_definition.id
+                base_id = sub_device_definition.id
                 suffix = 2
-                while device_id in ids:
-                    device_id = f"{base_id}_{suffix}"
+                while sub_device_id in ids:
+                    sub_device_id = f"{base_id}_{suffix}"
                     suffix += 1
                 existing.append(
                     SubDeviceDef(
-                        id=device_id,
-                        name=device.name,
-                        prefixes=device.prefixes,
+                        id=sub_device_id,
+                        name=sub_device_definition.name,
+                        prefixes=sub_device_definition.prefixes,
                         area_id=area_id,
                     )
                 )
@@ -244,36 +248,36 @@ class ZencontrolTpiOptionsFlow(OptionsFlow):
             return await self.async_step_init()
         controllers = self._controllers()
         existing = sub_devices_from_controller(ctrl_cfg)
-        device = next((item for item in existing if item.id == self._sub_device_id), None)
-        if device is None:
+        sub_device_definition = next((item for item in existing if item.id == self._sub_device_id), None)
+        if sub_device_definition is None:
             return await self.async_step_controller()
 
         if user_input is not None:
             prefixes = parse_sub_device_prefixes(user_input.get(CONF_PREFIXES, ""))
-            error = validate_sub_device_prefixes(existing, prefixes, replacing_id=device.id)
+            error = validate_sub_device_prefixes(existing, prefixes, replacing_id=sub_device_definition.id)
             if error:
                 errors[CONF_PREFIXES] = error
             else:
                 updated = SubDeviceDef(
-                    id=device.id,
+                    id=sub_device_definition.id,
                     name=prefixes[0],
                     prefixes=tuple(prefixes),
                     area_id=_area_id_from_input(user_input),
                 )
                 ctrl_cfg[CONF_SUB_DEVICES] = sub_devices_to_config(
-                    [updated if item.id == device.id else item for item in existing]
+                    [updated if item.id == sub_device_definition.id else item for item in existing]
                 )
                 return await self._async_save_sub_devices(controllers)
 
         return self.async_show_form(
             step_id="reconfigure_sub_device",
             data_schema=_sub_device_schema(
-                prefixes_default=",".join(device.prefixes),
-                area_id=device.area_id,
+                prefixes_default=",".join(sub_device_definition.prefixes),
+                area_id=sub_device_definition.area_id,
             ),
             errors=errors,
             description_placeholders={
-                "sub_device": device.name,
+                "sub_device": sub_device_definition.name,
                 "controller": ctrl_cfg.get(CONF_LABEL) or ctrl_cfg[CONF_NAME],
             },
         )
@@ -285,12 +289,12 @@ class ZencontrolTpiOptionsFlow(OptionsFlow):
             return await self.async_step_init()
         controllers = self._controllers()
         existing = sub_devices_from_controller(ctrl_cfg)
-        device = next((item for item in existing if item.id == self._sub_device_id), None)
-        if device is None:
+        sub_device_definition = next((item for item in existing if item.id == self._sub_device_id), None)
+        if sub_device_definition is None:
             return await self.async_step_controller()
 
         if user_input is not None:
-            remaining = [item for item in existing if item.id != device.id]
+            remaining = [item for item in existing if item.id != sub_device_definition.id]
             if remaining:
                 ctrl_cfg[CONF_SUB_DEVICES] = sub_devices_to_config(remaining)
             else:
@@ -301,7 +305,7 @@ class ZencontrolTpiOptionsFlow(OptionsFlow):
             step_id="delete_sub_device",
             data_schema=vol.Schema({}),
             description_placeholders={
-                "sub_device": device.name,
+                "sub_device": sub_device_definition.name,
                 "controller": ctrl_cfg.get(CONF_LABEL) or ctrl_cfg[CONF_NAME],
             },
         )

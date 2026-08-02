@@ -37,13 +37,13 @@ def test_prefix_matches_word_boundary() -> None:
 
 
 def test_match_sub_device_longest_prefix() -> None:
-    devices = [
+    sub_device_definitions = [
         SubDeviceDef("kit", "Kit", ("Kit",)),
         SubDeviceDef("kitchen", "Kitchen", ("Kitchen", "Lounge")),
     ]
-    assert match_sub_device("Kitchen island", devices).id == "kitchen"
-    assert match_sub_device("Kit", devices).id == "kit"
-    assert match_sub_device("Garage", devices) is None
+    assert match_sub_device("Kitchen island", sub_device_definitions).id == "kitchen"
+    assert match_sub_device("Kit", sub_device_definitions).id == "kit"
+    assert match_sub_device("Garage", sub_device_definitions) is None
 
 
 def test_validate_rejects_duplicate_prefix() -> None:
@@ -54,17 +54,17 @@ def test_validate_rejects_duplicate_prefix() -> None:
 
 
 def test_sub_device_from_prefixes_uses_first_name() -> None:
-    device = sub_device_from_prefixes(["Kitchen", "Living", "Lounge"])
-    assert device is not None
-    assert device.name == "Kitchen"
-    assert device.prefixes == ("Kitchen", "Living", "Lounge")
+    sub_device_definition = sub_device_from_prefixes(["Kitchen", "Living", "Lounge"])
+    assert sub_device_definition is not None
+    assert sub_device_definition.name == "Kitchen"
+    assert sub_device_definition.prefixes == ("Kitchen", "Living", "Lounge")
 
 
 def test_sub_device_area_id_roundtrip() -> None:
-    device = SubDeviceDef(
+    sub_device_definition = SubDeviceDef(
         "kitchen", "Kitchen", ("Kitchen",), area_id="area_kitchen"
     )
-    raw = sub_devices_to_config([device])
+    raw = sub_devices_to_config([sub_device_definition])
     assert raw[0]["area_id"] == "area_kitchen"
     loaded = sub_devices_from_config(raw)
     assert loaded[0].area_id == "area_kitchen"

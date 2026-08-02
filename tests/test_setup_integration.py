@@ -79,8 +79,8 @@ async def test_setup_unload_against_simulator(
     light_entities = [e for e in entry_entities if e.domain == "light"]
     assert light_entities, "expected discovered light entities from simulator world"
 
-    devices = dr.async_entries_for_config_entry(device_registry, entry.entry_id)
-    assert any((DOMAIN, mac) in device.identifiers for device in devices)
+    device_entries = dr.async_entries_for_config_entry(device_registry, entry.entry_id)
+    assert any((DOMAIN, mac) in device_entry.identifiers for device_entry in device_entries)
 
     assert await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()

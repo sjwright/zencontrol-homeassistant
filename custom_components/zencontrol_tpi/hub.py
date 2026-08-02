@@ -263,20 +263,24 @@ class ZenHub:
         assignment_key: str | None = None,
     ) -> DeviceInfo:
         """Return parent or sub-device DeviceInfo for an assignment key."""
-        sub_id = self._sub_device_assignments.get(assignment_key) if assignment_key else None
-        if not sub_id:
+        sub_device_id = self._sub_device_assignments.get(assignment_key) if assignment_key else None
+        if not sub_device_id:
             return controller_device_info(zen_ctrl)
-        devices = self._sub_devices_by_controller.get(zen_ctrl.name) or []
-        device = next((d for d in devices if d.id == sub_id), None)
-        if device is None:
+        sub_device_definitions = self._sub_devices_by_controller.get(zen_ctrl.name) or []
+        sub_device_definition = next((d for d in sub_device_definitions if d.id == sub_device_id), None)
+        if sub_device_definition is None:
             return controller_device_info(zen_ctrl)
 
-        info = sub_device_device_info(zen_ctrl, sub_device_id=device.id, sub_device_name=device.name)
-        parent = self._ensure_registry_device(
+        device_info = sub_device_device_info(
+            zen_ctrl,
+            sub_device_id=sub_device_definition.id,
+            sub_device_name=sub_device_definition.name,
+        )
+        parent_device_entry = self._ensure_registry_device(
             dr.async_get(self.hass),
             controller_device_info(zen_ctrl),
         )
-        return self._device_info_with_parent(info, parent)
+        return self._device_info_with_parent(device_info, parent_device_entry)
 
     def sync_device_assignments(self) -> None:
         """Idempotently assign every entity to its controller or sub-device."""
@@ -284,26 +288,26 @@ class ZenHub:
 
         device_registry = dr.async_get(self.hass)
         entity_registry = er.async_get(self.hass)
-        expected_identifiers = self._expected_device_identifiers()
+        expected_device_identifiers = self._expected_device_identifiers()
 
         if self.controller is not None:
-            parent = self._ensure_registry_device(
+            parent_device_entry = self._ensure_registry_device(
                 device_registry, controller_device_info(self.controller)
             )
-            for device_def in self._sub_devices_by_controller.get(self.controller.name) or []:
-                device = self._ensure_registry_device(
+            for sub_device_definition in self._sub_devices_by_controller.get(self.controller.name) or []:
+                device_entry = self._ensure_registry_device(
                     device_registry,
                     sub_device_device_info(
                         self.controller,
-                        sub_device_id=device_def.id,
-                        sub_device_name=device_def.name,
+                        sub_device_id=sub_device_definition.id,
+                        sub_device_name=sub_device_definition.name,
                     ),
-                    via_device_id=parent.id,
+                    via_device_id=parent_device_entry.id,
                 )
-                if device.area_id != device_def.area_id:
-                    device_registry.async_update_device(device.id, area_id=device_def.area_id)
+                if device_entry.area_id != sub_device_definition.area_id:
+                    device_registry.async_update_device(device_entry.id, area_id=sub_device_definition.area_id)
 
-        updated = 0
+        updated_entity_count = 0
         for entity, zen_ctrl, key in self._iter_device_assignment_targets():
             # entity_id is unset until HA has finished adding the entity.
             # Initial placement uses live device_info; this path moves
@@ -312,83 +316,85 @@ class ZenHub:
             if not entity_id:
                 continue
 
-            registry_entry = entity_registry.async_get(entity_id)
-            if registry_entry is None:
+            entity_registry_entry = entity_registry.async_get(entity_id)
+            if entity_registry_entry is None:
                 _LOGGER.debug(
                     "Skipping device assignment for %s; not in entity registry yet",
                     entity_id,
                 )
                 continue
 
-            info = self.device_info_for(zen_ctrl, assignment_key=key)
+            device_info = self.device_info_for(zen_ctrl, assignment_key=key)
             via_device_id: str | None = None
             if key and self._sub_device_assignments.get(key):
-                parent = self._ensure_registry_device(
+                parent_device_entry = self._ensure_registry_device(
                     device_registry, controller_device_info(zen_ctrl)
                 )
-                via_device_id = parent.id
-            device = self._ensure_registry_device(
-                device_registry, info, via_device_id=via_device_id
+                via_device_id = parent_device_entry.id
+            device_entry = self._ensure_registry_device(
+                device_registry, device_info, via_device_id=via_device_id
             )
-            if registry_entry.device_id == device.id:
+            if entity_registry_entry.device_id == device_entry.id:
                 continue
             try:
-                entity_registry.async_update_entity(entity_id, device_id=device.id)
+                entity_registry.async_update_entity(entity_id, device_id=device_entry.id)
             except ValueError as err:
                 _LOGGER.warning(
                     "Could not assign %s to device %s: %s",
                     entity_id,
-                    device.id,
+                    device_entry.id,
                     err,
                 )
                 continue
-            updated += 1
+            updated_entity_count += 1
 
-        removed = self._prune_orphaned_devices(device_registry, expected_identifiers)
+        removed_device_count = self._prune_orphaned_devices(
+            device_registry, expected_device_identifiers
+        )
 
         _LOGGER.info(
             "Synced device assignments: %d entities updated, %d orphan devices removed (%d assignment keys)",
-            updated,
-            removed,
+            updated_entity_count,
+            removed_device_count,
             len(self._sub_device_assignments),
         )
 
     def _device_info_with_parent(
         self,
-        info: DeviceInfo,
-        parent: dr.DeviceEntry,
+        device_info: DeviceInfo,
+        parent_device_entry: dr.DeviceEntry,
     ) -> DeviceInfo:
         """Attach parent linkage using via_device_id when HA supports it."""
-        payload: dict[str, Any] = dict(info)
+        device_info_payload: dict[str, Any] = dict(device_info)
         if _SUPPORTS_VIA_DEVICE_ID:
-            payload["via_device_id"] = parent.id
-        elif parent.identifiers:
-            payload["via_device"] = next(iter(parent.identifiers))
-        return cast(DeviceInfo, payload)
+            device_info_payload["via_device_id"] = parent_device_entry.id
+        elif parent_device_entry.identifiers:
+            device_info_payload["via_device"] = next(iter(parent_device_entry.identifiers))
+        return cast(DeviceInfo, device_info_payload)
 
     def _ensure_registry_device(
         self,
         device_registry: dr.DeviceRegistry,
-        info: DeviceInfo,
+        device_info: DeviceInfo,
         *,
         via_device_id: str | None = None,
     ) -> dr.DeviceEntry:
         """Create or update a registry device from DeviceInfo."""
         kwargs: dict[str, Any] = {
             "config_entry_id": self.entry.entry_id,
-            "identifiers": info.get("identifiers"),
-            "manufacturer": info.get("manufacturer"),
-            "model": info.get("model"),
-            "name": info.get("name"),
-            "sw_version": info.get("sw_version"),
+            "identifiers": device_info.get("identifiers"),
+            "manufacturer": device_info.get("manufacturer"),
+            "model": device_info.get("model"),
+            "name": device_info.get("name"),
+            "sw_version": device_info.get("sw_version"),
         }
         if via_device_id is not None:
             if _SUPPORTS_VIA_DEVICE_ID:
                 kwargs["via_device_id"] = via_device_id
             else:
-                parent = device_registry.async_get(via_device_id)
-                if parent is not None and parent.identifiers:
-                    kwargs["via_device"] = next(iter(parent.identifiers))
+                parent_device_entry = device_registry.async_get(via_device_id)
+                if parent_device_entry is not None and parent_device_entry.identifiers:
+                    kwargs["via_device"] = next(iter(parent_device_entry.identifiers))
         return device_registry.async_get_or_create(**kwargs)
 
     def _rebuild_sub_device_assignments(self) -> None:
@@ -415,33 +421,37 @@ class ZenHub:
 
     def _expected_device_identifiers(self) -> set[tuple[str, str]]:
         """Identifiers for controllers and sub-devices that should exist."""
-        expected: set[tuple[str, str]] = set()
+        expected_device_identifiers: set[tuple[str, str]] = set()
         if self.controller is None:
-            return expected
-        parent = controller_identifier(self.controller)
-        expected.add(parent)
-        for device_def in self._sub_devices_by_controller.get(self.controller.name) or []:
-            expected.add((DOMAIN, f"{parent[1]}:sub:{device_def.id}"))
-        return expected
+            return expected_device_identifiers
+        controller_identifier_value = controller_identifier(self.controller)
+        expected_device_identifiers.add(controller_identifier_value)
+        for sub_device_definition in self._sub_devices_by_controller.get(self.controller.name) or []:
+            expected_device_identifiers.add(
+                (DOMAIN, f"{controller_identifier_value[1]}:sub:{sub_device_definition.id}")
+            )
+        return expected_device_identifiers
 
     def _prune_orphaned_devices(
         self,
         device_registry: dr.DeviceRegistry,
-        expected_identifiers: set[tuple[str, str]],
+        expected_device_identifiers: set[tuple[str, str]],
     ) -> int:
         """Remove config-entry devices whose identifiers are no longer expected."""
-        if not expected_identifiers:
+        if not expected_device_identifiers:
             return 0
 
-        removed = 0
-        for device in dr.async_entries_for_config_entry(device_registry, self.entry.entry_id):
-            domain_idents = {ident for ident in device.identifiers if ident[0] == DOMAIN}
-            if not domain_idents:
+        removed_device_count = 0
+        for device_entry in dr.async_entries_for_config_entry(device_registry, self.entry.entry_id):
+            domain_identifiers = {
+                identifier for identifier in device_entry.identifiers if identifier[0] == DOMAIN
+            }
+            if not domain_identifiers:
                 continue
-            if domain_idents.isdisjoint(expected_identifiers):
-                device_registry.async_remove_device(device.id)
-                removed += 1
-        return removed
+            if domain_identifiers.isdisjoint(expected_device_identifiers):
+                device_registry.async_remove_device(device_entry.id)
+                removed_device_count += 1
+        return removed_device_count
 
     def _iter_device_assignment_targets(
         self,
@@ -743,8 +753,8 @@ class ZenHub:
             **{n: "fan" for n in fan_numbers},
             **{n: "blind" for n in blind_numbers},
         }
-        for registry_entry in er.async_entries_for_config_entry(entity_registry, self.entry.entry_id):
-            unique_id = registry_entry.unique_id or ""
+        for entity_registry_entry in er.async_entries_for_config_entry(entity_registry, self.entry.entry_id):
+            unique_id = entity_registry_entry.unique_id or ""
             for kind, prefix in (("light", f"{ctrl}_ecg_"), ("fan", f"{ctrl}_fan_"), ("blind", f"{ctrl}_blind_")):
                 if not unique_id.startswith(prefix):
                     continue
@@ -754,7 +764,7 @@ class ZenHub:
                     break
                 current = kind_for_number.get(number)
                 if current is not None and current != kind:
-                    entity_registry.async_remove(registry_entry.entity_id)
+                    entity_registry.async_remove(entity_registry_entry.entity_id)
                 break
 
 

@@ -81,10 +81,10 @@ def _derive_name(host: str) -> str:
 
 def _controllers_from_all_entries(hass: HomeAssistant) -> list[ControllerConfig]:
     """Return every controller config across all domain entries."""
-    result: list[ControllerConfig] = []
+    controller_configs: list[ControllerConfig] = []
     for entry in hass.config_entries.async_entries(DOMAIN):
-        result.extend(controllers_from_entry_data(entry.data))
-    return result
+        controller_configs.extend(controllers_from_entry_data(entry.data))
+    return controller_configs
 
 
 def unique_controller_name(host: str, mac: str, existing: list[ControllerConfig]) -> str:
@@ -271,17 +271,17 @@ async def _async_listen_for_controllers(
         # (last_seen), so "try again" / "add another" still surfaces controllers
         # already cached from an earlier listen.
         try:
-            found = await runtime.zen.discover(timeout=duration)
+            discovered_controllers = await runtime.zen.discover(timeout=duration)
         except Exception:
             _LOGGER.debug("Multicast discovery listen failed", exc_info=True)
             return []
-        return [_discovered_to_dict(item) for item in found]
+        return [_discovered_to_dict(controller) for controller in discovered_controllers]
 
     zen = zencontrol.ZenControl()
     try:
         # discover() already probes QUERY_CONTROLLER_LABEL per identity.
-        found = await zen.discover(timeout=duration)
-        return [_discovered_to_dict(item) for item in found]
+        discovered_controllers = await zen.discover(timeout=duration)
+        return [_discovered_to_dict(controller) for controller in discovered_controllers]
     except Exception:
         _LOGGER.debug("Multicast discovery listen failed", exc_info=True)
         return []
@@ -318,8 +318,8 @@ async def _async_prime_discovery(
         except ControllerNotReadyError as err:
             raise RuntimeError(str(err)) from err
 
-        snap = await discover_controller_entities(zen, ctrl)
-        manifest = build_manifest(snap)
+        discovery_snapshot = await discover_controller_entities(zen, ctrl)
+        manifest = build_manifest(discovery_snapshot)
         mac_id = normalize_mac_id(ctrl_cfg[CONF_MAC])
         hass.data.setdefault(DOMAIN, {}).setdefault(DATA_PENDING_MANIFEST, {})[mac_id] = {"manifest": manifest}
     finally:
@@ -341,14 +341,14 @@ def _async_relink_migrated_devices(
     mac_norm = normalize_mac(mac)
     mac_id = normalize_mac_id(mac)
     sub_prefix = f"{mac_norm}:sub:"
-    for device in list(dr.async_entries_for_config_entry(device_registry, old_entry_id)):
-        domain_idents = [ident for ident in device.identifiers if ident[0] == DOMAIN]
-        if not domain_idents:
+    for device_entry in list(dr.async_entries_for_config_entry(device_registry, old_entry_id)):
+        domain_identifiers = [ident for ident in device_entry.identifiers if ident[0] == DOMAIN]
+        if not domain_identifiers:
             continue
-        if not any(ident == mac_norm or ident == mac_id or ident.startswith(sub_prefix) for _, ident in domain_idents):
+        if not any(ident == mac_norm or ident == mac_id or ident.startswith(sub_prefix) for _, ident in domain_identifiers):
             continue
         device_registry.async_update_device(
-            device.id,
+            device_entry.id,
             add_config_entry_id=new_entry_id,
             remove_config_entry_id=old_entry_id,
         )
@@ -385,8 +385,12 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
 
     async def _async_run_discovery(self) -> list[DiscoveredControllerInfo]:
         """Listen for multicast and filter already-configured controllers."""
-        found = await _async_listen_for_controllers(self.hass)
-        return [item for item in found if not mac_is_configured(self.hass, item[CONF_MAC])]
+        discovered_controllers = await _async_listen_for_controllers(self.hass)
+        return [
+            controller
+            for controller in discovered_controllers
+            if not mac_is_configured(self.hass, controller[CONF_MAC])
+        ]
 
     async def async_step_user(
         self,
@@ -624,7 +628,7 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
         self._abort_if_unique_id_configured()
 
         title = str(import_data.get("title") or entry_title(ctrl_cfg))
-        result = self.async_create_entry(
+        flow_result = self.async_create_entry(
             title=title,
             data={
                 CONF_CONTROLLERS: [ctrl_cfg],
@@ -633,15 +637,15 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
         old_entry_id = import_data.get("migrate_from_entry_id")
-        new_entry = result.get("result")
-        if old_entry_id and isinstance(new_entry, ConfigEntry):
+        created_entry = flow_result.get("result")
+        if old_entry_id and isinstance(created_entry, ConfigEntry):
             _async_relink_migrated_devices(
                 self.hass,
                 old_entry_id=str(old_entry_id),
-                new_entry_id=new_entry.entry_id,
+                new_entry_id=created_entry.entry_id,
                 mac=mac,
             )
-        return result
+        return flow_result
 
     async def async_step_finish(
         self,
@@ -708,15 +712,15 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
         if self.source == SOURCE_IMPORT or self._controller is None:
             return result
 
-        entry = result.get("result")
-        if not isinstance(entry, ConfigEntry):
+        created_entry = result.get("result")
+        if not isinstance(created_entry, ConfigEntry):
             return result
-        options_result = await self.hass.config_entries.options.async_init(
-            entry.entry_id,
+        options_flow_result = await self.hass.config_entries.options.async_init(
+            created_entry.entry_id,
             context={"source": SOURCE_USER},
             data={CTX_SUGGEST_SUB_DEVICES: self._controller[CONF_NAME]},
         )
-        result["next_flow"] = (FlowType.OPTIONS_FLOW, options_result["flow_id"])
+        result["next_flow"] = (FlowType.OPTIONS_FLOW, options_flow_result["flow_id"])
         return result
 
     async def async_step_reconfigure(
@@ -764,9 +768,9 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
                     )
                 errors[CONF_MAC] = "mac_not_found"
             else:
-                result = await self._async_validate_fields(user_input, errors)
-                if result is not None:
-                    host, port, mac, label = result
+                validated_fields = await self._async_validate_fields(user_input, errors)
+                if validated_fields is not None:
+                    host, port, mac, label = validated_fields
                     if mac_is_configured(self.hass, mac, ignore_entry_id=entry.entry_id):
                         errors[CONF_MAC] = "duplicate_mac"
                     else:
@@ -838,11 +842,11 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
             errors[CONF_MAC] = "mac_not_found"
             return None
 
-        result = await self._async_validate_fields(user_input, errors)
-        if result is None:
+        validated_fields = await self._async_validate_fields(user_input, errors)
+        if validated_fields is None:
             return None
 
-        host, port, mac, label = result
+        host, port, mac, label = validated_fields
         if mac_is_configured(self.hass, mac):
             errors[CONF_MAC] = "duplicate_mac"
             return None
