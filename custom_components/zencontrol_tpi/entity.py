@@ -52,7 +52,12 @@ def sub_device_device_info(
     sub_device_id: str,
     sub_device_name: str,
 ) -> DeviceInfo:
-    """Build DeviceInfo for a label-prefix child device under a controller."""
+    """Build DeviceInfo for a label-prefix child device under a controller.
+
+    Parent linkage is not set here. Callers that create registry devices must
+    pass via_device_id after resolving the parent DeviceEntry (HA 2026.8+
+    deprecates DeviceInfo via_device because identifiers are per config entry).
+    """
     parent = controller_identifier(zen_ctrl)
     controller_name = zen_ctrl.label or zen_ctrl.name
     return DeviceInfo(
@@ -60,7 +65,6 @@ def sub_device_device_info(
         name=f"{controller_name} → {sub_device_name}",
         manufacturer="ZenControl",
         model=f"Virtual sub-device of {controller_name}",
-        via_device=parent,
     )
 
 
@@ -83,9 +87,6 @@ class ZenControllerEntity(Entity):
         self._hub = hub
         self._zen_ctrl = zen_ctrl
         self._assignment_key = assignment_key
-        # Resolved in async_added_to_hass so startup can await entity adds
-        # without reading ConfigEntry private task sets.
-        self._added_future = hub.track_entity_add()
 
     @property
     def available(self) -> bool:
@@ -103,8 +104,3 @@ class ZenControllerEntity(Entity):
     def suggested_object_id(self) -> str | None:
         """Return a stable suggested object id when provided by subclasses."""
         return self._suggested_object_id
-
-    async def async_added_to_hass(self) -> None:
-        """Signal the hub that HA has finished adding this entity."""
-        await super().async_added_to_hass()
-        self._hub.resolve_entity_add(self._added_future)

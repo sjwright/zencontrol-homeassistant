@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
@@ -74,6 +75,13 @@ from .sub_devices import (
     sysvar_assignment_key,
 )
 
+# HA 2026.8 replaced via_device (identifier tuple) with via_device_id because
+# identifiers are unique only within a config entry. Keep a fallback while
+# homeassistant>=2026.3 still includes 2026.7.
+_SUPPORTS_VIA_DEVICE_ID = (
+    "via_device_id" in inspect.signature(dr.DeviceRegistry.async_get_or_create).parameters
+)
+
 if TYPE_CHECKING:
     from .binary_sensor import ZenMotionSensorEntity
     from .cover import ZenBlindEntity
@@ -92,10 +100,6 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 type DiscoveryCallback = Callable[[], Coroutine[Any, Any, None]]
-
-# Discovery builds entities that resolve a future in async_added_to_hass.
-# Bound how long startup waits for those (not all of hass).
-_ENTITY_ADD_TIMEOUT = 60.0
 
 # Entry IDs that should force full bus discovery on the next setup (reload).
 _FORCE_FULL_DISCOVERY: set[str] = set()
@@ -184,11 +188,6 @@ class ZenHub:
         # True only after a successful async_start (events configured).
         self._setup_complete = False
 
-        # Futures created in ZenControllerEntity.__init__, resolved in
-        # async_added_to_hass. Lets startup await entity adds without
-        # reading ConfigEntry._tasks.
-        self._pending_entity_adds: set[asyncio.Future[None]] = set()
-
         # All platform entities except the diagnostic status sensor.
         self._entities: dict[str, _BoundEntity] = {}
         self._status_entity: ZenControllerStatusSensor | None = None
@@ -271,7 +270,13 @@ class ZenHub:
         device = next((d for d in devices if d.id == sub_id), None)
         if device is None:
             return controller_device_info(zen_ctrl)
-        return sub_device_device_info(zen_ctrl, sub_device_id=device.id, sub_device_name=device.name)
+
+        info = sub_device_device_info(zen_ctrl, sub_device_id=device.id, sub_device_name=device.name)
+        parent = self._ensure_registry_device(
+            dr.async_get(self.hass),
+            controller_device_info(zen_ctrl),
+        )
+        return self._device_info_with_parent(info, parent)
 
     def sync_device_assignments(self) -> None:
         """Idempotently assign every entity to its controller or sub-device."""
@@ -282,7 +287,9 @@ class ZenHub:
         expected_identifiers = self._expected_device_identifiers()
 
         if self.controller is not None:
-            self._ensure_registry_device(device_registry, controller_device_info(self.controller))
+            parent = self._ensure_registry_device(
+                device_registry, controller_device_info(self.controller)
+            )
             for device_def in self._sub_devices_by_controller.get(self.controller.name) or []:
                 device = self._ensure_registry_device(
                     device_registry,
@@ -291,14 +298,16 @@ class ZenHub:
                         sub_device_id=device_def.id,
                         sub_device_name=device_def.name,
                     ),
+                    via_device_id=parent.id,
                 )
                 if device.area_id != device_def.area_id:
                     device_registry.async_update_device(device.id, area_id=device_def.area_id)
 
         updated = 0
         for entity, zen_ctrl, key in self._iter_device_assignment_targets():
-            # entity_id is unset until HA has added the entity. Live
-            # device_info comes from ZenControllerEntity.device_info.
+            # entity_id is unset until HA has finished adding the entity.
+            # Initial placement uses live device_info; this path moves
+            # entities after options/config changes once they exist.
             entity_id = entity.entity_id
             if not entity_id:
                 continue
@@ -312,7 +321,15 @@ class ZenHub:
                 continue
 
             info = self.device_info_for(zen_ctrl, assignment_key=key)
-            device = self._ensure_registry_device(device_registry, info)
+            via_device_id: str | None = None
+            if key and self._sub_device_assignments.get(key):
+                parent = self._ensure_registry_device(
+                    device_registry, controller_device_info(zen_ctrl)
+                )
+                via_device_id = parent.id
+            device = self._ensure_registry_device(
+                device_registry, info, via_device_id=via_device_id
+            )
             if registry_entry.device_id == device.id:
                 continue
             try:
@@ -336,21 +353,43 @@ class ZenHub:
             len(self._sub_device_assignments),
         )
 
+    def _device_info_with_parent(
+        self,
+        info: DeviceInfo,
+        parent: dr.DeviceEntry,
+    ) -> DeviceInfo:
+        """Attach parent linkage using via_device_id when HA supports it."""
+        payload: dict[str, Any] = dict(info)
+        if _SUPPORTS_VIA_DEVICE_ID:
+            payload["via_device_id"] = parent.id
+        elif parent.identifiers:
+            payload["via_device"] = next(iter(parent.identifiers))
+        return cast(DeviceInfo, payload)
+
     def _ensure_registry_device(
         self,
         device_registry: dr.DeviceRegistry,
         info: DeviceInfo,
+        *,
+        via_device_id: str | None = None,
     ) -> dr.DeviceEntry:
         """Create or update a registry device from DeviceInfo."""
-        return device_registry.async_get_or_create(
-            config_entry_id=self.entry.entry_id,
-            identifiers=info.get("identifiers"),
-            manufacturer=info.get("manufacturer"),
-            model=info.get("model"),
-            name=info.get("name"),
-            sw_version=info.get("sw_version"),
-            via_device=info.get("via_device"),
-        )
+        kwargs: dict[str, Any] = {
+            "config_entry_id": self.entry.entry_id,
+            "identifiers": info.get("identifiers"),
+            "manufacturer": info.get("manufacturer"),
+            "model": info.get("model"),
+            "name": info.get("name"),
+            "sw_version": info.get("sw_version"),
+        }
+        if via_device_id is not None:
+            if _SUPPORTS_VIA_DEVICE_ID:
+                kwargs["via_device_id"] = via_device_id
+            else:
+                parent = device_registry.async_get(via_device_id)
+                if parent is not None and parent.identifiers:
+                    kwargs["via_device"] = next(iter(parent.identifiers))
+        return device_registry.async_get_or_create(**kwargs)
 
     def _rebuild_sub_device_assignments(self) -> None:
         """Recompute label-prefix sub-device assignments from config + discovery."""
@@ -526,8 +565,8 @@ class ZenHub:
             await self.runtime.async_ensure_started()
             if already_started:
                 await self.runtime.async_configure_controller_events(self.controller)
-            # Platforms may register during notify; only then mark online so
-            # keepalive/on_connect cannot race entities into "available" early.
+            # Platforms construct entities with live device_info; devices were
+            # synced above so HA associates them without post-add registry moves.
             await self._notify_discovery_complete()
             self._setup_complete = True
             self.set_controller_status(CONTROLLER_STATUS_ONLINE)
@@ -550,61 +589,9 @@ class ZenHub:
             await self._async_notify_discovery_best_effort()
             raise
 
-    def track_entity_add(self) -> asyncio.Future[None]:
-        """Return a future resolved when a ZenControllerEntity is added to HA.
-
-        Platforms construct entities (which call this) then pass them to the
-        sync async_add_entities callback. Startup awaits these futures instead
-        of ConfigEntry private task sets.
-        """
-        fut: asyncio.Future[None] = asyncio.get_running_loop().create_future()
-        self._pending_entity_adds.add(fut)
-        fut.add_done_callback(self._pending_entity_adds.discard)
-        return fut
-
-    def resolve_entity_add(self, fut: asyncio.Future[None] | None) -> None:
-        """Mark a tracked entity-add future complete."""
-        if fut is not None and not fut.done():
-            fut.set_result(None)
-
-    async def _async_await_new_entity_adds(
-        self,
-        before: set[asyncio.Future[None]],
-        *,
-        what: str,
-    ) -> None:
-        """Await entity-add futures created after before was snapshotted.
-
-        Unlike hass.async_block_till_done(), this never waits on unrelated
-        hass tasks (which deadlocks when CREATE_ENTRY is awaiting setup).
-        """
-        pending = [fut for fut in self._pending_entity_adds if fut not in before and not fut.done()]
-        if not pending:
-            return
-
-        _LOGGER.debug(
-            "Waiting for %d %s future(s) for entry %s",
-            len(pending),
-            what,
-            self.entry.entry_id,
-        )
-        done, not_done = await asyncio.wait(pending, timeout=_ENTITY_ADD_TIMEOUT)
-        if not_done:
-            for fut in not_done:
-                fut.cancel()
-            raise ConfigEntryNotReady(f"Timed out after {_ENTITY_ADD_TIMEOUT:.0f}s waiting for {what}")
-        for fut in done:
-            if fut.cancelled():
-                raise asyncio.CancelledError
-            exc = fut.exception()
-            if exc is not None:
-                raise ConfigEntryNotReady(f"{what} failed: {exc}") from exc
-
     async def _async_run_discovery_callback(self, callback: DiscoveryCallback) -> None:
-        """Run one platform callback and await entity-adds it schedules."""
-        before = set(self._pending_entity_adds)
+        """Run one platform callback; sync devices after entities are constructed."""
         await callback()
-        await self._async_await_new_entity_adds(before, what="platform entity add")
         if not self.stopping:
             self.sync_device_assignments()
 
@@ -782,12 +769,11 @@ class ZenHub:
             )
 
     async def _notify_discovery_complete(self) -> None:
-        """Run platform discovery callbacks and await entity-adds they create.
+        """Run platform discovery callbacks (async_add_entities is sync).
 
-        Platforms construct ZenControllerEntity instances (each registers an
-        add-future) then call the sync async_add_entities callback. We await
-        those futures only — never hass.async_block_till_done(), which
-        deadlocks when CREATE_ENTRY is awaiting setup.
+        Device assignments are synced before this runs so each entity's
+        device_info already points at the correct parent/sub-device. Do not
+        await hass.async_block_till_done() — that deadlocks CREATE_ENTRY.
         """
         if self._discovery_notified:
             return
@@ -796,13 +782,8 @@ class ZenHub:
 
         callbacks = self._discovery_callbacks
         self._discovery_callbacks = []
-        if not callbacks:
-            return
-
-        before = set(self._pending_entity_adds)
         for callback in callbacks:
             await callback()
-        await self._async_await_new_entity_adds(before, what="platform entity add")
 
     async def async_stop(self) -> None:
         """Detach this entry from the shared runtime."""
@@ -900,12 +881,13 @@ class ZenHub:
     def handle_button_press(self, button: ZenButton) -> None:
         entity = self._entity(button_assignment_key(button))
         if entity is not None:
-            cast(Any, entity).trigger_event("short_press")
+            # Standard button event type (ButtonEventType.PRESS_END in HA 2026.8+).
+            cast(Any, entity).trigger_event("press_end")
 
     def handle_button_long_press(self, button: ZenButton) -> None:
         entity = self._entity(button_assignment_key(button))
         if entity is not None:
-            cast(Any, entity).trigger_event("long_press")
+            cast(Any, entity).trigger_event("long_press_end")
 
     def handle_motion_event(self, sensor: ZenMotionSensor) -> None:
         entity = self._entity(motion_assignment_key(sensor))

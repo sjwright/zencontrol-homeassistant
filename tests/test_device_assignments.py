@@ -9,7 +9,7 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 from custom_components.zencontrol_tpi.const import DOMAIN
-from custom_components.zencontrol_tpi.hub import ZenHub
+from custom_components.zencontrol_tpi.hub import _SUPPORTS_VIA_DEVICE_ID, ZenHub
 from custom_components.zencontrol_tpi.sub_devices import CONF_SUB_DEVICES
 
 
@@ -132,6 +132,7 @@ def test_sync_device_assignments_moves_entity_and_prunes_orphan() -> None:
     hub.register_light_entity(light, entity)  # type: ignore[arg-type]
 
     created: dict[frozenset[tuple[str, str]], SimpleNamespace] = {}
+    by_id: dict[str, SimpleNamespace] = {}
 
     def get_or_create(**kwargs: Any) -> SimpleNamespace:
         idents = frozenset(kwargs["identifiers"])
@@ -143,6 +144,7 @@ def test_sync_device_assignments_moves_entity_and_prunes_orphan() -> None:
                 identifiers=set(idents),
             )
             created[idents] = device
+            by_id[device.id] = device
         return device
 
     orphan = SimpleNamespace(
@@ -156,6 +158,7 @@ def test_sync_device_assignments_moves_entity_and_prunes_orphan() -> None:
 
     device_registry = MagicMock()
     device_registry.async_get_or_create.side_effect = get_or_create
+    device_registry.async_get.side_effect = lambda device_id: by_id.get(device_id)
     entity_registry = MagicMock()
     entity_registry.async_get.return_value = SimpleNamespace(device_id="controller-device")
 
@@ -169,6 +172,22 @@ def test_sync_device_assignments_moves_entity_and_prunes_orphan() -> None:
         device_id=kitchen_id,
     )
     device_registry.async_remove_device.assert_called_once_with("orphan-sub")
+
+    controller_idents = frozenset({(DOMAIN, "AA:BB:CC:DD:EE:FF")})
+    parent_id = created[controller_idents].id
+    sub_create_calls = [
+        call.kwargs
+        for call in device_registry.async_get_or_create.call_args_list
+        if call.kwargs.get("identifiers") == {(DOMAIN, "AA:BB:CC:DD:EE:FF:sub:kitchen")}
+    ]
+    assert sub_create_calls
+    for kwargs in sub_create_calls:
+        if _SUPPORTS_VIA_DEVICE_ID:
+            assert kwargs.get("via_device_id") == parent_id
+            assert "via_device" not in kwargs
+        else:
+            assert kwargs.get("via_device") == (DOMAIN, "AA:BB:CC:DD:EE:FF")
+            assert "via_device_id" not in kwargs
 
     # Already on the correct device - second pass is a no-op for entity moves.
     entity_registry.async_get.return_value = SimpleNamespace(device_id=kitchen_id)
@@ -263,6 +282,7 @@ def test_sync_continues_when_one_entity_update_fails() -> None:
     hub.register_light_entity(light_b, entity_b)  # type: ignore[arg-type]
 
     created: dict[frozenset[tuple[str, str]], SimpleNamespace] = {}
+    by_id: dict[str, SimpleNamespace] = {}
 
     def get_or_create(**kwargs: Any) -> SimpleNamespace:
         idents = frozenset(kwargs["identifiers"])
@@ -274,10 +294,12 @@ def test_sync_continues_when_one_entity_update_fails() -> None:
                 identifiers=set(idents),
             )
             created[idents] = device
+            by_id[device.id] = device
         return device
 
     device_registry = MagicMock()
     device_registry.async_get_or_create.side_effect = get_or_create
+    device_registry.async_get.side_effect = lambda device_id: by_id.get(device_id)
     entity_registry = MagicMock()
     entity_registry.async_get.return_value = SimpleNamespace(device_id="old")
 

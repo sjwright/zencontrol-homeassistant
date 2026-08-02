@@ -65,10 +65,12 @@ async def async_unload_entry(hass: HomeAssistant, entry: ZencontrolTpiConfigEntr
     if not hass.is_stopping:
         mark_force_full_discovery(entry.entry_id)
 
-    hub = entry.runtime_data
-    await hub.async_stop()
+    # Unload entities while the hub is still valid; only detach the shared
+    # runtime after platforms succeed (HA recommended unload order).
+    if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
+        await entry.runtime_data.async_stop()
 
-    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    return unload_ok
 
 
 async def async_remove_entry(hass: HomeAssistant, entry: ZencontrolTpiConfigEntry) -> None:

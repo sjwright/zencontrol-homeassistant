@@ -37,7 +37,6 @@ def _hub_for_start() -> ZenHub:
     hub._discovery_notified = False
     hub._setup_complete = False
     hub._discovery_callbacks = []
-    hub._pending_entity_adds = set()
     hub.sync_device_assignments = MagicMock()
     hub._wait_for_controller = AsyncMock()
     hub._discover_entities = AsyncMock()
@@ -65,31 +64,21 @@ async def test_async_start_ignores_unrelated_hass_hang() -> None:
 
 
 @pytest.mark.asyncio
-async def test_notify_awaits_only_new_entity_add_futures() -> None:
-    """Entity adds resolve hub-owned futures; unrelated hass work is ignored."""
+async def test_notify_runs_callbacks_without_waiting_on_hass() -> None:
+    """Platform notify must not await unrelated hass work."""
     hub = _hub_for_start()
-    entity_add_done = asyncio.Event()
-    add_task: asyncio.Task[None] | None = None
+    calls = 0
 
     async def platform_callback() -> None:
-        nonlocal add_task
-        fut = hub.track_entity_add()
-
-        async def complete_add() -> None:
-            await asyncio.sleep(0)
-            hub.resolve_entity_add(fut)
-            entity_add_done.set()
-
-        add_task = asyncio.create_task(complete_add())
+        nonlocal calls
+        calls += 1
 
     unrelated = asyncio.create_task(asyncio.Event().wait())
     try:
         hub._discovery_callbacks = [platform_callback]
         await asyncio.wait_for(hub._notify_discovery_complete(), timeout=1.0)
-        assert entity_add_done.is_set()
+        assert calls == 1
         assert unrelated.done() is False
-        assert add_task is not None
-        await add_task
     finally:
         unrelated.cancel()
         with pytest.raises(asyncio.CancelledError):
@@ -109,21 +98,6 @@ async def test_notify_is_idempotent() -> None:
     await hub._notify_discovery_complete()
     await hub._notify_discovery_complete()
     assert calls == 1
-
-
-@pytest.mark.asyncio
-async def test_notify_times_out_stuck_entity_add() -> None:
-    hub = _hub_for_start()
-
-    async def platform_callback() -> None:
-        hub.track_entity_add()  # never resolved
-
-    hub._discovery_callbacks = [platform_callback]
-    with (
-        patch("custom_components.zencontrol_tpi.hub._ENTITY_ADD_TIMEOUT", 0.05),
-        pytest.raises(ConfigEntryNotReady, match="Timed out"),
-    ):
-        await hub._notify_discovery_complete()
 
 
 @pytest.mark.asyncio

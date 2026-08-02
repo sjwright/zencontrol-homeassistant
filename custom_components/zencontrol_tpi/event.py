@@ -15,6 +15,11 @@ from .sub_devices import button_assignment_key, instance_display_label
 
 PARALLEL_UPDATES = 0
 
+# Standard button event type strings (ButtonEventType in HA 2026.8+).
+# Zen emits one event per complete interaction (no separate press/release).
+_EVENT_PRESS_END = "press_end"
+_EVENT_LONG_PRESS_END = "long_press_end"
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -36,7 +41,7 @@ class ZenButtonEntity(ZenControllerEntity, EventEntity):
     """HA event entity wrapping a ZenButton (physical push button)."""
 
     _attr_device_class = EventDeviceClass.BUTTON
-    _attr_event_types: ClassVar[list[str]] = ["short_press", "long_press"]
+    _attr_event_types: ClassVar[list[str]] = [_EVENT_PRESS_END, _EVENT_LONG_PRESS_END]
 
     def __init__(self, hub: ZenHub, zen_button: ZenButton) -> None:
         ctrl = as_zen_controller(zen_button.instance.address.ctrl)
