@@ -9,8 +9,8 @@
   "issue_tracker": "https://github.com/sjwright/zencontrol-homeassistant/issues",
   "loggers": ["zencontrol"],
     "requirements": [
-    "zencontrol-python>=2.0.0",
+    "zencontrol-python>=2.5.0",
     "getmac>=0.9.4"
   ],
-  "version": "2.0.0"
+  "version": "2.5.0"
 }
