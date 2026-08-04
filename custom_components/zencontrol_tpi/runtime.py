@@ -61,7 +61,7 @@ class SharedZenRuntime:
     def __init__(self, hass: HomeAssistant, *, unicast: bool = False) -> None:
         self.hass = hass
         self.unicast = unicast
-        self.zen = zencontrol.ZenControl(logger=_LOGGER, unicast=unicast)
+        self.zen = zencontrol.ZenControl(logger=_LOGGER)
         self._hubs_by_entry: dict[str, ZenHub] = {}
         self._hubs_by_mac: dict[str, ZenHub] = {}
         self._controllers_by_entry: dict[str, ZenController] = {}
@@ -149,6 +149,7 @@ class SharedZenRuntime:
                 host=ctrl_cfg["host"],
                 port=int(ctrl_cfg.get("port", DEFAULT_PORT)),
                 mac=mac,
+                unicast=self.unicast,
             )
 
             self._hubs_by_entry[entry_id] = hub

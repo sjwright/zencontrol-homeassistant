@@ -44,6 +44,8 @@ class FakeController:
     label: str
     mac: str
     filtering: bool = False
+    tcp: bool = False
+    unicast: bool = False
     host: str = "10.0.0.1"
     port: int = 5108
     version: str | None = "1.0"
@@ -75,6 +77,9 @@ class FakeZenControl:
         host: str,
         port: int,
         mac: str | None = None,
+        filtering: bool = False,
+        tcp: bool = False,
+        unicast: bool = False,
     ) -> FakeController:
         del id  # runtime allocates ids; fake ignores them
         ctrl = FakeController(
@@ -83,9 +88,21 @@ class FakeZenControl:
             mac=str(mac or ""),
             host=host,
             port=port,
+            filtering=filtering,
+            tcp=tcp,
+            unicast=unicast,
         )
         self.add_controller_calls.append(
-            {"name": name, "label": label, "host": host, "port": port, "mac": mac}
+            {
+                "name": name,
+                "label": label,
+                "host": host,
+                "port": port,
+                "mac": mac,
+                "filtering": filtering,
+                "tcp": tcp,
+                "unicast": unicast,
+            }
         )
         self._by_name[name] = ctrl
         self.controllers.append(ctrl)

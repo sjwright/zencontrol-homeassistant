@@ -57,6 +57,7 @@ async def test_runtime_attach_detach_closes_when_empty() -> None:
         hub = cast(ZenHub, FakeHub())
         ctrl = await runtime.async_attach(hub, _ctrl_cfg())
         assert ctrl is fake_zen.controllers[0]
+        assert fake_zen.add_controller_calls[0]["unicast"] is False
         assert hass.data[DOMAIN][DATA_RUNTIME] is runtime
 
         await runtime.async_ensure_started()

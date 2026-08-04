@@ -303,7 +303,7 @@ async def _async_prime_discovery(
     Does not proceed until query_controller_startup_complete() is True (up to
     CONTROLLER_READY_WAIT_MAX - controllers can take 1-10 minutes after reboot).
     """
-    zen = zencontrol.ZenControl(unicast=unicast)
+    zen = zencontrol.ZenControl()
     try:
         ctrl = zen.add_controller(
             id=1,
@@ -312,6 +312,7 @@ async def _async_prime_discovery(
             host=ctrl_cfg[CONF_HOST],
             port=int(ctrl_cfg.get(CONF_PORT, DEFAULT_PORT)),
             mac=ctrl_cfg.get(CONF_MAC),
+            unicast=unicast,
         )
         try:
             await wait_until_controller_ready(zen, ctrl)
