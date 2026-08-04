@@ -19,11 +19,13 @@
           "port": "Port",
           "mac": "MAC-adresse",
           "label": "Controllernavn",
-          "unicast": "Brug unicast-hændelser (anbefales ikke - kun hvis broadcast-pakker ikke understøttes af din netværkstopologi)"
+          "unicast": "Brug unicast-hændelser (anbefales ikke)",
+          "tcp": "Brug TCP til kommandoer (anbefales ikke)"
         },
         "data_description": {
           "mac": "Lad feltet være tomt og indsend for at slå op fra værtens IP (kun samme subnet). Bekræft værdien, og indsend igen.",
-          "unicast": "Delt af alle controllers. Anvendes kun, når den delte runtime oprettes første gang; ændring senere kræver, at runtimen oprettes på ny."
+          "unicast": "Anbefales ikke. Som standard udsender zencontrol-controllere tilstandsændringer som multicast-pakker. Hvis din netværkstopologi ikke understøtter multicast, og dette er den eneste TPI Advanced-klient på denne controller, skifter aktivering til unicast.",
+          "tcp": "Anbefales ikke på nuværende tidspunkt. UDP er standard og er mere grundigt testet. TCP-understøttelse kræver firmware 2.2.32 eller nyere. Kan være nyttigt, hvis controlleren er på et upålideligt fjernnetværk eller VPN."
         }
       },
       "select_discovered": {
@@ -45,13 +47,6 @@
         "title": "Bekræft zencontrol-controller",
         "description": "Fandt **{label}** på `{host}` (MAC `{mac}`). Vil du tilføje den?"
       },
-      "reconfigure": {
-        "title": "Omkonfigurer zencontrol",
-        "description": "Rediger denne controllers forbindelsesindstillinger, eller ændr den domæneomfattende unicast-indstilling (træder i kraft, når den delte runtime oprettes igen).",
-        "data": {
-          "target": "Hvad skal omkonfigureres"
-        }
-      },
       "reconfigure_controller": {
         "title": "Omkonfigurer controller",
         "description": "Opdater forbindelsesindstillingerne for denne zencontrol-applikationscontroller.",
@@ -59,17 +54,14 @@
           "host": "Vært (IP-adresse)",
           "port": "Port",
           "mac": "MAC-adresse",
-          "label": "Controllernavn"
+          "label": "Controllernavn",
+          "unicast": "Brug unicast-hændelser (anbefales ikke)",
+          "tcp": "Brug TCP til kommandoer (anbefales ikke)"
         },
         "data_description": {
-          "mac": "Lad feltet være tomt og indsend for at slå op fra værtens IP (kun samme subnet). Bekræft værdien, og indsend igen."
-        }
-      },
-      "unicast_settings": {
-        "title": "Unicast-indstillinger",
-        "description": "Unicast er domæneomfattende og bruges, når den delte ZenControl-runtime oprettes. Opdatering af denne post gemmer præferencen, men skifter ikke en kørende runtime.",
-        "data": {
-          "unicast": "Brug unicast-hændelser (anbefales ikke - kun hvis broadcast-pakker ikke understøttes af din netværkstopologi)"
+          "mac": "Lad feltet være tomt og indsend for at slå op fra værtens IP (kun samme subnet). Bekræft værdien, og indsend igen.",
+          "unicast": "Anbefales ikke. Som standard udsender zencontrol-controllere tilstandsændringer som multicast-pakker. Hvis din netværkstopologi ikke understøtter multicast, og dette er den eneste TPI Advanced-klient på denne controller, skifter aktivering til unicast.",
+          "tcp": "Anbefales ikke på nuværende tidspunkt. UDP er standard og er mere grundigt testet. TCP-understøttelse kræver firmware 2.2.32 eller nyere. Kan være nyttigt, hvis controlleren er på et upålideligt fjernnetværk eller VPN."
         }
       }
     },

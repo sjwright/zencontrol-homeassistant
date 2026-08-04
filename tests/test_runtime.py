@@ -53,11 +53,12 @@ async def test_runtime_attach_detach_closes_when_empty() -> None:
         "custom_components.zencontrol_tpi.runtime.zencontrol.ZenControl",
         return_value=fake_zen,
     ):
-        runtime = SharedZenRuntime.async_get_or_create(hass, unicast=False)
+        runtime = SharedZenRuntime.async_get_or_create(hass)
         hub = cast(ZenHub, FakeHub())
         ctrl = await runtime.async_attach(hub, _ctrl_cfg())
         assert ctrl is fake_zen.controllers[0]
         assert fake_zen.add_controller_calls[0]["unicast"] is False
+        assert fake_zen.add_controller_calls[0]["tcp"] is False
         assert hass.data[DOMAIN][DATA_RUNTIME] is runtime
 
         await runtime.async_ensure_started()
@@ -170,3 +171,36 @@ async def test_runtime_second_attach_keeps_client() -> None:
 
         await runtime.async_detach("e2")
         fake_zen.aclose.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_runtime_passes_per_controller_unicast_and_tcp() -> None:
+    """Each attached controller gets its own unicast/tcp flags."""
+    hass = _hass()
+    fake_zen = FakeZenControl()
+
+    with patch(
+        "custom_components.zencontrol_tpi.runtime.zencontrol.ZenControl",
+        return_value=fake_zen,
+    ):
+        runtime = SharedZenRuntime.async_get_or_create(hass)
+        await runtime.async_attach(
+            cast(ZenHub, FakeHub("e1")),
+            _ctrl_cfg(name="10001", mac="AA:BB:CC:DD:EE:01", unicast=True, tcp=False),
+        )
+        await runtime.async_attach(
+            cast(ZenHub, FakeHub("e2")),
+            _ctrl_cfg(
+                host="10.0.0.2",
+                name="10002",
+                mac="AA:BB:CC:DD:EE:02",
+                label="B",
+                unicast=False,
+                tcp=True,
+            ),
+        )
+
+    assert fake_zen.add_controller_calls[0]["unicast"] is True
+    assert fake_zen.add_controller_calls[0]["tcp"] is False
+    assert fake_zen.add_controller_calls[1]["unicast"] is False
+    assert fake_zen.add_controller_calls[1]["tcp"] is True

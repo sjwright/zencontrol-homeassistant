@@ -19,11 +19,13 @@
           "port": "Port",
           "mac": "Adres MAC",
           "label": "Nazwa kontrolera",
-          "unicast": "Używaj zdarzeń unicast (niezalecane - tylko gdy pakiety rozgłoszeniowe nie są obsługiwane przez topologię sieci)"
+          "unicast": "Używaj zdarzeń unicast (niezalecane)",
+          "tcp": "Używaj TCP do poleceń (niezalecane)"
         },
         "data_description": {
           "mac": "Pozostaw puste i wyślij, aby wyszukać na podstawie IP hosta (tylko ta sama podsieć). Potwierdź wartość i wyślij ponownie.",
-          "unicast": "Współdzielone przez wszystkie kontrolery. Stosowane tylko przy pierwszym utworzeniu wspólnego runtime; późniejsza zmiana wymaga ponownego utworzenia runtime."
+          "unicast": "Niezalecane. Domyślnie kontrolery zencontrol emitują zmiany stanu jako pakiety multicast. Jeśli topologia sieci nie obsługuje multicast, a to jedyny klient TPI Advanced na tym kontrolerze, włączenie przełączy na unicast.",
+          "tcp": "Obecnie niezalecane. UDP jest domyślne i dokładniej przetestowane. Obsługa TCP wymaga oprogramowania układowego 2.2.32 lub nowszego. Może być przydatne, gdy kontroler jest w zawodnej sieci zdalnej lub VPN."
         }
       },
       "select_discovered": {
@@ -45,13 +47,6 @@
         "title": "Potwierdź kontroler zencontrol",
         "description": "Znaleziono **{label}** pod `{host}` (MAC `{mac}`). Czy chcesz go dodać?"
       },
-      "reconfigure": {
-        "title": "Ponownie skonfiguruj zencontrol",
-        "description": "Edytuj ustawienia połączenia tego kontrolera lub zmień flagę unicast dla całej domeny (obowiązuje po ponownym utworzeniu wspólnego runtime).",
-        "data": {
-          "target": "Co ponownie skonfigurować"
-        }
-      },
       "reconfigure_controller": {
         "title": "Ponownie skonfiguruj kontroler",
         "description": "Zaktualizuj ustawienia połączenia tego kontrolera aplikacji zencontrol.",
@@ -59,17 +54,14 @@
           "host": "Host (adres IP)",
           "port": "Port",
           "mac": "Adres MAC",
-          "label": "Nazwa kontrolera"
+          "label": "Nazwa kontrolera",
+          "unicast": "Używaj zdarzeń unicast (niezalecane)",
+          "tcp": "Używaj TCP do poleceń (niezalecane)"
         },
         "data_description": {
-          "mac": "Pozostaw puste i wyślij, aby wyszukać na podstawie IP hosta (tylko ta sama podsieć). Potwierdź wartość i wyślij ponownie."
-        }
-      },
-      "unicast_settings": {
-        "title": "Ustawienia unicast",
-        "description": "Unicast obowiązuje w całej domenie i jest używany przy tworzeniu wspólnego runtime ZenControl. Aktualizacja tego wpisu zapisuje preferencję, ale nie przełącza działającego runtime.",
-        "data": {
-          "unicast": "Używaj zdarzeń unicast (niezalecane - tylko gdy pakiety rozgłoszeniowe nie są obsługiwane przez topologię sieci)"
+          "mac": "Pozostaw puste i wyślij, aby wyszukać na podstawie IP hosta (tylko ta sama podsieć). Potwierdź wartość i wyślij ponownie.",
+          "unicast": "Niezalecane. Domyślnie kontrolery zencontrol emitują zmiany stanu jako pakiety multicast. Jeśli topologia sieci nie obsługuje multicast, a to jedyny klient TPI Advanced na tym kontrolerze, włączenie przełączy na unicast.",
+          "tcp": "Obecnie niezalecane. UDP jest domyślne i dokładniej przetestowane. Obsługa TCP wymaga oprogramowania układowego 2.2.32 lub nowszego. Może być przydatne, gdy kontroler jest w zawodnej sieci zdalnej lub VPN."
         }
       }
     },

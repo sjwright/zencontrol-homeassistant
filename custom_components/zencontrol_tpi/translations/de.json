@@ -19,11 +19,13 @@
           "port": "Port",
           "mac": "MAC-Adresse",
           "label": "Controllername",
-          "unicast": "Unicast-Ereignisse verwenden (nicht empfohlen - nur wenn Broadcast-Pakete von Ihrer Netzwerktopologie nicht unterstützt werden)"
+          "unicast": "Unicast-Ereignisse verwenden (nicht empfohlen)",
+          "tcp": "TCP für Befehle verwenden (nicht empfohlen)"
         },
         "data_description": {
           "mac": "Leer lassen und absenden, um die Adresse über die Host-IP zu ermitteln (nur gleiches Subnetz). Wert prüfen und erneut absenden.",
-          "unicast": "Gilt gemeinsam für alle Controller. Wird nur angewendet, wenn die gemeinsame Runtime erstmals erstellt wird; spätere Änderungen erfordern eine Neuerstellung der Runtime."
+          "unicast": "Nicht empfohlen. Standardmäßig senden zencontrol-Controller Zustandsänderungen als Multicast-Pakete. Wenn Ihre Netzwerktopologie kein Multicast unterstützt und dies der einzige TPI Advanced-Client auf diesem Controller ist, wechselt die Aktivierung zu Unicast.",
+          "tcp": "Derzeit nicht empfohlen. UDP ist Standard und gründlicher getestet. TCP-Unterstützung erfordert Firmware 2.2.32 oder neuer. Kann nützlich sein, wenn der Controller in einem unzuverlässigen Remote-Netzwerk oder VPN liegt."
         }
       },
       "select_discovered": {
@@ -45,13 +47,6 @@
         "title": "zencontrol-Controller bestätigen",
         "description": "**{label}** unter `{host}` gefunden (MAC `{mac}`). Möchten Sie ihn hinzufügen?"
       },
-      "reconfigure": {
-        "title": "zencontrol neu konfigurieren",
-        "description": "Bearbeiten Sie die Verbindungseinstellungen dieses Controllers oder ändern Sie die integrationsweite Unicast-Option (wirksam, wenn die gemeinsame Runtime neu erstellt wird).",
-        "data": {
-          "target": "Was neu konfigurieren"
-        }
-      },
       "reconfigure_controller": {
         "title": "Controller neu konfigurieren",
         "description": "Aktualisieren Sie die Verbindungseinstellungen dieses zencontrol-Anwendungscontrollers.",
@@ -59,17 +54,14 @@
           "host": "Host (IP-Adresse)",
           "port": "Port",
           "mac": "MAC-Adresse",
-          "label": "Controllername"
+          "label": "Controllername",
+          "unicast": "Unicast-Ereignisse verwenden (nicht empfohlen)",
+          "tcp": "TCP für Befehle verwenden (nicht empfohlen)"
         },
         "data_description": {
-          "mac": "Leer lassen und absenden, um die Adresse über die Host-IP zu ermitteln (nur gleiches Subnetz). Wert prüfen und erneut absenden."
-        }
-      },
-      "unicast_settings": {
-        "title": "Unicast-Einstellungen",
-        "description": "Unicast gilt integrationsweit und wird verwendet, wenn die gemeinsame ZenControl-Runtime erstellt wird. Eine Aktualisierung speichert die Einstellung, wechselt aber keine laufende Runtime.",
-        "data": {
-          "unicast": "Unicast-Ereignisse verwenden (nicht empfohlen - nur wenn Broadcast-Pakete von Ihrer Netzwerktopologie nicht unterstützt werden)"
+          "mac": "Leer lassen und absenden, um die Adresse über die Host-IP zu ermitteln (nur gleiches Subnetz). Wert prüfen und erneut absenden.",
+          "unicast": "Nicht empfohlen. Standardmäßig senden zencontrol-Controller Zustandsänderungen als Multicast-Pakete. Wenn Ihre Netzwerktopologie kein Multicast unterstützt und dies der einzige TPI Advanced-Client auf diesem Controller ist, wechselt die Aktivierung zu Unicast.",
+          "tcp": "Derzeit nicht empfohlen. UDP ist Standard und gründlicher getestet. TCP-Unterstützung erfordert Firmware 2.2.32 oder neuer. Kann nützlich sein, wenn der Controller in einem unzuverlässigen Remote-Netzwerk oder VPN liegt."
         }
       }
     },

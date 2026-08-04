@@ -19,11 +19,13 @@
           "port": "Port",
           "mac": "Adresse MAC",
           "label": "Nom du contrôleur",
-          "unicast": "Utiliser les événements en unicast (non recommandé - uniquement si les paquets de diffusion ne sont pas pris en charge par votre topologie réseau)"
+          "unicast": "Utiliser les événements en unicast (non recommandé)",
+          "tcp": "Utiliser TCP pour les commandes (non recommandé)"
         },
         "data_description": {
           "mac": "Laissez vide et validez pour rechercher à partir de l'IP de l'hôte (même sous-réseau uniquement). Confirmez la valeur, puis validez à nouveau.",
-          "unicast": "Partagé par tous les contrôleurs. Appliqué uniquement lors de la première création du runtime partagé ; le modifier plus tard nécessite de recréer le runtime."
+          "unicast": "Non recommandé. Par défaut, les contrôleurs zencontrol émettent les changements d’état en paquets multicast. Si votre topologie réseau ne prend pas en charge le multicast, et que c’est le seul client TPI Advanced sur ce contrôleur, l’activer passera en unicast.",
+          "tcp": "Non recommandé pour le moment. UDP est la valeur par défaut et a été plus rigoureusement testé. Le support TCP nécessite le firmware 2.2.32 ou plus récent. Peut être utile si le contrôleur est sur un réseau distant ou un VPN peu fiable."
         }
       },
       "select_discovered": {
@@ -45,13 +47,6 @@
         "title": "Confirmer le contrôleur zencontrol",
         "description": "**{label}** trouvé à `{host}` (MAC `{mac}`). Voulez-vous l'ajouter ?"
       },
-      "reconfigure": {
-        "title": "Reconfigurer zencontrol",
-        "description": "Modifiez les paramètres de connexion de ce contrôleur, ou changez l’option unicast du domaine (prend effet lorsque le runtime partagé est recréé).",
-        "data": {
-          "target": "Élément à reconfigurer"
-        }
-      },
       "reconfigure_controller": {
         "title": "Reconfigurer le contrôleur",
         "description": "Mettez à jour les paramètres de connexion de ce contrôleur d'application zencontrol.",
@@ -59,17 +54,14 @@
           "host": "Hôte (adresse IP)",
           "port": "Port",
           "mac": "Adresse MAC",
-          "label": "Nom du contrôleur"
+          "label": "Nom du contrôleur",
+          "unicast": "Utiliser les événements en unicast (non recommandé)",
+          "tcp": "Utiliser TCP pour les commandes (non recommandé)"
         },
         "data_description": {
-          "mac": "Laissez vide et validez pour rechercher à partir de l'IP de l'hôte (même sous-réseau uniquement). Confirmez la valeur, puis validez à nouveau."
-        }
-      },
-      "unicast_settings": {
-        "title": "Paramètres unicast",
-        "description": "L’unicast est à l’échelle du domaine et est utilisé lors de la création du runtime ZenControl partagé. Mettre à jour cette entrée enregistre la préférence sans remplacer un runtime en cours.",
-        "data": {
-          "unicast": "Utiliser les événements en unicast (non recommandé - uniquement si les paquets de diffusion ne sont pas pris en charge par votre topologie réseau)"
+          "mac": "Laissez vide et validez pour rechercher à partir de l'IP de l'hôte (même sous-réseau uniquement). Confirmez la valeur, puis validez à nouveau.",
+          "unicast": "Non recommandé. Par défaut, les contrôleurs zencontrol émettent les changements d’état en paquets multicast. Si votre topologie réseau ne prend pas en charge le multicast, et que c’est le seul client TPI Advanced sur ce contrôleur, l’activer passera en unicast.",
+          "tcp": "Non recommandé pour le moment. UDP est la valeur par défaut et a été plus rigoureusement testé. Le support TCP nécessite le firmware 2.2.32 ou plus récent. Peut être utile si le contrôleur est sur un réseau distant ou un VPN peu fiable."
         }
       }
     },

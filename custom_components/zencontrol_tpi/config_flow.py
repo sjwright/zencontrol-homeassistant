@@ -43,6 +43,7 @@ from .const import (
     CONF_MAC,
     CONF_NAME,
     CONF_SUB_DEVICES,
+    CONF_TCP,
     CONF_UNICAST,
     CONFIG_VERSION,
     DATA_PENDING_MANIFEST,
@@ -51,7 +52,11 @@ from .const import (
     ControllerConfig,
     DiscoveredControllerInfo,
     SubDeviceConfig,
+    controller_tcp,
+    controller_unicast,
     controllers_from_entry_data,
+    entry_data_for_controller,
+    migrate_entry_data_to_v3,
     normalize_mac,
     normalize_mac_id,
 )
@@ -116,6 +121,9 @@ def build_controller_dict(
     mac: str,
     label: str,
     name: str,
+    *,
+    unicast: bool = False,
+    tcp: bool = False,
     sub_devices: list[SubDeviceConfig] | None = None,
 ) -> ControllerConfig:
     """Build a persisted controller config dict."""
@@ -125,36 +133,36 @@ def build_controller_dict(
         CONF_MAC: mac,
         CONF_NAME: name,
         CONF_LABEL: label,
+        CONF_UNICAST: unicast,
+        CONF_TCP: tcp,
     }
     if sub_devices:
         data[CONF_SUB_DEVICES] = sub_devices
     return data
 
 
-def _controller_schema(
-    defaults: dict[str, Any] | None = None,
-    *,
-    include_unicast: bool = False,
-) -> vol.Schema:
-    """Build a controller connection schema."""
+def _controller_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
+    """Build a controller connection schema including per-controller options."""
     defaults = defaults or {}
-    schema: dict[Any, Any] = {
-        vol.Required(CONF_HOST, default=defaults.get(CONF_HOST, vol.UNDEFINED)): str,
-        vol.Required(
-            CONF_PORT,
-            default=defaults.get(CONF_PORT, DEFAULT_PORT),
-        ): vol.All(vol.Coerce(int), vol.Range(min=1, max=65535)),
-        vol.Optional(CONF_MAC, default=defaults.get(CONF_MAC, "")): str,
-        vol.Required(CONF_LABEL, default=defaults.get(CONF_LABEL, vol.UNDEFINED)): str,
-    }
-    if include_unicast:
-        schema[
+    return vol.Schema(
+        {
+            vol.Required(CONF_HOST, default=defaults.get(CONF_HOST, vol.UNDEFINED)): str,
+            vol.Required(
+                CONF_PORT,
+                default=defaults.get(CONF_PORT, DEFAULT_PORT),
+            ): vol.All(vol.Coerce(int), vol.Range(min=1, max=65535)),
+            vol.Optional(CONF_MAC, default=defaults.get(CONF_MAC, "")): str,
+            vol.Required(CONF_LABEL, default=defaults.get(CONF_LABEL, vol.UNDEFINED)): str,
             vol.Optional(
                 CONF_UNICAST,
-                default=defaults.get(CONF_UNICAST, False),
-            )
-        ] = bool
-    return vol.Schema(schema)
+                default=bool(defaults.get(CONF_UNICAST, False)),
+            ): bool,
+            vol.Optional(
+                CONF_TCP,
+                default=bool(defaults.get(CONF_TCP, False)),
+            ): bool,
+        }
+    )
 
 
 async def _async_discover_mac(hass: HomeAssistant, host: str) -> str | None:
@@ -295,8 +303,6 @@ async def _async_listen_for_controllers(
 async def _async_prime_discovery(
     hass: HomeAssistant,
     ctrl_cfg: ControllerConfig,
-    *,
-    unicast: bool = False,
 ) -> None:
     """Wait for the controller, discover entities, and stash a pending manifest.
 
@@ -312,7 +318,8 @@ async def _async_prime_discovery(
             host=ctrl_cfg[CONF_HOST],
             port=int(ctrl_cfg.get(CONF_PORT, DEFAULT_PORT)),
             mac=ctrl_cfg.get(CONF_MAC),
-            unicast=unicast,
+            tcp=controller_tcp(ctrl_cfg),
+            unicast=controller_unicast(ctrl_cfg),
         )
         try:
             await wait_until_controller_ready(zen, ctrl)
@@ -363,7 +370,6 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
     def __init__(self) -> None:
         """Initialize flow state for single-controller setup."""
         self._controller: ControllerConfig | None = None
-        self._unicast: bool = False
         self._discovered: list[DiscoveredControllerInfo] = []
         self._discovery_info: DiscoveredControllerInfo | None = None
         self._discovery_task: asyncio.Task[list[DiscoveredControllerInfo]] | None = None
@@ -376,13 +382,6 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
     def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
         """Return the options flow for managing sub-devices."""
         return ZencontrolTpiOptionsFlow()
-
-    def _existing_unicast(self) -> bool:
-        """Copy unicast from an existing entry when adding another controller."""
-        entries = self._async_current_entries()
-        if not entries:
-            return False
-        return bool(entries[0].data.get(CONF_UNICAST, False))
 
     async def _async_run_discovery(self) -> list[DiscoveredControllerInfo]:
         """Listen for multicast and filter already-configured controllers."""
@@ -409,9 +408,10 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
     ) -> ConfigFlowResult:
         """Handle manual controller setup for a single controller."""
         errors: dict[str, str] = {}
-        defaults: dict[str, Any] = dict(user_input) if user_input else {}
-        # Unicast only matters when creating the shared runtime (first entry).
-        include_unicast = not self._async_current_entries()
+        defaults: dict[str, Any] = dict(user_input) if user_input else {
+            CONF_UNICAST: False,
+            CONF_TCP: False,
+        }
 
         if user_input is not None:
             handled = await self._async_handle_controller_form(
@@ -419,20 +419,13 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
                 errors,
                 defaults,
                 step_id="manual",
-                include_unicast=include_unicast,
             )
             if handled is not None:
                 return handled
 
-        if include_unicast and CONF_UNICAST not in defaults:
-            defaults[CONF_UNICAST] = False
-
         return self.async_show_form(
             step_id="manual",
-            data_schema=_controller_schema(
-                defaults or None,
-                include_unicast=include_unicast,
-            ),
+            data_schema=_controller_schema(defaults),
             errors=errors,
         )
 
@@ -552,7 +545,6 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
         existing = _controllers_from_all_entries(self.hass)
         name = unique_controller_name(host, mac, existing)
         self._controller = build_controller_dict(host, port, mac, label, name)
-        self._unicast = self._existing_unicast()
         return None
 
     async def async_step_discovery(self, discovery_info: dict[str, Any]) -> ConfigFlowResult:
@@ -597,7 +589,6 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
             existing = _controllers_from_all_entries(self.hass)
             name = unique_controller_name(host, mac, existing)
             self._controller = build_controller_dict(host, port, mac, label, name)
-            self._unicast = self._existing_unicast()
             return await self.async_step_finish()
 
         return self.async_show_form(
@@ -619,7 +610,9 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
         if not isinstance(ctrl_cfg_raw, dict):
             return self.async_abort(reason="no_controllers")
 
-        ctrl_cfg = cast(ControllerConfig, ctrl_cfg_raw)
+        # Fold legacy entry-level unicast onto the controller when present.
+        normalized = migrate_entry_data_to_v3(import_data)
+        ctrl_cfg = cast(ControllerConfig, normalized[CONF_CONTROLLERS][0])
         mac = str(ctrl_cfg.get(CONF_MAC, ""))
         mac_id = normalize_mac_id(mac)
         if not mac_id:
@@ -631,10 +624,7 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
         title = str(import_data.get("title") or entry_title(ctrl_cfg))
         flow_result = self.async_create_entry(
             title=title,
-            data={
-                CONF_CONTROLLERS: [ctrl_cfg],
-                CONF_UNICAST: bool(import_data.get(CONF_UNICAST, False)),
-            },
+            data=entry_data_for_controller(ctrl_cfg),
         )
 
         old_entry_id = import_data.get("migrate_from_entry_id")
@@ -658,11 +648,7 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
 
         if self._finish_task is None:
             self._finish_task = self.hass.async_create_task(
-                _async_prime_discovery(
-                    self.hass,
-                    self._controller,
-                    unicast=self._unicast,
-                )
+                _async_prime_discovery(self.hass, self._controller)
             )
 
         if not self._finish_task.done():
@@ -702,10 +688,7 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
 
         return self.async_create_entry(
             title=entry_title(self._controller),
-            data={
-                CONF_CONTROLLERS: [self._controller],
-                CONF_UNICAST: self._unicast,
-            },
+            data=entry_data_for_controller(self._controller),
         )
 
     async def async_on_create_entry(self, result: ConfigFlowResult) -> ConfigFlowResult:
@@ -752,6 +735,8 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
             CONF_MAC: current.get(CONF_MAC, ""),
             CONF_LABEL: current.get(CONF_LABEL, ""),
             CONF_NAME: current.get(CONF_NAME),
+            CONF_UNICAST: controller_unicast(current),
+            CONF_TCP: controller_tcp(current),
         }
         if user_input:
             defaults = {**defaults, **user_input}
@@ -785,6 +770,8 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
                             mac,
                             label,
                             name,
+                            unicast=bool(user_input.get(CONF_UNICAST, False)),
+                            tcp=bool(user_input.get(CONF_TCP, False)),
                             sub_devices=current.get(CONF_SUB_DEVICES),
                         )
                         new_unique = normalize_mac_id(mac)
@@ -796,10 +783,7 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
                             entry,
                             unique_id=new_unique,
                             title=entry_title(updated),
-                            data={
-                                CONF_CONTROLLERS: [updated],
-                                CONF_UNICAST: entry.data.get(CONF_UNICAST, False),
-                            },
+                            data=entry_data_for_controller(updated),
                         )
 
         return self.async_show_form(
@@ -815,7 +799,6 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
         defaults: dict[str, Any],
         *,
         step_id: str,
-        include_unicast: bool,
     ) -> ConfigFlowResult | None:
         """Validate and store the controller, or re-show for MAC confirm.
 
@@ -834,10 +817,7 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
                 defaults.update({**user_input, CONF_MAC: discovered})
                 return self.async_show_form(
                     step_id=step_id,
-                    data_schema=_controller_schema(
-                        defaults,
-                        include_unicast=include_unicast,
-                    ),
+                    data_schema=_controller_schema(defaults),
                     errors={},
                 )
             errors[CONF_MAC] = "mac_not_found"
@@ -854,14 +834,17 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
 
         existing = _controllers_from_all_entries(self.hass)
         name = unique_controller_name(host, mac, existing)
-        self._controller = build_controller_dict(host, port, mac, label, name)
-        if include_unicast:
-            self._unicast = bool(user_input.get(CONF_UNICAST, False))
-        else:
-            self._unicast = self._existing_unicast()
+        self._controller = build_controller_dict(
+            host,
+            port,
+            mac,
+            label,
+            name,
+            unicast=bool(user_input.get(CONF_UNICAST, False)),
+            tcp=bool(user_input.get(CONF_TCP, False)),
+        )
 
         return await self.async_step_finish()
-
     async def _async_validate_fields(
         self,
         user_input: dict[str, Any],

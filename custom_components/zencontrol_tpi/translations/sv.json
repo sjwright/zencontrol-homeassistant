@@ -19,11 +19,13 @@
           "port": "Port",
           "mac": "MAC-adress",
           "label": "Styrenhetens namn",
-          "unicast": "Använd unicast-händelser (rekommenderas inte - endast om broadcast-paket inte stöds av din nätverkstopologi)"
+          "unicast": "Använd unicast-händelser (rekommenderas inte)",
+          "tcp": "Använd TCP för kommandon (rekommenderas inte)"
         },
         "data_description": {
           "mac": "Lämna tomt och skicka för att söka upp från värdens IP (endast samma subnät). Bekräfta värdet och skicka igen.",
-          "unicast": "Delas av alla styrenheter. Används endast när den delade runtime skapas första gången; att ändra senare kräver att runtime skapas om."
+          "unicast": "Rekommenderas inte. Som standard skickar zencontrol-styrenheter tillståndsändringar som multicast-paket. Om din nätverkstopologi inte stöder multicast, och detta är den enda TPI Advanced-klienten på den här styrenheten, växlar aktivering till unicast.",
+          "tcp": "Rekommenderas inte just nu. UDP är standard och har testats mer grundligt. TCP-stöd kräver firmware 2.2.32 eller senare. Kan vara användbart om styrenheten finns på ett opålitligt fjärrnätverk eller VPN."
         }
       },
       "select_discovered": {
@@ -45,13 +47,6 @@
         "title": "Bekräfta zencontrol-styrenhet",
         "description": "Hittade **{label}** på `{host}` (MAC `{mac}`). Vill du lägga till den?"
       },
-      "reconfigure": {
-        "title": "Konfigurera om zencontrol",
-        "description": "Redigera den här styrenhetens anslutningsinställningar, eller ändra den domänomfattande unicast-flaggan (träder i kraft när den delade runtime skapas om).",
-        "data": {
-          "target": "Vad ska konfigureras om"
-        }
-      },
       "reconfigure_controller": {
         "title": "Konfigurera om styrenhet",
         "description": "Uppdatera anslutningsinställningarna för den här zencontrol-applikationsstyrenheten.",
@@ -59,17 +54,14 @@
           "host": "Värd (IP-adress)",
           "port": "Port",
           "mac": "MAC-adress",
-          "label": "Styrenhetens namn"
+          "label": "Styrenhetens namn",
+          "unicast": "Använd unicast-händelser (rekommenderas inte)",
+          "tcp": "Använd TCP för kommandon (rekommenderas inte)"
         },
         "data_description": {
-          "mac": "Lämna tomt och skicka för att söka upp från värdens IP (endast samma subnät). Bekräfta värdet och skicka igen."
-        }
-      },
-      "unicast_settings": {
-        "title": "Unicast-inställningar",
-        "description": "Unicast är domänomfattande och används när den delade ZenControl-runtime skapas. Att uppdatera den här posten sparar inställningen men byter inte en körande runtime.",
-        "data": {
-          "unicast": "Använd unicast-händelser (rekommenderas inte - endast om broadcast-paket inte stöds av din nätverkstopologi)"
+          "mac": "Lämna tomt och skicka för att söka upp från värdens IP (endast samma subnät). Bekräfta värdet och skicka igen.",
+          "unicast": "Rekommenderas inte. Som standard skickar zencontrol-styrenheter tillståndsändringar som multicast-paket. Om din nätverkstopologi inte stöder multicast, och detta är den enda TPI Advanced-klienten på den här styrenheten, växlar aktivering till unicast.",
+          "tcp": "Rekommenderas inte just nu. UDP är standard och har testats mer grundligt. TCP-stöd kräver firmware 2.2.32 eller senare. Kan vara användbart om styrenheten finns på ett opålitligt fjärrnätverk eller VPN."
         }
       }
     },

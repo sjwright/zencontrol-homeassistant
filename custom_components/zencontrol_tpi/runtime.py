@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
 import zencontrol
@@ -28,10 +27,11 @@ from .const import (
     CONF_LABEL,
     CONF_MAC,
     CONF_NAME,
-    CONF_UNICAST,
     DEFAULT_PORT,
     DOMAIN,
     ControllerConfig,
+    controller_tcp,
+    controller_unicast,
     normalize_mac,
     normalize_mac_id,
 )
@@ -58,9 +58,8 @@ class SharedZenRuntime:
     attached hub finishes setup, and closed when the last entry detaches.
     """
 
-    def __init__(self, hass: HomeAssistant, *, unicast: bool = False) -> None:
+    def __init__(self, hass: HomeAssistant) -> None:
         self.hass = hass
-        self.unicast = unicast
         self.zen = zencontrol.ZenControl(logger=_LOGGER)
         self._hubs_by_entry: dict[str, ZenHub] = {}
         self._hubs_by_mac: dict[str, ZenHub] = {}
@@ -99,20 +98,14 @@ class SharedZenRuntime:
         return self._started
 
     @classmethod
-    def async_get_or_create(cls, hass: HomeAssistant, *, unicast: bool = False) -> SharedZenRuntime:
+    def async_get_or_create(cls, hass: HomeAssistant) -> SharedZenRuntime:
         """Return the domain runtime, creating it if needed."""
         domain_data = hass.data.setdefault(DOMAIN, {})
         runtime = domain_data.get(DATA_RUNTIME)
         if runtime is None:
-            runtime = cls(hass, unicast=unicast)
+            runtime = cls(hass)
             domain_data[DATA_RUNTIME] = runtime
-            _LOGGER.debug("Created shared zencontrol runtime (unicast=%s)", unicast)
-        elif bool(runtime.unicast) != bool(unicast):
-            _LOGGER.debug(
-                "Shared runtime already running with unicast=%s; ignoring entry preference unicast=%s",
-                runtime.unicast,
-                unicast,
-            )
+            _LOGGER.debug("Created shared zencontrol runtime")
         return runtime
 
     def hub_for_controller(self, zen_ctrl: ZenController) -> ZenHub | None:
@@ -149,7 +142,8 @@ class SharedZenRuntime:
                 host=ctrl_cfg["host"],
                 port=int(ctrl_cfg.get("port", DEFAULT_PORT)),
                 mac=mac,
-                unicast=self.unicast,
+                tcp=controller_tcp(ctrl_cfg),
+                unicast=controller_unicast(ctrl_cfg),
             )
 
             self._hubs_by_entry[entry_id] = hub
@@ -406,7 +400,3 @@ class SharedZenRuntime:
             },
         )
 
-
-def entry_unicast(data: Mapping[str, Any]) -> bool:
-    """Return the unicast flag from entry data."""
-    return bool(data.get(CONF_UNICAST, False))

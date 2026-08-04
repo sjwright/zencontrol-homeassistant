@@ -49,8 +49,8 @@ async def test_setup_unload_against_simulator(
                 "mac": mac,
                 "name": "sim",
                 "label": live_sim.label,
+                "unicast": True,
             },
-            unicast=True,
         ),
         version=CONFIG_VERSION,
     )

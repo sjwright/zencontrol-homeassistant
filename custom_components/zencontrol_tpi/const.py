@@ -51,6 +51,7 @@ CONF_MAC: Final = "mac"
 CONF_LABEL: Final = "label"
 CONF_NAME: Final = "name"
 CONF_UNICAST: Final = "unicast"
+CONF_TCP: Final = "tcp"
 # Per-controller label-prefix sub-devices (see sub_devices.py)
 CONF_SUB_DEVICES: Final = "sub_devices"
 
@@ -62,8 +63,8 @@ SCENE_NONE: Final = "None"
 _LOG_A: Final = -59.53
 _LOG_B: Final = 56.58
 
-# Config entry version after one-controller-per-entry migration
-CONFIG_VERSION: Final = 2
+# Config entry version after per-controller unicast/tcp (v3)
+CONFIG_VERSION: Final = 3
 
 
 class SubDeviceConfig(TypedDict):
@@ -83,6 +84,8 @@ class ControllerConfig(TypedDict):
     mac: str
     name: str
     label: str
+    unicast: NotRequired[bool]
+    tcp: NotRequired[bool]
     sub_devices: NotRequired[list[SubDeviceConfig]]
 
 
@@ -99,7 +102,6 @@ class EntryData(TypedDict):
     """Config entry data for a single-controller entry."""
 
     controllers: list[ControllerConfig]
-    unicast: bool
 
 
 def normalize_mac(mac: str) -> str:
@@ -130,12 +132,39 @@ def controller_from_entry_data(data: Mapping[str, Any]) -> ControllerConfig | No
     return controllers[0] if controllers else None
 
 
-def entry_data_for_controller(ctrl_cfg: ControllerConfig, *, unicast: bool = False) -> EntryData:
+def controller_unicast(ctrl_cfg: Mapping[str, Any]) -> bool:
+    """Return whether this controller should use unicast events."""
+    return bool(ctrl_cfg.get(CONF_UNICAST, False))
+
+
+def controller_tcp(ctrl_cfg: Mapping[str, Any]) -> bool:
+    """Return whether this controller should use TCP for commands."""
+    return bool(ctrl_cfg.get(CONF_TCP, False))
+
+
+def entry_data_for_controller(ctrl_cfg: ControllerConfig) -> EntryData:
     """Build persisted entry data for a single controller."""
     return {
         CONF_CONTROLLERS: [ctrl_cfg],
-        CONF_UNICAST: unicast,
     }
+
+
+def migrate_entry_data_to_v3(data: Mapping[str, Any]) -> EntryData:
+    """Move entry-level unicast onto controllers and drop the entry key.
+
+    When the legacy domain-wide flag is present it applies to every controller.
+    Controllers that already store unicast keep that value only when the entry
+    key is absent (already-migrated / v3-shaped data).
+    """
+    has_entry_unicast = CONF_UNICAST in data
+    entry_unicast = bool(data.get(CONF_UNICAST, False))
+    controllers: list[ControllerConfig] = []
+    for raw in controllers_from_entry_data(data):
+        ctrl = dict(raw)
+        if has_entry_unicast:
+            ctrl[CONF_UNICAST] = entry_unicast
+        controllers.append(cast(ControllerConfig, ctrl))
+    return {CONF_CONTROLLERS: controllers}
 
 
 def arc_to_brightness(arc: int) -> int:

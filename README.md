@@ -27,7 +27,8 @@ This integration builds on [`zencontrol-python`](https://github.com/sjwright/zen
 
 * **Reliable networking** — a solid UDP implementation of the TPI Advanced wire protocol, plus a battle-tested event listener
 * **Controller workarounds** — strategies for known hardware limits (for example a local scene cache, because the controller is often slow to report scene-derived colour changes)
-* **Multicast or unicast** — multicast when the network allows it; unicast fallback when it does not
+* **Multicast or unicast** — per controller; multicast when the network allows it, unicast when it does not
+* **UDP or TCP commands** — UDP by default; optional per-controller TCP for firmware 2.2.32+
 * **Rich discovery** — multicast controller discovery, plus a full interview of lights, groups, buttons, sensors, inputs, and system variables
 * **Test-driven reliability** — a large test suite, backed by a [`hardware simulator`](https://github.com/sjwright/zencontrol-simulator), covering edge cases and timing-sensitive behaviour
 * **Real-world reliability** — in production for over a year, and used to find and help resolve many bugs in earlier zencontrol firmware

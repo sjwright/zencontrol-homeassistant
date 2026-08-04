@@ -14,10 +14,10 @@ from .const import (
     CONF_LABEL,
     CONF_NAME,
     CONF_SUB_DEVICES,
-    CONF_UNICAST,
     DOMAIN,
     ControllerConfig,
     controllers_from_entry_data,
+    entry_data_for_controller,
 )
 from .sub_devices import (
     SubDeviceDef,
@@ -332,8 +332,5 @@ class ZencontrolTpiOptionsFlow(OptionsFlow):
         self.hass.config_entries.async_update_entry(
             self.config_entry,
             title=title,
-            data={
-                CONF_CONTROLLERS: controllers[:1],
-                CONF_UNICAST: self.config_entry.data.get(CONF_UNICAST, False),
-            },
+            data=entry_data_for_controller(controllers[0]) if controllers else {CONF_CONTROLLERS: []},
         )

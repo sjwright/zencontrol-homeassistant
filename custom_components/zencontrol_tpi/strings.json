@@ -19,11 +19,13 @@
           "port": "Port",
           "mac": "MAC address",
           "label": "Controller name",
-          "unicast": "Use unicast events (not recommended - only use if broadcast packets are unsupported by your network topology)"
+          "unicast": "Use unicast events (not recommended)",
+          "tcp": "Use TCP for commands (not recommended)"
         },
         "data_description": {
           "mac": "Leave blank and submit to look up from the host IP (same subnet only). Confirm the value, then submit again.",
-          "unicast": "Shared by all controllers. Only applied when the shared runtime is first created; changing it later requires recreating the runtime."
+          "unicast": "Not recommended. By default, zencontrol controllers emit state changes as multicast packets. If your network topology doesn't support multicast, and this is the only TPI Advanced client on this controller, enabling this will switch it to unicast.",
+          "tcp": "Not recommended at this time. UDP is the default, and has been more thoroughly tested. TCP support requires firmware 2.2.32 or later. May be useful if the controller is on an unreliable remote network or VPN."
         }
       },
       "select_discovered": {
@@ -52,10 +54,14 @@
           "host": "Host (IP address)",
           "port": "Port",
           "mac": "MAC address",
-          "label": "Controller name"
+          "label": "Controller name",
+          "unicast": "Use unicast events (not recommended)",
+          "tcp": "Use TCP for commands (not recommended)"
         },
         "data_description": {
-          "mac": "Leave blank and submit to look up from the host IP (same subnet only). Confirm the value, then submit again."
+          "mac": "Leave blank and submit to look up from the host IP (same subnet only). Confirm the value, then submit again.",
+          "unicast": "Not recommended. By default, zencontrol controllers emit state changes as multicast packets. If your network topology doesn't support multicast, and this is the only TPI Advanced client on this controller, enabling this will switch it to unicast.",
+          "tcp": "Not recommended at this time. UDP is the default, and has been more thoroughly tested. TCP support requires firmware 2.2.32 or later. May be useful if the controller is on an unreliable remote network or VPN."
         }
       }
     },

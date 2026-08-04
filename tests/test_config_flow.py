@@ -21,6 +21,7 @@ from custom_components.zencontrol_tpi.const import (
     CONF_MAC,
     CONF_NAME,
     CONF_SUB_DEVICES,
+    CONF_TCP,
     CONF_UNICAST,
     DEFAULT_PORT,
     DOMAIN,
@@ -43,6 +44,8 @@ def controller_config(
     mac: str = "AA:BB:CC:DD:EE:01",
     label: str = "House",
     name: str = "100010",
+    unicast: bool = False,
+    tcp: bool = False,
     sub_devices: list[dict] | None = None,
 ) -> dict[str, Any]:
     """Build a persisted controller dict for entry data / form input."""
@@ -52,21 +55,18 @@ def controller_config(
         CONF_MAC: mac,
         CONF_LABEL: label,
         CONF_NAME: name,
+        CONF_UNICAST: unicast,
+        CONF_TCP: tcp,
     }
     if sub_devices is not None:
         data[CONF_SUB_DEVICES] = sub_devices
     return data
 
 
-def entry_data(
-    ctrl_cfg: dict[str, Any] | None = None,
-    *,
-    unicast: bool = False,
-) -> dict[str, Any]:
+def entry_data(ctrl_cfg: dict[str, Any] | None = None) -> dict[str, Any]:
     """Build config-entry data for one controller."""
     return {
         CONF_CONTROLLERS: [ctrl_cfg or controller_config()],
-        CONF_UNICAST: unicast,
     }
 
 MAC = "AA:BB:CC:DD:EE:01"
@@ -75,15 +75,15 @@ HOST = "10.0.0.10"
 LABEL = "House"
 
 
-def _manual_input(*, include_unicast: bool = True, **overrides: Any) -> dict[str, Any]:
+def _manual_input(**overrides: Any) -> dict[str, Any]:
     data: dict[str, Any] = {
         CONF_HOST: HOST,
         CONF_PORT: DEFAULT_PORT,
         CONF_MAC: MAC,
         CONF_LABEL: LABEL,
+        CONF_UNICAST: False,
+        CONF_TCP: False,
     }
-    if include_unicast:
-        data[CONF_UNICAST] = False
     data.update(overrides)
     return data
 
@@ -129,12 +129,14 @@ async def test_manual_create_entry(
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["title"] == LABEL
     assert result["result"].unique_id == MAC_ID
-    assert result["data"][CONF_UNICAST] is False
+    assert CONF_UNICAST not in result["data"]
     controllers = result["data"][CONF_CONTROLLERS]
     assert len(controllers) == 1
     assert controllers[0][CONF_HOST] == HOST
     assert controllers[0][CONF_MAC] == MAC
     assert controllers[0][CONF_LABEL] == LABEL
+    assert controllers[0][CONF_UNICAST] is False
+    assert controllers[0][CONF_TCP] is False
     assert controllers[0][CONF_NAME]
     mock_test_connection.assert_awaited()
     mock_prime_discovery.assert_awaited_once()
@@ -233,9 +235,8 @@ async def test_manual_duplicate_mac(hass: HomeAssistant) -> None:
     existing.add_to_hass(hass)
 
     result = await _start_manual(hass)
-    # Unicast is only on the first-entry form; later entries omit it.
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], _manual_input(include_unicast=False)
+        result["flow_id"], _manual_input()
     )
 
     assert result["type"] is FlowResultType.FORM
@@ -347,6 +348,21 @@ async def test_runtime_discovery_already_configured(hass: HomeAssistant) -> None
     assert result["reason"] == "already_configured"
 
 
+async def test_manual_unicast_and_tcp(hass: HomeAssistant) -> None:
+    """Manual setup stores per-controller unicast and TCP flags."""
+    result = await _start_manual(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        _manual_input(**{CONF_UNICAST: True, CONF_TCP: True}),
+    )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    ctrl = result["data"][CONF_CONTROLLERS][0]
+    assert ctrl[CONF_UNICAST] is True
+    assert ctrl[CONF_TCP] is True
+    assert CONF_UNICAST not in result["data"]
+
+
 async def test_import_creates_entry(hass: HomeAssistant) -> None:
     """Legacy multi-controller migration import creates a single entry."""
     ctrl_cfg = controller_config()
@@ -361,7 +377,8 @@ async def test_import_creates_entry(hass: HomeAssistant) -> None:
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["title"] == "Imported"
-    assert result["data"][CONF_UNICAST] is True
+    assert CONF_UNICAST not in result["data"]
+    assert result["data"][CONF_CONTROLLERS][0][CONF_UNICAST] is True
     assert result["result"].unique_id == MAC_ID
 
 
@@ -397,12 +414,12 @@ async def test_finish_prime_failure_aborts(
     assert result["reason"] == "cannot_connect"
 
 
-async def test_reconfigure_does_not_offer_unicast(hass: HomeAssistant) -> None:
-    """Reconfigure opens controller settings without exposing unicast."""
+async def test_reconfigure_offers_unicast_and_tcp(hass: HomeAssistant) -> None:
+    """Reconfigure exposes per-controller unicast and TCP options."""
     entry = MockConfigEntry(
         domain=DOMAIN,
         unique_id=MAC_ID,
-        data=entry_data(unicast=False),
+        data=entry_data(controller_config(unicast=True, tcp=False)),
         title=LABEL,
     )
     entry.add_to_hass(hass)
@@ -410,12 +427,13 @@ async def test_reconfigure_does_not_offer_unicast(hass: HomeAssistant) -> None:
     result = await entry.start_reconfigure_flow(hass)
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "reconfigure_controller"
-    assert CONF_UNICAST not in result["data_schema"].schema
+    assert CONF_UNICAST in result["data_schema"].schema
+    assert CONF_TCP in result["data_schema"].schema
 
 
 async def test_reconfigure_controller(hass: HomeAssistant) -> None:
     """Reconfigure updates host while keeping the controller name stable."""
-    ctrl_cfg = controller_config(name="stable")
+    ctrl_cfg = controller_config(name="stable", unicast=True, tcp=True)
     entry = MockConfigEntry(
         domain=DOMAIN,
         unique_id=MAC_ID,
@@ -434,6 +452,8 @@ async def test_reconfigure_controller(hass: HomeAssistant) -> None:
             CONF_PORT: DEFAULT_PORT,
             CONF_MAC: MAC,
             CONF_LABEL: "Renamed",
+            CONF_UNICAST: False,
+            CONF_TCP: True,
         },
     )
     assert result["type"] is FlowResultType.ABORT
@@ -442,6 +462,9 @@ async def test_reconfigure_controller(hass: HomeAssistant) -> None:
     assert updated[CONF_HOST] == "10.0.0.99"
     assert updated[CONF_LABEL] == "Renamed"
     assert updated[CONF_NAME] == "stable"
+    assert updated[CONF_UNICAST] is False
+    assert updated[CONF_TCP] is True
+    assert CONF_UNICAST not in entry.data
 
 
 def _entry_with_runtime(hass: HomeAssistant, data: dict) -> ConfigEntry:
