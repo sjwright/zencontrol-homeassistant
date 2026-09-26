@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from homeassistant.exceptions import ConfigEntryNotReady
+from zencontrol.exceptions import ZenTimeoutError
 
 from custom_components.zencontrol_tpi.const import (
     CONTROLLER_STATUS_ONLINE,
@@ -134,3 +135,18 @@ async def test_async_start_skips_late_configure_on_first_start() -> None:
     hub.runtime.async_ensure_started.assert_awaited_once()
     hub.runtime.async_configure_controller_events.assert_not_awaited()
     assert hub.controller_status == CONTROLLER_STATUS_ONLINE
+
+
+@pytest.mark.asyncio
+async def test_listener_connect_marks_unreachable_on_zen_timeout() -> None:
+    """A controller that does not answer on listener reconnect becomes unreachable."""
+    hub = _hub_with_controller([True])
+    hub._setup_complete = True
+    hub._controller_status = CONTROLLER_STATUS_ONLINE
+    hub.runtime.zen.commands.query_controller_startup_complete = AsyncMock(
+        side_effect=ZenTimeoutError("no reply")
+    )
+
+    await hub.handle_listener_connect()
+
+    assert hub.controller_status == CONTROLLER_STATUS_UNREACHABLE

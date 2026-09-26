@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import voluptuous as vol
 from homeassistant.config_entries import ConfigFlowResult, OptionsFlow
@@ -10,7 +10,6 @@ from homeassistant.helpers.selector import AreaSelector
 from homeassistant.helpers.translation import async_get_translations
 
 from .const import (
-    CONF_CONTROLLERS,
     CONF_LABEL,
     CONF_NAME,
     CONF_SUB_DEVICES,
@@ -92,8 +91,12 @@ class ZencontrolTpiOptionsFlow(OptionsFlow):
         return translations.get(f"component.{DOMAIN}.{key}", default)
 
     def _controllers(self) -> list[ControllerConfig]:
-        """Return this entry's controllers (always length 0 or 1)."""
-        return list(controllers_from_entry_data(self.config_entry.data))
+        """Return copies of this entry's controllers (always length 0 or 1).
+
+        Copies, because editing the dicts inside config_entry.data in place
+        makes async_update_entry see no change, so the edit is never saved.
+        """
+        return [cast(ControllerConfig, dict(c)) for c in controllers_from_entry_data(self.config_entry.data)]
 
     def _controller(self, name: str | None = None) -> ControllerConfig | None:
         """Return the only controller, optionally requiring a name match."""
@@ -201,7 +204,6 @@ class ZencontrolTpiOptionsFlow(OptionsFlow):
         ctrl_cfg = self._controller(self._ctrl_name)
         if ctrl_cfg is None:
             return await self.async_step_init()
-        controllers = self._controllers()
         existing = sub_devices_from_controller(ctrl_cfg)
 
         if user_input is not None:
@@ -229,7 +231,7 @@ class ZencontrolTpiOptionsFlow(OptionsFlow):
                     )
                 )
                 ctrl_cfg[CONF_SUB_DEVICES] = sub_devices_to_config(existing)
-                return await self._async_save_sub_devices(controllers)
+                return await self._async_save_sub_devices(ctrl_cfg)
 
         return self.async_show_form(
             step_id="add_sub_device",
@@ -246,7 +248,6 @@ class ZencontrolTpiOptionsFlow(OptionsFlow):
         ctrl_cfg = self._controller(self._ctrl_name)
         if ctrl_cfg is None:
             return await self.async_step_init()
-        controllers = self._controllers()
         existing = sub_devices_from_controller(ctrl_cfg)
         sub_device_definition = next((item for item in existing if item.id == self._sub_device_id), None)
         if sub_device_definition is None:
@@ -267,7 +268,7 @@ class ZencontrolTpiOptionsFlow(OptionsFlow):
                 ctrl_cfg[CONF_SUB_DEVICES] = sub_devices_to_config(
                     [updated if item.id == sub_device_definition.id else item for item in existing]
                 )
-                return await self._async_save_sub_devices(controllers)
+                return await self._async_save_sub_devices(ctrl_cfg)
 
         return self.async_show_form(
             step_id="reconfigure_sub_device",
@@ -287,7 +288,6 @@ class ZencontrolTpiOptionsFlow(OptionsFlow):
         ctrl_cfg = self._controller(self._ctrl_name)
         if ctrl_cfg is None:
             return await self.async_step_init()
-        controllers = self._controllers()
         existing = sub_devices_from_controller(ctrl_cfg)
         sub_device_definition = next((item for item in existing if item.id == self._sub_device_id), None)
         if sub_device_definition is None:
@@ -299,7 +299,7 @@ class ZencontrolTpiOptionsFlow(OptionsFlow):
                 ctrl_cfg[CONF_SUB_DEVICES] = sub_devices_to_config(remaining)
             else:
                 ctrl_cfg.pop(CONF_SUB_DEVICES, None)
-            return await self._async_save_sub_devices(controllers)
+            return await self._async_save_sub_devices(ctrl_cfg)
 
         return self.async_show_form(
             step_id="delete_sub_device",
@@ -310,11 +310,13 @@ class ZencontrolTpiOptionsFlow(OptionsFlow):
             },
         )
 
-    async def _async_save_sub_devices(self, controllers: list[ControllerConfig]) -> ConfigFlowResult:
+    async def _async_save_sub_devices(self, ctrl_cfg: ControllerConfig) -> ConfigFlowResult:
         """Persist sub-device config and reassign entities without rediscovery."""
-        ctrl_cfg = controllers[0] if controllers else None
-        title = _entry_title(ctrl_cfg) if ctrl_cfg else self.config_entry.title
-        await self._async_persist_controller(controllers, title=title)
+        self.hass.config_entries.async_update_entry(
+            self.config_entry,
+            title=_entry_title(ctrl_cfg),
+            data=entry_data_for_controller(ctrl_cfg),
+        )
         hub = self.config_entry.runtime_data
         if hub is not None:
             hub.sync_device_assignments()
@@ -326,11 +328,3 @@ class ZencontrolTpiOptionsFlow(OptionsFlow):
                 return await self.async_step_controller()
             case _:
                 return self.async_create_entry(title="", data={})
-
-    async def _async_persist_controller(self, controllers: list[ControllerConfig], *, title: str) -> None:
-        """Write the single controller into the config entry without reloading."""
-        self.hass.config_entries.async_update_entry(
-            self.config_entry,
-            title=title,
-            data=entry_data_for_controller(controllers[0]) if controllers else {CONF_CONTROLLERS: []},
-        )

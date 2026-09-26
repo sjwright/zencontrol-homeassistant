@@ -819,7 +819,9 @@ class ZenHub:
                     self.zen.commands.query_controller_startup_complete(self.controller),
                     timeout=CONTROLLER_READY_QUERY_TIMEOUT,
                 )
-            except TimeoutError:
+            except RETRYABLE_SETUP_ERRORS:
+                # Includes ZenTimeoutError: an offline controller raises
+                # rather than returning None.
                 ready = None
             if ready is True:
                 # async_start owns the first online transition so entities stay

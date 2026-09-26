@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from zencontrol import ZenAbsoluteInput, ZenButton, ZenMotionSensor
+from zencontrol.exceptions import ZenTimeoutError
 
 from custom_components.zencontrol_tpi.discovery import (
     ControllerNotReadyError,
@@ -47,6 +48,25 @@ async def test_wait_until_controller_ready_unreachable_callback() -> None:
 
     assert seen == ["unreachable"]
     ctrl.interview.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_wait_until_controller_ready_treats_zen_timeout_as_unreachable() -> None:
+    """An offline controller raises ZenTimeoutError rather than returning None."""
+    zen = MagicMock()
+    zen.commands.query_controller_startup_complete = AsyncMock(side_effect=ZenTimeoutError("no reply"))
+    ctrl = MagicMock()
+    ctrl.label = "House"
+    ctrl.host = "10.0.0.1"
+    ctrl.interview = AsyncMock()
+    seen: list[str] = []
+
+    with pytest.raises(ControllerNotReadyError, match="Cannot reach"):
+        await wait_until_controller_ready(
+            zen, ctrl, on_unreachable=lambda: seen.append("unreachable")
+        )
+
+    assert seen == ["unreachable"]
 
 
 @pytest.mark.asyncio

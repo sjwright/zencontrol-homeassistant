@@ -77,7 +77,9 @@ async def wait_until_controller_ready(
                 zen.commands.query_controller_startup_complete(ctrl),
                 timeout=CONTROLLER_READY_QUERY_TIMEOUT,
             )
-        except TimeoutError:
+        except (TimeoutError, ZenTimeoutError):
+            # Commands raise ZenTimeoutError (not TimeoutError) when the
+            # controller does not answer, so treat both as unreachable.
             ready = None
 
         if ready is True:

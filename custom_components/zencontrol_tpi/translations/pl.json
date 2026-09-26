@@ -182,6 +182,9 @@
     "command_failed": {
       "message": "Nie udało się wykonać {action}: {error}"
     },
+    "not_connected": {
+      "message": "Brak połączenia z kontrolerem zencontrol: {error}"
+    },
     "unknown_option": {
       "message": "Nieznane {kind}: {option}"
     },

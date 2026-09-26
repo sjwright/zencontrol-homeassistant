@@ -262,7 +262,11 @@ class SharedZenRuntime:
         _LOGGER.info("zencontrol event listener connected")
         self._listener_up = True
         for hub in list(self._hubs_by_entry.values()):
-            await hub.handle_listener_connect()
+            # One failing controller must not stop the others being probed.
+            try:
+                await hub.handle_listener_connect()
+            except Exception:
+                _LOGGER.exception("Listener-connect handling failed for entry %s", hub.entry.entry_id)
 
     async def _on_disconnect(self) -> None:
         _LOGGER.info("zencontrol event listener disconnected")
@@ -274,7 +278,10 @@ class SharedZenRuntime:
         """Event session restored after a gap - re-poll without flipping availability."""
         _LOGGER.info("zencontrol event listener resynced after session gap")
         for hub in list(self._hubs_by_entry.values()):
-            await hub.handle_listener_resync()
+            try:
+                await hub.handle_listener_resync()
+            except Exception:
+                _LOGGER.exception("Resync handling failed for entry %s", hub.entry.entry_id)
 
     async def _on_controller_status(self, ctrl: Any, status: str) -> None:
         # zencontrol-python 1.0.0 typed this Protocol against api.ZenController;

@@ -204,16 +204,20 @@ async def _async_discover_mac(hass: HomeAssistant, host: str) -> str | None:
     return normalize_mac(mac)
 
 
-async def _test_connection(host: str, port: int, mac: str, label: str) -> bool:
-    """Return True if the controller responds within 5 seconds."""
+async def _test_connection(host: str, port: int, mac: str, label: str, *, tcp: bool = False) -> bool:
+    """Return True if the controller responds within 5 seconds.
+
+    A controller that answers "startup not complete" is reachable - setup then
+    waits for it to finish booting (see _async_prime_discovery).
+    """
     test_name = f"cftest{int(time.monotonic_ns()) % 10**9}"
     zen = zencontrol.ZenControl()
     try:
-        ctrl = zen.add_controller(id=99, name=test_name, label=label, host=host, port=port, mac=mac)
+        ctrl = zen.add_controller(id=99, name=test_name, label=label, host=host, port=port, mac=mac, tcp=tcp)
         result = await asyncio.wait_for(
             zen.commands.query_controller_startup_complete(ctrl), timeout=5.0
         )
-        return result is True
+        return result is not None
     except Exception:
         _LOGGER.debug("Connection test failed for %s:%s", host, port, exc_info=True)
         return False
@@ -866,7 +870,7 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
             errors[CONF_LABEL] = "invalid_label"
             return None
 
-        reachable = await _test_connection(host, int(port), mac, label)
+        reachable = await _test_connection(host, int(port), mac, label, tcp=bool(user_input.get(CONF_TCP, False)))
         if not reachable:
             errors["base"] = "cannot_connect"
             return None

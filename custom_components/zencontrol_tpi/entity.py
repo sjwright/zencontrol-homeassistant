@@ -8,11 +8,22 @@ from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import Entity
 from zencontrol import ZenController
+from zencontrol.exceptions import ZenConnectionError, ZenTimeoutError
 
 from .const import DOMAIN, normalize_mac
 
 if TYPE_CHECKING:
     from .hub import ZenHub
+
+# Transport / readiness failures — surface as "not connected" like
+# ComfoConnectNotConnected → HomeAssistantError in home-assistant-comfoconnect.
+_CONNECTION_ERRORS: tuple[type[BaseException], ...] = (
+    ZenConnectionError,
+    ZenTimeoutError,
+    TimeoutError,
+    ConnectionError,
+    OSError,
+)
 
 
 def as_zen_controller(controller: object) -> ZenController:
@@ -25,8 +36,26 @@ def as_zen_controller(controller: object) -> ZenController:
     return cast(ZenController, controller)
 
 
+def _is_connection_error(err: BaseException) -> bool:
+    """Return True for expected offline / transport failures."""
+    if isinstance(err, _CONNECTION_ERRORS):
+        return True
+    # Wire clients raise RuntimeError("Client is closed") after teardown.
+    return isinstance(err, RuntimeError) and "closed" in str(err).lower()
+
+
 def raise_command_failed(action: str, err: BaseException) -> NoReturn:
-    """Raise a translation-aware HomeAssistantError for a failed entity command."""
+    """Raise a translation-aware HomeAssistantError for a failed entity command.
+
+    Connection/timeout failures become a dedicated not_connected error so HA
+    shows a user-facing notification instead of an unhandled traceback.
+    """
+    if _is_connection_error(err):
+        raise HomeAssistantError(
+            translation_domain=DOMAIN,
+            translation_key="not_connected",
+            translation_placeholders={"error": str(err)},
+        ) from err
     raise HomeAssistantError(
         translation_domain=DOMAIN,
         translation_key="command_failed",

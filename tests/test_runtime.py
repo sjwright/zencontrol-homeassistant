@@ -204,3 +204,29 @@ async def test_runtime_passes_per_controller_unicast_and_tcp() -> None:
     assert fake_zen.add_controller_calls[0]["tcp"] is False
     assert fake_zen.add_controller_calls[1]["unicast"] is False
     assert fake_zen.add_controller_calls[1]["tcp"] is True
+
+
+@pytest.mark.asyncio
+async def test_runtime_connect_continues_after_hub_failure() -> None:
+    """One hub raising in handle_listener_connect must not skip the others."""
+    hass = _hass()
+    fake_zen = FakeZenControl()
+
+    with patch(
+        "custom_components.zencontrol_tpi.runtime.zencontrol.ZenControl",
+        return_value=fake_zen,
+    ):
+        runtime = SharedZenRuntime.async_get_or_create(hass)
+        first = FakeHub(entry_id="entry-1")
+        second = FakeHub(entry_id="entry-2")
+        first.handle_listener_connect.side_effect = RuntimeError("boom")
+        await runtime.async_attach(cast(ZenHub, first), _ctrl_cfg())
+        await runtime.async_attach(
+            cast(ZenHub, second),
+            _ctrl_cfg(**{CONF_MAC: "AA:BB:CC:DD:EE:02", CONF_NAME: "10002"}),
+        )
+
+        await runtime._on_connect()
+
+        first.handle_listener_connect.assert_awaited_once()
+        second.handle_listener_connect.assert_awaited_once()

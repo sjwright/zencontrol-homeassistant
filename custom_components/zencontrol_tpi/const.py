@@ -175,7 +175,11 @@ def arc_to_brightness(arc: int) -> int:
 
 
 def brightness_to_arc(brightness: int) -> int:
-    """Convert HA brightness (0-255) to DALI arc level (0-254)."""
+    """Convert HA brightness (0-255) to DALI arc level (0-254).
+
+    Any non-zero brightness maps to at least arc 1, so a very dim request
+    never turns the light off (the log curve gives 0 for brightness 1-2).
+    """
     if brightness <= 0:
         return 0
-    return min(254, max(0, round(_LOG_A + _LOG_B * math.log(brightness))))
+    return min(254, max(1, round(_LOG_A + _LOG_B * math.log(brightness))))

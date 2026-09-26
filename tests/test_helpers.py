@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from homeassistant.components.light import (
@@ -51,6 +52,12 @@ def test_arc_brightness_roundtrip() -> None:
     assert arc > 0
     brightness = arc_to_brightness(arc)
     assert 100 <= brightness <= 160
+
+
+def test_dim_brightness_never_turns_off() -> None:
+    """HA brightness 1-2 must not map to arc 0 (which would switch the light off)."""
+    assert brightness_to_arc(0) == 0
+    assert all(brightness_to_arc(b) >= 1 for b in range(1, 256))
 
 
 def test_sysvar_label_classification() -> None:
@@ -312,3 +319,21 @@ async def test_turn_on_without_brightness_ignores_transition() -> None:
         target, brightness=None, colour=None, transition=9
     )
     assert target.calls == [("on", (), {"fade": True})]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("startup", "expected"),
+    [(True, True), (False, True), (None, False)],
+)
+async def test_connection_probe_accepts_booting_controller(startup: bool | None, expected: bool) -> None:
+    """A controller that answers "still starting" is reachable; TCP is passed through."""
+    from custom_components.zencontrol_tpi.config_flow import _test_connection
+
+    zen = MagicMock()
+    zen.commands.query_controller_startup_complete = AsyncMock(return_value=startup)
+    zen.aclose = AsyncMock()
+    with patch("custom_components.zencontrol_tpi.config_flow.zencontrol.ZenControl", return_value=zen):
+        assert await _test_connection("10.0.0.1", 5108, "AA:BB:CC:DD:EE:01", "House", tcp=True) is expected
+
+    assert zen.add_controller.call_args.kwargs["tcp"] is True

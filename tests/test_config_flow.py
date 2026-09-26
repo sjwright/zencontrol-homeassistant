@@ -485,6 +485,7 @@ def _entry_with_runtime(hass: HomeAssistant, data: dict) -> ConfigEntry:
 async def test_options_add_sub_device(hass: HomeAssistant) -> None:
     """Options flow can add a label-prefix sub-device."""
     entry = _entry_with_runtime(hass, entry_data())
+    original_ctrl = entry.data[CONF_CONTROLLERS][0]
 
     result = await hass.config_entries.options.async_init(entry.entry_id)
     assert result["type"] is FlowResultType.MENU
@@ -508,6 +509,9 @@ async def test_options_add_sub_device(hass: HomeAssistant) -> None:
     assert devices[0]["name"] == "Kitchen"
     assert devices[0]["prefixes"] == ["Kitchen", "Living"]
     entry.runtime_data.sync_device_assignments.assert_called()
+    # The old data must not have been edited in place: async_update_entry only
+    # saves when the new data differs from entry.data.
+    assert CONF_SUB_DEVICES not in original_ctrl
 
 
 async def test_options_add_duplicate_prefix(hass: HomeAssistant) -> None:
