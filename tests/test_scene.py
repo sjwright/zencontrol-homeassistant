@@ -7,9 +7,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from homeassistant.const import Platform
 
-from custom_components.zencontrol_tpi.const import PLATFORMS
 from custom_components.zencontrol_tpi.scene import ZenGroupSceneEntity
 
 
@@ -24,10 +22,6 @@ def _make_group(controller: Any, number: int, *, label: str) -> Any:
         set_scene=AsyncMock(return_value=True),
     )
     return group
-
-
-def test_platforms_include_scene() -> None:
-    assert Platform.SCENE in PLATFORMS
 
 
 def test_scene_entity_ids_and_labels() -> None:

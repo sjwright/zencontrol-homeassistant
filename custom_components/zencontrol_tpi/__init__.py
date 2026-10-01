@@ -22,7 +22,7 @@ from .const import (
     migrate_entry_data_to_v3,
     normalize_mac_id,
 )
-from .entry_helpers import mac_is_configured
+from .entry_helpers import async_relink_migrated_devices, config_entry_for_mac
 from .hub import (
     ZencontrolTpiConfigEntry,
     ZenHub,
@@ -120,25 +120,33 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             for ctrl_cfg in extras:
                 mac_id = normalize_mac_id(str(ctrl_cfg.get(CONF_MAC, "")))
                 if not mac_id:
-                    _LOGGER.warning("Skipping migration of controller without MAC: %s", ctrl_cfg)
-                    continue
-                if mac_is_configured(hass, mac_id, ignore_entry_id=entry.entry_id):
-                    _LOGGER.info("Controller %s already has an entry; skipping import", mac_id)
-                    continue
+                    _LOGGER.error("Cannot migrate controller without MAC: %s", ctrl_cfg)
+                    return False
+                imported_entry = config_entry_for_mac(hass, mac_id, ignore_entry_id=entry.entry_id)
+                if imported_entry is None:
+                    imported = migrate_entry_data_to_v3(
+                        {CONF_CONTROLLERS: [dict(ctrl_cfg)], CONF_UNICAST: unicast}
+                    )
+                    result = await hass.config_entries.flow.async_init(
+                        DOMAIN,
+                        context={"source": SOURCE_IMPORT},
+                        data={
+                            **imported,
+                            "title": str(ctrl_cfg.get(CONF_LABEL) or ctrl_cfg.get(CONF_NAME) or "zencontrol"),
+                        },
+                    )
+                    imported_entry = result.get("result")
+                    if not isinstance(imported_entry, ConfigEntry):
+                        # An abort is a normal flow result, not an exception.
+                        # Retain the legacy data so migration can safely retry.
+                        _LOGGER.error("Controller %s import did not create an entry: %s", mac_id, result.get("reason"))
+                        return False
 
-                imported = migrate_entry_data_to_v3(
-                    {CONF_CONTROLLERS: [dict(ctrl_cfg)], CONF_UNICAST: unicast}
-                )
-                await hass.config_entries.flow.async_init(
-                    DOMAIN,
-                    context={"source": SOURCE_IMPORT},
-                    data={
-                        **imported,
-                        "title": str(
-                            ctrl_cfg.get(CONF_LABEL) or ctrl_cfg.get(CONF_NAME) or "zencontrol"
-                        ),
-                        "migrate_from_entry_id": entry.entry_id,
-                    },
+                # Only the finished flow has a persisted entry ID. Also repair
+                # ownership when retrying after a partially completed migration.
+                async_relink_migrated_devices(
+                    hass, old_entry_id=entry.entry_id,
+                    new_entry_id=imported_entry.entry_id, mac=str(ctrl_cfg[CONF_MAC]),
                 )
 
             _LOGGER.debug(

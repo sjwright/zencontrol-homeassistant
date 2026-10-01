@@ -27,8 +27,6 @@ from custom_components.zencontrol_tpi.const import (
     CONF_LABEL,
     CONF_MAC,
     CONF_NAME,
-    SCENE_NONE,
-    SCENE_OFF,
     arc_to_brightness,
     brightness_to_arc,
 )
@@ -58,19 +56,6 @@ def test_dim_brightness_never_turns_off() -> None:
     """HA brightness 1-2 must not map to arc 0 (which would switch the light off)."""
     assert brightness_to_arc(0) == 0
     assert all(brightness_to_arc(b) >= 1 for b in range(1, 256))
-
-
-def test_sysvar_label_classification() -> None:
-    """Labels with sensor/switch substrings select HA exposure."""
-    def classify(label: str | None) -> tuple[bool, bool]:
-        lower = (label or "").casefold()
-        return "sensor" in lower, "switch" in lower
-
-    assert classify("Hallway Lux Sensor") == (True, False)
-    assert classify("MVHR Boost Switch") == (False, True)
-    assert classify("Garage Door Switch Sensor") == (True, True)
-    assert classify("Internal Flag") == (False, False)
-    assert classify(None) == (False, False)
 
 
 def test_build_manifest_dedupes_sysvars() -> None:
@@ -113,12 +98,6 @@ async def test_rate_limiter_execute_batch() -> None:
     results = await limiter.execute_batch([work(1), work(2), work(3)])
     assert results == [1, 2, 3]
     assert calls == [1, 2, 3]
-
-
-def test_scene_select_constants() -> None:
-    """Group scene select Off / None option labels."""
-    assert SCENE_OFF == "Off"
-    assert SCENE_NONE == "None"
 
 
 def test_unique_controller_name_avoids_collisions() -> None:

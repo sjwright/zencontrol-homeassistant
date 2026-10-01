@@ -279,6 +279,12 @@ async def load_entities_from_manifest(hub: ZenHub, manifest: DiscoveryManifest) 
     populate group membership on the group singletons. Controllers are already
     interviewed by the hub.
     """
+    # Missing sections in a current-schema cache indicate corruption, not an
+    # intentionally empty platform. Reject before partially rebuilding the hub.
+    for section in DiscoveryManifest.__required_keys__ - {"version"}:
+        if not isinstance(manifest.get(section), list):
+            raise ValueError(f"Manifest section {section!r} is missing or is not a list")
+
     ctrl_by_name = {hub.controller.name: hub.controller} if hub.controller is not None else {}
     ctx = hub.zen.ctx
     needs_save = False

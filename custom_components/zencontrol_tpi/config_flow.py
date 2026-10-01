@@ -29,7 +29,6 @@ from homeassistant.config_entries import (
 )
 from homeassistant.const import CONF_HOST, CONF_PORT
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.selector import (
     SelectOptionDict,
     SelectSelector,
@@ -341,31 +340,6 @@ async def _async_prime_discovery(
             _LOGGER.debug("Failed to close prime-discovery ZenControl", exc_info=True)
 
 
-def _async_relink_migrated_devices(
-    hass: HomeAssistant,
-    *,
-    old_entry_id: str,
-    new_entry_id: str,
-    mac: str,
-) -> None:
-    """Move devices for this MAC (and its sub-devices) from old entry to new."""
-    device_registry = dr.async_get(hass)
-    mac_norm = normalize_mac(mac)
-    mac_id = normalize_mac_id(mac)
-    sub_prefix = f"{mac_norm}:sub:"
-    for device_entry in list(dr.async_entries_for_config_entry(device_registry, old_entry_id)):
-        domain_identifiers = [ident for ident in device_entry.identifiers if ident[0] == DOMAIN]
-        if not domain_identifiers:
-            continue
-        if not any(ident == mac_norm or ident == mac_id or ident.startswith(sub_prefix) for _, ident in domain_identifiers):
-            continue
-        device_registry.async_update_device(
-            device_entry.id,
-            add_config_entry_id=new_entry_id,
-            remove_config_entry_id=old_entry_id,
-        )
-
-
 class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for zencontrol-tpi (one entry per controller)."""
 
@@ -631,15 +605,6 @@ class ZencontrolTpiConfigFlow(ConfigFlow, domain=DOMAIN):
             data=entry_data_for_controller(ctrl_cfg),
         )
 
-        old_entry_id = import_data.get("migrate_from_entry_id")
-        created_entry = flow_result.get("result")
-        if old_entry_id and isinstance(created_entry, ConfigEntry):
-            _async_relink_migrated_devices(
-                self.hass,
-                old_entry_id=str(old_entry_id),
-                new_entry_id=created_entry.entry_id,
-                mac=mac,
-            )
         return flow_result
 
     async def async_step_finish(
