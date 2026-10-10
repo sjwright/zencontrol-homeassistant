@@ -111,8 +111,8 @@ def sub_device_device_info(
     """Build DeviceInfo for a label-prefix child device under a controller.
 
     Parent linkage is not set here. Callers that create registry devices must
-    pass via_device_id after resolving the parent DeviceEntry (HA 2026.8+
-    deprecates DeviceInfo via_device because identifiers are per config entry).
+    pass via_device_id after resolving the parent DeviceEntry (DeviceInfo
+    via_device is deprecated because identifiers are per config entry).
     """
     parent = controller_identifier(zen_ctrl)
     controller_name = zen_ctrl.label or zen_ctrl.name

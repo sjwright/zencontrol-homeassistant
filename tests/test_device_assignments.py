@@ -9,7 +9,7 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 from custom_components.zencontrol_tpi.const import DOMAIN
-from custom_components.zencontrol_tpi.hub import _SUPPORTS_VIA_DEVICE_ID, ZenHub
+from custom_components.zencontrol_tpi.hub import ZenHub
 from custom_components.zencontrol_tpi.sub_devices import CONF_SUB_DEVICES
 
 
@@ -182,12 +182,8 @@ def test_sync_device_assignments_moves_entity_and_prunes_orphan() -> None:
     ]
     assert sub_create_calls
     for kwargs in sub_create_calls:
-        if _SUPPORTS_VIA_DEVICE_ID:
-            assert kwargs.get("via_device_id") == parent_id
-            assert "via_device" not in kwargs
-        else:
-            assert kwargs.get("via_device") == (DOMAIN, "AA:BB:CC:DD:EE:FF")
-            assert "via_device_id" not in kwargs
+        assert kwargs.get("via_device_id") == parent_id
+        assert "via_device" not in kwargs
 
     # Already on the correct device - second pass is a no-op for entity moves.
     entity_registry.async_get.return_value = SimpleNamespace(device_id=kitchen_id)

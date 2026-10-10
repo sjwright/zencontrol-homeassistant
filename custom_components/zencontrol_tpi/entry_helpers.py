@@ -58,8 +58,4 @@ def async_relink_migrated_devices(
         for entity in er.async_entries_for_device(entity_registry, device_entry.id, include_disabled_entities=True):
             if entity.config_entry_id == old_entry_id:
                 entity_registry.async_update_entity(entity.entity_id, config_entry_id=new_entry_id)
-        device_registry.async_update_device(
-            device_entry.id,
-            add_config_entry_id=new_entry_id,
-            remove_config_entry_id=old_entry_id,
-        )
+        device_registry.async_update_device(device_entry.id, new_config_entry_id=new_entry_id)

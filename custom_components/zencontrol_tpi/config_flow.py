@@ -13,10 +13,9 @@ import re
 import socket
 import time
 from functools import partial
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import getmac
-import voluptuous as vol
 import zencontrol
 from homeassistant.config_entries import (
     SOURCE_IMPORT,
@@ -70,6 +69,13 @@ from .options_flow import (
     CTX_SUGGEST_SUB_DEVICES,
     ZencontrolTpiOptionsFlow,
 )
+
+if TYPE_CHECKING:
+    # HA 2026.10+ validates with probatio and types flow schemas against it.
+    import probatio as vol
+else:
+    # HA 2026.10+ aliases voluptuous to probatio at runtime; older HA uses voluptuous.
+    import voluptuous as vol
 
 _LOGGER = logging.getLogger(__name__)
 

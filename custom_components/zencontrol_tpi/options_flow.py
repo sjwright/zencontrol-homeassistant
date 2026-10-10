@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
-import voluptuous as vol
 from homeassistant.config_entries import ConfigFlowResult, OptionsFlow
 from homeassistant.helpers.selector import AreaSelector
 from homeassistant.helpers.translation import async_get_translations
@@ -26,6 +25,13 @@ from .sub_devices import (
     sub_devices_to_config,
     validate_sub_device_prefixes,
 )
+
+if TYPE_CHECKING:
+    # HA 2026.10+ validates with probatio and types flow schemas against it.
+    import probatio as vol
+else:
+    # HA 2026.10+ aliases voluptuous to probatio at runtime; older HA uses voluptuous.
+    import voluptuous as vol
 
 CONF_AREA_ID = "area_id"
 CONF_PREFIXES = "prefixes"

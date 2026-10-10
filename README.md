@@ -35,7 +35,7 @@ This integration builds on [`zencontrol-python`](https://github.com/sjwright/zen
 
 ## Requirements
 
-- Home Assistant **2026.3** or later (Python **3.14+**)
+- Home Assistant **2026.8** or later (Python **3.14+**)
 - A zencontrol application controller with a **TPI Advanced** license
 - Network reachability to the controller
 

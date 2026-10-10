@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import asyncio
-import inspect
 import logging
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, cast
 
+from homeassistant.components.event import ButtonEventType
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import Event, HomeAssistant
@@ -73,13 +73,6 @@ from .sub_devices import (
     motion_assignment_key,
     sub_devices_from_controller,
     sysvar_assignment_key,
-)
-
-# HA 2026.8 replaced via_device (identifier tuple) with via_device_id because
-# identifiers are unique only within a config entry. Keep a fallback while
-# homeassistant>=2026.3 still includes 2026.7.
-_SUPPORTS_VIA_DEVICE_ID = (
-    "via_device_id" in inspect.signature(dr.DeviceRegistry.async_get_or_create).parameters
 )
 
 if TYPE_CHECKING:
@@ -364,13 +357,9 @@ class ZenHub:
         device_info: DeviceInfo,
         parent_device_entry: dr.DeviceEntry,
     ) -> DeviceInfo:
-        """Attach parent linkage using via_device_id when HA supports it."""
-        device_info_payload: dict[str, Any] = dict(device_info)
-        if _SUPPORTS_VIA_DEVICE_ID:
-            device_info_payload["via_device_id"] = parent_device_entry.id
-        elif parent_device_entry.identifiers:
-            device_info_payload["via_device"] = next(iter(parent_device_entry.identifiers))
-        return cast(DeviceInfo, device_info_payload)
+        """Attach parent linkage by device id."""
+        device_info["via_device_id"] = parent_device_entry.id
+        return device_info
 
     def _ensure_registry_device(
         self,
@@ -389,12 +378,7 @@ class ZenHub:
             "sw_version": device_info.get("sw_version"),
         }
         if via_device_id is not None:
-            if _SUPPORTS_VIA_DEVICE_ID:
-                kwargs["via_device_id"] = via_device_id
-            else:
-                parent_device_entry = device_registry.async_get(via_device_id)
-                if parent_device_entry is not None and parent_device_entry.identifiers:
-                    kwargs["via_device"] = next(iter(parent_device_entry.identifiers))
+            kwargs["via_device_id"] = via_device_id
         return device_registry.async_get_or_create(**kwargs)
 
     def _rebuild_sub_device_assignments(self) -> None:
@@ -893,13 +877,12 @@ class ZenHub:
     def handle_button_press(self, button: ZenButton) -> None:
         entity = self._entity(button_assignment_key(button))
         if entity is not None:
-            # Standard button event type (ButtonEventType.PRESS_END in HA 2026.8+).
-            cast(Any, entity).trigger_event("press_end")
+            cast(Any, entity).trigger_event(ButtonEventType.PRESS_END)
 
     def handle_button_long_press(self, button: ZenButton) -> None:
         entity = self._entity(button_assignment_key(button))
         if entity is not None:
-            cast(Any, entity).trigger_event("long_press_end")
+            cast(Any, entity).trigger_event(ButtonEventType.LONG_PRESS_END)
 
     def handle_motion_event(self, sensor: ZenMotionSensor) -> None:
         entity = self._entity(motion_assignment_key(sensor))

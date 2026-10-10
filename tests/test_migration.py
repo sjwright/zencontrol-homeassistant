@@ -72,10 +72,10 @@ async def test_split_migration_preserves_registries(hass: HomeAssistant) -> None
     assert imported.unique_id == normalize_mac_id(controllers[1]["mac"])
     for migrated, original in [(entry, controllers[0]), (imported, controllers[1])]:
         assert migrated.data == {"controllers": [{**original, "unicast": True}]}
-    assert devices.async_get(primary.id).config_entries == {entry.entry_id}
+    assert devices.async_get(primary.id).config_entry_id == entry.entry_id
     for device_id, entity_id, unique_id in moved:
         device = devices.async_get(device_id)
-        assert device.config_entries == {imported.entry_id}
+        assert device.config_entry_id == imported.entry_id
         assert device.name_by_user == "My kitchen"
         assert device.area_id == area.id
         entity = entities.async_get(entity_id)

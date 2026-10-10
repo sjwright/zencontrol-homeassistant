@@ -6,7 +6,7 @@
 # CI installs ../zencontrol-python editable after this file so pyright/tests
 # see unreleased library APIs. Locally: pip install -e ../zencontrol-python
 
-homeassistant>=2026.3
+homeassistant>=2026.8
 # PyPI may lag git; CI overrides with editable ../zencontrol-python after this.
 zencontrol-python>=3.0.0
 getmac>=0.9.4
