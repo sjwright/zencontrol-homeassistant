@@ -59,7 +59,7 @@ def test_dim_brightness_never_turns_off() -> None:
 
 
 def test_build_manifest_dedupes_sysvars() -> None:
-    """Manifest stores one sysvar record with both exposure flags."""
+    """An SV on both platform lists is stored once; exposure is derived on load, not stored."""
     ctrl = SimpleNamespace(name="zen1")
     sv = SimpleNamespace(
         ctrl=ctrl,
@@ -81,8 +81,7 @@ def test_build_manifest_dedupes_sysvars() -> None:
     )
     manifest = build_manifest(hub)
     assert len(manifest["sysvars"]) == 1
-    assert manifest["sysvars"][0]["as_sensor"] is True
-    assert manifest["sysvars"][0]["as_switch"] is True
+    assert set(manifest["sysvars"][0]) == {"controller", "id", "interview"}
 
 
 @pytest.mark.asyncio

@@ -49,9 +49,8 @@ class ZenMotionSensorEntity(ZenControllerEntity, BinarySensorEntity):
         self._suggested_object_id = zen_sensor.instance.entity_id_string()
         self._attr_name = instance_display_label(zen_sensor) or f"Motion {addr}"
 
-        # Occupied state; pushed by ZenHub via update_occupied(). Reading
-        # occupied directly is safe now that the library guards last_detect
-        # is None.
+        # Pushed by ZenHub via update_occupied(); ZenMotionSensor.occupied is a
+        # plain read (the library owns the hold timer that flips it back).
         self._attr_is_on = zen_sensor.occupied
 
         hub.register_motion_sensor_entity(zen_sensor, self)

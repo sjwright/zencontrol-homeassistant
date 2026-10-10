@@ -201,7 +201,7 @@ async def test_failed_second_entry_keeps_first_running_and_can_retry(hass, loade
     runtime = first.runtime_data.runtime
     second = _entry(hass, second_sim, "second")
     reached = asyncio.Event()
-    original_wait = ZenHub._wait_for_controller
+    original_wait = ZenHub._check_controller_ready
 
     async def fail_start(hub):
         if hub.entry is second:
@@ -213,7 +213,7 @@ async def test_failed_second_entry_keeps_first_running_and_can_retry(hass, loade
             raise RuntimeError("startup failed")
         await original_wait(hub)
 
-    with patch.object(ZenHub, "_wait_for_controller", fail_start):
+    with patch.object(ZenHub, "_check_controller_ready", fail_start):
         task = asyncio.create_task(hass.config_entries.async_setup(second.entry_id))
         await asyncio.wait_for(reached.wait(), 2)
         if failure == "cancel":

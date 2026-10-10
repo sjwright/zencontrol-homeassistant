@@ -26,6 +26,7 @@ from zencontrol import (
 )
 
 from .const import DOMAIN
+from .discovery import sysvar_platforms
 
 if TYPE_CHECKING:
     from .hub import ZenHub
@@ -62,12 +63,15 @@ class ManifestInstanceItem(TypedDict):
 
 
 class ManifestSysvarItem(TypedDict):
-    """System variable row with HA platform flags."""
+    """System variable row.
+
+    Sensor/switch exposure is not stored: it is re-derived from the label on
+    load (sysvar_platforms) so cached installs follow the current rule. Older
+    manifests still carry as_sensor/as_switch keys; they are ignored.
+    """
 
     controller: str
     id: int
-    as_sensor: bool
-    as_switch: bool
     interview: InterviewBlob
 
 
@@ -238,14 +242,10 @@ def build_manifest(source: ManifestEntitySource) -> DiscoveryManifest:
         if key in seen_sv:
             continue
         seen_sv.add(key)
-        lower = (sv.label or "").casefold()
-        as_sensor, as_switch = "sensor" in lower, "switch" in lower
         sysvars.append(
             {
                 "controller": sv.ctrl.name,
                 "id": sv.id,
-                "as_sensor": as_sensor,
-                "as_switch": as_switch,
                 "interview": _interview_blob(sv),
             }
         )
@@ -380,11 +380,7 @@ async def load_entities_from_manifest(hub: ZenHub, manifest: DiscoveryManifest) 
         sv = ctx.system_variable(ctrl, item["id"])
         if await _hydrate_or_interview(sv, item.get("interview")):
             needs_save = True
-        as_sensor = item.get("as_sensor")
-        as_switch = item.get("as_switch")
-        if as_sensor is None or as_switch is None:
-            lower = (sv.label or "").casefold()
-            as_sensor, as_switch = "sensor" in lower, "switch" in lower
+        as_sensor, as_switch = sysvar_platforms(sv.label)
         if as_switch:
             hub.sv_switches.append(sv)
         if as_sensor:

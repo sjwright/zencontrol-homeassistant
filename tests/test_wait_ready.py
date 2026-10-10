@@ -1,4 +1,4 @@
-"""Tests that setup waits for controller ready before discovery/events."""
+"""Tests that setup requires a ready controller before discovery/events."""
 
 from __future__ import annotations
 
@@ -64,14 +64,9 @@ def _hub_with_controller(ready_sequence: list[bool | None]) -> ZenHub:
 
 
 @pytest.mark.asyncio
-async def test_wait_polls_until_ready() -> None:
-    hub = _hub_with_controller([False, False, True])
-    with patch(
-        "custom_components.zencontrol_tpi.discovery.CONTROLLER_READY_POLL_INTERVAL",
-        0,
-    ):
-        await hub._wait_for_controller()
-    assert hub.zen.commands.query_controller_startup_complete.await_count == 3
+async def test_ready_controller_is_interviewed_but_not_yet_online() -> None:
+    hub = _hub_with_controller([True])
+    await hub._check_controller_ready()
     hub.controller.interview.assert_awaited_once()
     # Online is deferred until async_start finishes listener/event setup.
     assert hub.controller_status == CONTROLLER_STATUS_STARTING
@@ -79,10 +74,21 @@ async def test_wait_polls_until_ready() -> None:
 
 
 @pytest.mark.asyncio
+async def test_booting_controller_raises_not_ready_without_waiting() -> None:
+    """Setup must not poll a booting controller: that would block HA bootstrap."""
+    hub = _hub_with_controller([False, True])
+    with pytest.raises(ConfigEntryNotReady, match="still starting"):
+        await hub._check_controller_ready()
+    assert hub.zen.commands.query_controller_startup_complete.await_count == 1
+    assert hub.controller_status == CONTROLLER_STATUS_STARTING
+    hub.controller.interview.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_wait_marks_starting_then_unreachable() -> None:
     hub = _hub_with_controller([None])
     with pytest.raises(ConfigEntryNotReady, match="Cannot reach"):
-        await hub._wait_for_controller()
+        await hub._check_controller_ready()
     assert hub.controller_status == CONTROLLER_STATUS_UNREACHABLE
     assert hub.available is False
     hub.controller.interview.assert_not_awaited()
@@ -105,7 +111,7 @@ async def test_entities_unavailable_while_starting() -> None:
         hub.runtime.zen.commands.query_controller_startup_complete = AsyncMock(
             side_effect=ready_then_stop
         )
-        await hub._wait_for_controller()
+        await hub._check_controller_ready()
     assert hub.controller_status == CONTROLLER_STATUS_STARTING
     assert hub.available is False
 
@@ -114,11 +120,11 @@ async def test_entities_unavailable_while_starting() -> None:
 async def test_async_start_enables_events_only_after_ready_when_runtime_up() -> None:
     hub = _hub_with_controller([True])
     hub.runtime.started = True
-    hub._wait_for_controller = AsyncMock()
+    hub._check_controller_ready = AsyncMock()
 
     await hub.async_start()
 
-    hub._wait_for_controller.assert_awaited_once()
+    hub._check_controller_ready.assert_awaited_once()
     hub.runtime.async_ensure_started.assert_awaited_once()
     hub.runtime.async_configure_controller_events.assert_awaited_once_with(hub.controller)
     assert hub.controller_status == CONTROLLER_STATUS_ONLINE
@@ -128,7 +134,7 @@ async def test_async_start_enables_events_only_after_ready_when_runtime_up() -> 
 async def test_async_start_skips_late_configure_on_first_start() -> None:
     hub = _hub_with_controller([True])
     hub.runtime.started = False
-    hub._wait_for_controller = AsyncMock()
+    hub._check_controller_ready = AsyncMock()
 
     await hub.async_start()
 

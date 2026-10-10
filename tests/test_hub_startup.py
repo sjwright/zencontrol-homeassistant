@@ -38,7 +38,7 @@ def _hub_for_start() -> ZenHub:
     hub._setup_complete = False
     hub._discovery_callbacks = []
     hub.sync_device_assignments = MagicMock()
-    hub._wait_for_controller = AsyncMock()
+    hub._check_controller_ready = AsyncMock()
     hub._discover_entities = AsyncMock()
     hub._refresh_light_states = AsyncMock()
     hub.set_controller_status = MagicMock()
@@ -103,7 +103,7 @@ async def test_notify_is_idempotent() -> None:
 @pytest.mark.asyncio
 async def test_setup_failure_notify_does_not_mask_original_error() -> None:
     hub = _hub_for_start()
-    hub._wait_for_controller = AsyncMock(
+    hub._check_controller_ready = AsyncMock(
         side_effect=ConfigEntryNotReady("controller down")
     )
 
@@ -120,7 +120,7 @@ async def test_setup_failure_notify_does_not_mask_original_error() -> None:
 async def test_unexpected_start_error_surfaces() -> None:
     """Programming defects must not become ConfigEntryNotReady retries."""
     hub = _hub_for_start()
-    hub._wait_for_controller = AsyncMock(side_effect=RuntimeError("bug in wait"))
+    hub._check_controller_ready = AsyncMock(side_effect=RuntimeError("bug in wait"))
     hub._async_notify_discovery_best_effort = AsyncMock()
 
     with pytest.raises(RuntimeError, match="bug in wait"):
@@ -133,7 +133,7 @@ async def test_unexpected_start_error_surfaces() -> None:
 @pytest.mark.asyncio
 async def test_retryable_transport_error_becomes_not_ready() -> None:
     hub = _hub_for_start()
-    hub._wait_for_controller = AsyncMock(side_effect=TimeoutError("probe timed out"))
+    hub._check_controller_ready = AsyncMock(side_effect=TimeoutError("probe timed out"))
     hub._async_notify_discovery_best_effort = AsyncMock()
 
     with pytest.raises(ConfigEntryNotReady, match="probe timed out"):

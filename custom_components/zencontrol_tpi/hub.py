@@ -546,9 +546,9 @@ class ZenHub:
         await self.async_stop()
 
     async def async_start(self) -> None:
-        """Wait for this controller, discover entities, then ensure listener."""
+        """Require a ready controller, discover entities, then ensure listener."""
         try:
-            await self._wait_for_controller()
+            await self._check_controller_ready()
             await self._discover_entities()
             self.sync_device_assignments()
             await self._refresh_light_states()
@@ -566,7 +566,7 @@ class ZenHub:
             self.set_controller_status(CONTROLLER_STATUS_ONLINE)
             self.sync_device_assignments()
         except ConfigEntryNotReady:
-            # Keep starting/unreachable status set by _wait_for_controller.
+            # Keep starting/unreachable status set by _check_controller_ready.
             await self._async_notify_discovery_best_effort()
             raise
         except asyncio.CancelledError:
@@ -589,22 +589,22 @@ class ZenHub:
         if not self.stopping:
             self.sync_device_assignments()
 
-    async def _wait_for_controller(self) -> None:
-        """Poll until this controller is ready, then interview.
+    async def _check_controller_ready(self) -> None:
+        """Interview the controller if it is ready, else raise ConfigEntryNotReady.
 
-        Never proceeds to discovery/events while query_controller_startup_complete() is
-        false. Controllers commonly take 1-10 minutes after reboot. While
-        waiting, entities are unavailable and the status sensor shows
-        starting / unreachable.
+        Never waits for a booting controller (1-10 min after power-on): HA awaits
+        config-entry setup during bootstrap (stage 2, up to 300 s), so waiting
+        here would hold up HA startup after every power cut. HA's
+        ConfigEntryNotReady backoff does the polling instead.
         """
         ctrl = self.controller
         assert ctrl is not None
-        _LOGGER.info("Waiting for controller %s to be ready…", ctrl.label)
         self.set_controller_status(CONTROLLER_STATUS_STARTING)
         try:
             await wait_until_controller_ready(
                 self.zen,
                 ctrl,
+                max_wait=0,
                 on_unreachable=lambda: self.set_controller_status(CONTROLLER_STATUS_UNREACHABLE),
                 on_starting=lambda: self.set_controller_status(CONTROLLER_STATUS_STARTING),
             )

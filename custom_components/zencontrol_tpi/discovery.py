@@ -46,6 +46,17 @@ RETRYABLE_SETUP_ERRORS: tuple[type[BaseException], ...] = (
 )
 
 
+def sysvar_platforms(label: str | None) -> tuple[bool, bool]:
+    """Return (as_sensor, as_switch) for a system variable label.
+
+    The README contract is a label *suffix*: "… sensor" (incl. "… lux sensor")
+    or "… switch". A substring match would also pick up e.g. "Switchboard temp".
+    Unmatched SVs are not exposed.
+    """
+    folded = (label or "").strip().casefold()
+    return folded.endswith("sensor"), folded.endswith("switch")
+
+
 @dataclass(slots=True)
 class DiscoveredEntities:
     """Sorted, classified entities from a bus scan."""
@@ -66,11 +77,16 @@ async def wait_until_controller_ready(
     zen: ZenControl,
     ctrl: ZenController,
     *,
+    max_wait: float = CONTROLLER_READY_WAIT_MAX,
     on_unreachable: Callable[[], None] | None = None,
     on_starting: Callable[[], None] | None = None,
 ) -> None:
-    """Poll until ready, then interview. Raises ControllerNotReadyError."""
-    deadline = asyncio.get_running_loop().time() + CONTROLLER_READY_WAIT_MAX
+    """Poll until ready, then interview. Raises ControllerNotReadyError.
+
+    max_wait=0 checks once, so a booting controller fails at once instead of
+    being polled (entry setup relies on this; see ZenHub._check_controller_ready).
+    """
+    deadline = asyncio.get_running_loop().time() + max_wait
     while True:
         try:
             ready = await asyncio.wait_for(
@@ -93,10 +109,7 @@ async def wait_until_controller_ready(
         if on_starting is not None:
             on_starting()
         if asyncio.get_running_loop().time() >= deadline:
-            raise ControllerNotReadyError(
-                f"Controller {ctrl.label} ({ctrl.host}) still starting "
-                f"after {CONTROLLER_READY_WAIT_MAX:.0f}s"
-            )
+            raise ControllerNotReadyError(f"Controller {ctrl.label} ({ctrl.host}) is still starting up")
         _LOGGER.info(
             "Controller %s still starting up, retrying in %ds…",
             ctrl.label,
@@ -132,8 +145,7 @@ async def discover_controller_entities(
         profiles=sorted(await zen.get_profiles(ctrl=controller), key=lambda p: (p.ctrl.name, p.number)),
     )
     for sv in sorted(await zen.get_system_variables(ctrl=controller), key=lambda s: s.id):
-        lower = (sv.label or "").casefold()
-        as_sensor, as_switch = "sensor" in lower, "switch" in lower
+        as_sensor, as_switch = sysvar_platforms(sv.label)
         if as_switch:
             found.sv_switches.append(sv)
         if as_sensor:

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from zencontrol import ZenAbsoluteInput, ZenButton, ZenMotionSensor
@@ -12,6 +12,7 @@ from zencontrol.exceptions import ZenTimeoutError
 from custom_components.zencontrol_tpi.discovery import (
     ControllerNotReadyError,
     discover_controller_entities,
+    sysvar_platforms,
     wait_until_controller_ready,
 )
 
@@ -28,6 +29,21 @@ async def test_wait_until_controller_ready_interviews() -> None:
     await wait_until_controller_ready(zen, ctrl)
 
     zen.commands.query_controller_startup_complete.assert_awaited_once_with(ctrl)
+    ctrl.interview.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_wait_until_controller_ready_polls_while_starting() -> None:
+    """The config flow path (default max_wait) keeps polling a booting controller."""
+    zen = MagicMock()
+    zen.commands.query_controller_startup_complete = AsyncMock(side_effect=[False, False, True])
+    ctrl = MagicMock()
+    ctrl.interview = AsyncMock()
+
+    with patch("custom_components.zencontrol_tpi.discovery.CONTROLLER_READY_POLL_INTERVAL", 0):
+        await wait_until_controller_ready(zen, ctrl)
+
+    assert zen.commands.query_controller_startup_complete.await_count == 3
     ctrl.interview.assert_awaited_once()
 
 
@@ -97,7 +113,8 @@ async def test_discover_controller_entities_scopes_and_classifies() -> None:
     profile = SimpleNamespace(ctrl=ctrl, number=3)
     sv_lux = SimpleNamespace(id=1, label="Hall Lux Sensor", ctrl=ctrl)
     sv_switch = SimpleNamespace(id=2, label="Boost Switch", ctrl=ctrl)
-    sv_both = SimpleNamespace(id=3, label="Door Switch Sensor", ctrl=ctrl)
+    sv_door = SimpleNamespace(id=3, label="Door Switch Sensor", ctrl=ctrl)
+    sv_unexposed = SimpleNamespace(id=4, label="Switchboard Temp", ctrl=ctrl)
 
     zen = MagicMock()
     zen.get_control_gear = AsyncMock(return_value=[light_obj, fan_obj, blind_obj])
@@ -105,7 +122,7 @@ async def test_discover_controller_entities_scopes_and_classifies() -> None:
     zen.get_instances = AsyncMock(return_value=[button, motion, absolute])
     zen.get_profiles = AsyncMock(return_value=[profile])
     zen.get_system_variables = AsyncMock(
-        return_value=[sv_lux, sv_switch, sv_both]
+        return_value=[sv_lux, sv_switch, sv_door, sv_unexposed]
     )
 
     found = await discover_controller_entities(zen, ctrl)
@@ -119,5 +136,20 @@ async def test_discover_controller_entities_scopes_and_classifies() -> None:
     assert found.buttons == [button]
     assert found.motion_sensors == [motion]
     assert found.absolute_inputs == [absolute]
-    assert found.sv_sensors == [sv_lux, sv_both]
-    assert found.sv_switches == [sv_switch, sv_both]
+    assert found.sv_sensors == [sv_lux, sv_door]
+    assert found.sv_switches == [sv_switch]
+
+
+@pytest.mark.parametrize(
+    ("label", "expected"),
+    [
+        ("Hall Lux Sensor", (True, False)),
+        ("Garage door switch ", (False, True)),
+        ("Door Switch Sensor", (True, False)),  # suffix wins, never both
+        ("Switchboard Temp", (False, False)),  # keyword mid-label is not a suffix
+        ("Sensor offset", (False, False)),
+        (None, (False, False)),
+    ],
+)
+def test_sysvar_platforms_uses_label_suffix(label: str | None, expected: tuple[bool, bool]) -> None:
+    assert sysvar_platforms(label) == expected

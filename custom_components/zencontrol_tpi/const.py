@@ -17,8 +17,10 @@ DATA_PENDING_MANIFEST: Final = "pending_manifest"
 
 DEFAULT_PORT: Final = 5108
 
-# Controller boot can take 1-10 minutes after power-on / reboot. Setup and
-# config-flow priming poll query_controller_startup_complete until this deadline.
+# Controller boot can take 1-10 minutes after power-on / reboot. Only the config
+# flow polls query_controller_startup_complete until this deadline (behind a
+# progress UI). Entry setup checks once and raises ConfigEntryNotReady, so a
+# booting controller never blocks HA startup.
 CONTROLLER_READY_POLL_INTERVAL: Final = 10  # seconds between polls
 CONTROLLER_READY_QUERY_TIMEOUT: Final = 10.0
 CONTROLLER_READY_WAIT_MAX: Final = 600.0  # 10 minutes
