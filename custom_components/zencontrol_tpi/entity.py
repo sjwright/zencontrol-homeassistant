@@ -38,12 +38,7 @@ def as_zen_controller(controller: object) -> ZenController:
 
 def _is_connection_error(err: BaseException) -> bool:
     """Return True for expected offline / transport failures."""
-    if isinstance(err, _CONNECTION_ERRORS):
-        return True
-    # zencontrol-python <= 3.0.0 raised RuntimeError("...closed") when a client was
-    # closed under an in-flight request; later versions raise ZenTimeoutError.
-    # Drop this once manifest.json requires the fixed release.
-    return isinstance(err, RuntimeError) and "closed" in str(err).lower()
+    return isinstance(err, _CONNECTION_ERRORS)
 
 
 def raise_command_failed(action: str, err: BaseException) -> NoReturn:

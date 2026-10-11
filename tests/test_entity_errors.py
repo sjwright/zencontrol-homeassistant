@@ -23,12 +23,6 @@ def test_raise_command_failed_maps_timeout_errors() -> None:
     assert exc_info.value.translation_key == "not_connected"
 
 
-def test_raise_command_failed_maps_closed_client() -> None:
-    with pytest.raises(HomeAssistantError) as exc_info:
-        raise_command_failed("turn off light", RuntimeError("Client is closed"))
-    assert exc_info.value.translation_key == "not_connected"
-
-
 def test_raise_command_failed_keeps_generic_errors() -> None:
     with pytest.raises(HomeAssistantError) as exc_info:
         raise_command_failed("recall scene", ValueError("bad scene"))
